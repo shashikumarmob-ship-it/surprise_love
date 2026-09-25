@@ -20,6 +20,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Story Flow Steps: 'intro' -> 'balloons' -> 'burn-candles' -> 'cut-cake' -> 'open-gift' -> 'free-play'
   let currentStoryStep = 'intro';
+  let currentPortalUser = null; // tracks logged-in username key
+  let selectedCreatorMode = 'gf';
+  let currentPhotoDataUrl = null;
+  let userMemoriesPhotos = [];
 
   // DOM Elements
   const curtainContainer = document.getElementById('curtain-container');
@@ -357,33 +361,42 @@ document.addEventListener('DOMContentLoaded', () => {
   /* =========================================================
      STEP 1: INTRO CURTAIN OPEN -> STEP 2: ROMANTIC LIVE CHAT
      ========================================================= */
-  btnStartCelebration.addEventListener('click', () => {
-    // Open royal curtains
-    curtainContainer.classList.add('opened');
-    
-    // Track activity
-    trackRecipientActivity('curtains_opened', `Opened Royal Velvet Curtains & Started Celebration 💖`, '👑');
+  if (btnStartCelebration) {
+    btnStartCelebration.addEventListener('click', (e) => {
+      e.preventDefault();
+      // Open royal curtains
+      if (curtainContainer) {
+        curtainContainer.classList.add('opened');
+      }
+      
+      // Track activity
+      trackRecipientActivity('curtains_opened', `Opened Royal Velvet Curtains & Started Celebration 💖`, '👑');
 
-    // Play sound & initial confetti
-    if (window.birthdayAudio) {
-      window.birthdayAudio.init();
-      window.birthdayAudio.playGiftOpen();
-    }
-    if (window.confetti) {
-      window.confetti({ particleCount: 50, spread: 80, origin: { y: 0.5 } });
-    }
+      // Play sound & initial confetti
+      if (window.birthdayAudio) {
+        try {
+          window.birthdayAudio.init();
+          window.birthdayAudio.playGiftOpen();
+        } catch(err) {}
+      }
+      if (window.confetti) {
+        try {
+          window.confetti({ particleCount: 50, spread: 80, origin: { y: 0.5 } });
+        } catch(err) {}
+      }
 
-    // Reveal Romantic Intermediate Chat Screen
-    if (romanticChatScreen) {
-      setTimeout(() => {
-        romanticChatScreen.classList.remove('hidden');
-        initFloatingChatHearts();
-        startRomanticChatJourney();
-      }, 400);
-    } else {
-      transitionFromChatTo3D();
-    }
-  });
+      // Reveal Romantic Intermediate Chat Screen
+      if (romanticChatScreen) {
+        setTimeout(() => {
+          romanticChatScreen.classList.remove('hidden');
+          initFloatingChatHearts();
+          startRomanticChatJourney();
+        }, 400);
+      } else {
+        transitionFromChatTo3D();
+      }
+    });
+  }
 
   /* =========================================================
      STEP 2 CONTROLLER: LIVE CHAT TYPEWRITER JOURNEY
@@ -1214,8 +1227,6 @@ document.addEventListener('DOMContentLoaded', () => {
   /* =========================================================
      URL PARAMETERS & SHARING (PHOTO + NAME + AGE + THEME)
      ========================================================= */
-  let currentPhotoDataUrl = null;
-  let userMemoriesPhotos = [];
   // Clear any stale local cache from previous sessions
   try {
     localStorage.removeItem('birthday_custom_photo');
@@ -2436,9 +2447,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnLaunchPreview = document.getElementById('btn-launch-preview');
   const btnLogoutPortal = document.getElementById('btn-logout-portal');
 
-  let selectedCreatorMode = 'gf';
-  let currentPortalUser = null; // tracks logged-in username key
-
   // 1. Landing Screen CTAs
   if (btnPortalOpenLogin) {
     btnPortalOpenLogin.addEventListener('click', () => {
@@ -3383,7 +3391,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Check URL parameters and session state on load
   function checkInitialPortalState() {
     const params = new URLSearchParams(window.location.search || window.location.hash.replace(/^#/, '?'));
-    const isDirectSurpriseLink = params.has('surprise') || params.has('name') || params.has('preview') || params.has('demo');
+    const isDirectSurpriseLink = params.has('s') || params.has('surprise') || params.has('name') || params.has('preview') || params.has('demo');
 
     // 1. Check if recipient opened an expired 48h surprise link
     if (params.has('exp')) {
@@ -3412,6 +3420,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (isDirectSurpriseLink) {
       if (portalLandingScreen) portalLandingScreen.classList.add('hidden');
       if (portalCreatorDashboard) portalCreatorDashboard.classList.add('hidden');
+      if (curtainContainer) {
+        curtainContainer.style.display = 'flex';
+        curtainContainer.classList.remove('opened');
+      }
       trackRecipientActivity('link_opened', 'Opened magical birthday surprise link 🚀', '🚀');
     } else {
       renderSafarnamaBuilder();
