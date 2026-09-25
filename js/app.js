@@ -675,23 +675,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }).catch(() => {});
     } catch(e) {}
 
-    // 2. Also check if custom telegram token/chat id is configured in browser
-    try {
-      const tgToken = localStorage.getItem('birthday_tg_bot_token');
-      const tgChatId = localStorage.getItem('birthday_tg_chat_id');
-      if (tgToken && tgChatId) {
-        const text = `💌 *NEW GIRLFRIEND CHAT REPLY!* 👸💖\n\n*From:* ${data.celebrant}\n*Q${data.questionNumber}:* ${data.question}\n*Her Answer:* "${data.reply}"\n*Time:* ${data.time}`;
-        fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: tgChatId,
-            text: text,
-            parse_mode: 'Markdown'
-          })
-        }).catch(() => {});
-      }
-    } catch(e) {}
+    // Telegram notification is handled server-side via /api/notify_answer
   }
 
   function sendGirlfriendReply(replyText) {
@@ -2544,7 +2528,6 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch(e) {}
     // Also try server
     try {
-      const tgToken = localStorage.getItem('birthday_tg_bot_token') || '';
       fetch(`${API_BASE}/api/save_user_data`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3687,29 +3670,13 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       if (i === 4) {
-        // Send Telegram notification
+        // Notify server — server handles Telegram alert securely
         try {
-          const tgToken = localStorage.getItem('birthday_tg_bot_token') || '';
-          const tgChatId = localStorage.getItem('birthday_tg_chat_id') || '';
-          if (tgToken && tgChatId) {
-            await fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                chat_id: tgChatId,
-                text: `🗑️ <b>ACCOUNT DELETION INITIATED</b>\n\n• <b>Username:</b> ${username}\n• <b>Status:</b> Data wiped from browser\n• <b>Time:</b> ${new Date().toLocaleString()}\n\n⚠️ Your username <code>${username}</code> and password are available for <b>24 hours</b>.\nAfter 24 hours, your account is permanently deleted and you cannot login again.\n\nData removed: credentials, form data, chat history, session. 💔`,
-                parse_mode: 'HTML'
-              })
-            }).catch(() => {});
-          }
-          // Also notify server
           await fetch(`${API_BASE}/api/delete_user`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               username, password,
-              tg_token: tgToken,
-              tg_chat_id: tgChatId,
               celebrant_name: celebrantName
             })
           }).catch(() => {});
