@@ -88,6 +88,12 @@ if __name__ == "__main__":
     # Small delay to ensure the HTTP server is fully up
     time.sleep(1)
 
+    # 1.5 Restore database from Telegram Cloud (survives Render disk wipes)
+    try:
+        telegram_bot.restore_database_from_telegram_cloud()
+    except Exception as _re:
+        print(f"[TelegramCloud] Initial restore skipped: {_re}")
+
     # 2. Start Public User Bot ONLY if a separate dedicated token is configured
     b_tok = os.environ.get("BOT_TOKEN", "").strip() or telegram_bot.config.get("bot_token", "").strip()
     p_tok = os.environ.get("PUBLIC_BOT_TOKEN", "").strip() or telegram_bot.config.get("public_bot_token", "").strip()

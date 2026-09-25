@@ -1048,7 +1048,7 @@ def process_user_text(chat_id, user_first_name, text):
         show_welcome(chat_id, user_first_name)
         return
 
-    elif cmd in ["/register", "🆕 new user login", "new user login", "new user", "register"]:
+    elif cmd in ["/register", "🆕 new user register", "🆕 new user login", "new user register", "new user login", "new user", "register"]:
         start_register_flow(chat_id)
         return
 
