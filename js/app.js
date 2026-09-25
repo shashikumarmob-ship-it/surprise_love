@@ -2480,15 +2480,42 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  const btnBackToHome = document.getElementById('btn-back-to-home');
+
+  // Helper: show / hide the floating back button (only in guest/preview mode)
+  function showPreviewBackBtn() {
+    if (btnBackToHome) btnBackToHome.classList.remove('hidden');
+  }
+  function hidePreviewBackBtn() {
+    if (btnBackToHome) btnBackToHome.classList.add('hidden');
+  }
+
+  // Back button click → return to landing screen
+  if (btnBackToHome) {
+    btnBackToHome.addEventListener('click', () => {
+      // Show landing screen again
+      if (portalLandingScreen) portalLandingScreen.classList.remove('hidden');
+      // Hide creator dashboard if open
+      if (portalCreatorDashboard) portalCreatorDashboard.classList.add('hidden');
+      // Scroll to top smoothly
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      // Hide the back button itself
+      hidePreviewBackBtn();
+    });
+  }
+
   if (btnPortalViewDemo) {
     btnPortalViewDemo.addEventListener('click', () => {
       if (portalLandingScreen) portalLandingScreen.classList.add('hidden');
       if (portalCreatorDashboard) portalCreatorDashboard.classList.add('hidden');
+      // Show back button so user can return from preview
+      showPreviewBackBtn();
       if (window.birthdayAudio) {
         try { window.birthdayAudio.playFanfare(); } catch(e) {}
       }
     });
   }
+
 
   // 2. Toggle Login Password Visibility
   if (btnToggleLoginPwd && loginPassword) {
