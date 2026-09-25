@@ -286,6 +286,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let activeFollowUpQuote = null; // { chapterNum, heading, snippet }
   let isAutomatedChatPaused = false; // Set to true when she follows up on a chapter
   let liveChatBus = null;
+  let surpriseCreatorUsername = null; // Username of creator when viewing short link ?s=
+  let activeSurpriseToken = null; // Active surprise token when viewing short link ?s=
   try {
     liveChatBus = new BroadcastChannel('birthday_live_bus');
   } catch(e) {}
@@ -295,6 +297,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const params = new URLSearchParams(window.location.search || window.location.hash.replace(/^#/, '?'));
     if (params.has('u') && params.get('u').trim()) {
       return params.get('u').trim().toLowerCase();
+    }
+    if (surpriseCreatorUsername) {
+      return surpriseCreatorUsername.trim().toLowerCase();
     }
     if (currentPortalUser) {
       return currentPortalUser.trim().toLowerCase();
@@ -864,6 +869,7 @@ document.addEventListener('DOMContentLoaded', () => {
       reply: text,
       celebrant: celebrantName || 'Girlfriend',
       username: getRecipientUserKey(),
+      token: activeSurpriseToken || '',
       time: timeStr,
       date: now.toLocaleDateString()
     };
@@ -1327,6 +1333,10 @@ document.addEventListener('DOMContentLoaded', () => {
           const json = await res.json();
           if (json.status === 'success' && json.data) {
             const d = json.data;
+            activeSurpriseToken = token;
+            if (d.username) {
+              surpriseCreatorUsername = d.username.trim().toLowerCase();
+            }
             if (d.name) { celebrantName = d.name; if (inputName) inputName.value = d.name; }
             if (d.age) { celebrantAge = d.age; if (inputAge) inputAge.value = d.age; }
             if (d.wish) { customWish = d.wish; if (inputWish) inputWish.value = d.wish; }

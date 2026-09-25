@@ -331,8 +331,12 @@ def handle_login_password(chat_id, text):
         send_tg_message(chat_id, "❌ <b>Wrong Password!</b> Please check and try again.", reply_markup=inline_kb)
         return
 
-    # Update last login in UserStore
+    # Update last login and ensure Telegram chat_id is linked in UserStore
     user_store.update_last_login(u)
+    user_rec = user_store.load_user(u)
+    if user_rec:
+        user_rec["tg_chat_id"] = chat_id
+        user_store.save_user(user_rec)
     now_str = time.strftime("%d %b %Y, %I:%M %p")
 
     session["logged_user"] = u
@@ -380,6 +384,23 @@ def show_chat_answers(chat_id):
     # User is logged in! Fetch answers from UserStore (per-user)
     all_answers = user_store.get_answers(logged_user)
 
+    # Fallback 1: Check celebrant name key if user has an active surprise
+    user_rec = user_store.load_user(logged_user)
+    c_name = user_rec.get("surprise", {}).get("name", "") if user_rec else ""
+    if not all_answers and c_name:
+        all_answers = user_store.get_answers(c_name.lower().replace(" ", "_"))
+
+    # Fallback 2: Check central config saved_answers
+    if not all_answers:
+        cfg_answers = []
+        for ans in config.get("saved_answers", []):
+            if ans.get("creator", "").lower() == logged_user.lower():
+                cfg_answers.append(ans)
+            elif c_name and ans.get("celebrant", "").strip().lower() == c_name.strip().lower():
+                cfg_answers.append(ans)
+        if cfg_answers:
+            all_answers = cfg_answers
+
     if not all_answers:
         msg = (
             f"💌 <b>NO CHAT ANSWERS RECORDED YET!</b> 👸💕\n\n"
@@ -394,8 +415,9 @@ def show_chat_answers(chat_id):
         send_tg_message(chat_id, msg, reply_markup=inline_kb)
         return
 
+    celebrant_title = f" FROM {c_name.upper()}" if c_name else ""
     msg = (
-        f"💌 <b>GIRLFRIEND CHAT ANSWERS & REPLIES</b> 👸💖\n"
+        f"💌 <b>GIRLFRIEND CHAT ANSWERS{celebrant_title}</b> 👸💖\n"
         f"<i>Logged in as: <b>{logged_user}</b> | Total Answers: {len(all_answers)}</i>\n"
         f"{'━' * 30}\n\n"
     )

@@ -364,6 +364,114 @@ def send_tg_photo(chat_id, photo_url, caption=""):
         return None
 
 # =========================================================
+# TELEGRAM CLOUD DATABASE SYNC (Zero Data Loss on Restart)
+# =========================================================
+_last_backup_time = 0
+_backup_lock = threading.Lock()
+
+def backup_database_to_telegram_cloud(force=False):
+    """
+    Exports full database snapshot and uploads as a backup file to Owner TG Chat,
+    pinning the message so it acts as an indestructible cloud database.
+    """
+    global _last_backup_time
+    now = time.time()
+    # Debounce backups: max once every 10 seconds unless forced
+    if not force and (now - _last_backup_time < 10):
+        return
+
+    owner_id = str(config.get("owner_chat_id", "")).strip()
+    if not owner_id or not BOT_TOKEN or "YOUR_TELEGRAM" in BOT_TOKEN:
+        return
+
+    def _run_backup():
+        global _last_backup_time
+        with _backup_lock:
+            try:
+                snapshot = user_store.export_cloud_snapshot()
+                snap_bytes = json.dumps(snapshot, indent=2, ensure_ascii=False).encode("utf-8")
+                url = f"{BASE_TG_URL}/sendDocument"
+                files = {
+                    "document": ("birthday_cloud_database.json", snap_bytes, "application/json")
+                }
+                data = {
+                    "chat_id": owner_id,
+                    "caption": (
+                        f"☁️ <b>#CENTRAL_DATABASE_SNAPSHOT</b>\n\n"
+                        f"• 👤 <b>Users:</b> {len(snapshot.get('users', {}))}\n"
+                        f"• 🎁 <b>Surprises:</b> {len(snapshot.get('short_surprise_links', {}))}\n"
+                        f"• 💌 <b>Answers:</b> {len(snapshot.get('saved_answers', []))}\n"
+                        f"• ⏱ {snapshot.get('exported_at')}\n\n"
+                        f"<i>Auto-synced to Telegram Cloud! Survives all Render restarts.</i>"
+                    ),
+                    "parse_mode": "HTML",
+                    "disable_notification": "true"
+                }
+                res = requests.post(url, data=data, files=files, timeout=12)
+                res_json = res.json()
+                if res_json.get("ok"):
+                    msg_id = res_json.get("result", {}).get("message_id")
+                    _last_backup_time = time.time()
+                    try:
+                        requests.post(f"{BASE_TG_URL}/pinChatMessage", json={
+                            "chat_id": owner_id,
+                            "message_id": msg_id,
+                            "disable_notification": True
+                        }, timeout=5)
+                    except Exception:
+                        pass
+                    print("[TelegramCloud] ☁️ Database snapshot successfully backed up to Telegram Cloud!")
+            except Exception as e:
+                print(f"[TelegramCloud] Backup error: {e}")
+
+    threading.Thread(target=_run_backup, daemon=True).start()
+
+
+def restore_database_from_telegram_cloud():
+    """
+    Restores the database state from the pinned cloud backup message in the Owner Chat.
+    Guarantees zero data loss even if Render completely wipes the filesystem.
+    """
+    owner_id = str(config.get("owner_chat_id", "")).strip()
+    if not owner_id or not BOT_TOKEN or "YOUR_TELEGRAM" in BOT_TOKEN:
+        return 0
+
+    try:
+        url = f"{BASE_TG_URL}/getChat?chat_id={owner_id}"
+        res = requests.get(url, timeout=8)
+        chat_data = res.json().get("result", {})
+        pinned = chat_data.get("pinned_message")
+        if not pinned:
+            return 0
+
+        doc = pinned.get("document")
+        if not doc or not doc.get("file_id"):
+            return 0
+
+        caption = pinned.get("caption", "")
+        file_name = doc.get("file_name", "")
+        if "DATABASE_SNAPSHOT" not in caption and not file_name.endswith(".json"):
+            return 0
+
+        file_id = doc["file_id"]
+        f_url = f"{BASE_TG_URL}/getFile?file_id={file_id}"
+        f_res = requests.get(f_url, timeout=8)
+        f_path = f_res.json().get("result", {}).get("file_path")
+        if not f_path:
+            return 0
+
+        dl_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{f_path}"
+        dl_res = requests.get(dl_url, timeout=15)
+        snapshot = dl_res.json()
+        restored = user_store.import_cloud_snapshot(snapshot)
+        if restored:
+            print(f"[TelegramCloud] 🚀 Restored {restored} users & surprises from Telegram Cloud Database!")
+        return restored
+    except Exception as e:
+        print(f"[TelegramCloud] Cloud restore check: {e}")
+        return 0
+
+# =========================================================
 # TELEGRAM BOT POLLING & COMMAND HANDLERS
 # =========================================================
 def handle_updates():
@@ -1007,46 +1115,82 @@ class WebhookHandler(BaseHTTPRequestHandler):
             q_num  = data.get("questionNumber", 1)
             q_text = data.get("question", "")
             r_text = data.get("reply", "")
-            c_name = data.get("celebrant", "Girlfriend")
+            c_name = data.get("celebrant", "Girlfriend").strip()
             t_str  = data.get("time", time.strftime("%I:%M %p"))
             raw_uname = data.get("username", "").strip().lower()
-            username_key = raw_uname if (raw_uname and raw_uname != "user") else c_name.lower().replace(" ", "_")
+
+            # Robust Creator Resolution (even if client sent "user" or empty)
+            creator_uname = raw_uname if (raw_uname and raw_uname != "user") else ""
+            if not creator_uname:
+                # 1. Look up by token if provided
+                if data.get("token") and data["token"] in config.get("short_surprise_links", {}):
+                    creator_uname = config["short_surprise_links"][data["token"]].get("username", "").strip().lower()
+                # 2. Look up by celebrant name across all surprises
+                if not creator_uname:
+                    for token_k, sdata in config.get("short_surprise_links", {}).items():
+                        if isinstance(sdata, dict) and sdata.get("name", "").strip().lower() == c_name.lower():
+                            if sdata.get("username"):
+                                creator_uname = sdata.get("username").strip().lower()
+                                break
+                # 3. Look up in UserStore
+                if not creator_uname:
+                    for u in user_store.get_all_users():
+                        s = u.get("surprise", {})
+                        if s.get("name", "").strip().lower() == c_name.lower():
+                            creator_uname = u.get("username")
+                            break
+
+            username_key = creator_uname if creator_uname else c_name.lower().replace(" ", "_")
+            c_key = c_name.lower().replace(" ", "_")
 
             answer_item = {
-                "question": q_text,
-                "reply":    r_text,
+                "question":  q_text,
+                "reply":     r_text,
                 "celebrant": c_name,
-                "time":     t_str,
-                "q_num":    q_num,
+                "creator":   creator_uname,
+                "time":      t_str,
+                "q_num":     q_num,
             }
-            # Save per-user in UserStore
-            user_store.add_answer(username_key, answer_item)
-            if username_key != c_name.lower().replace(" ", "_"):
-                user_store.add_answer(c_name.lower().replace(" ", "_"), answer_item)
 
-            # 1. Send Telegram Alert to Owner
+            # Save in UserStore for creator and celebrant
+            user_store.add_answer(username_key, answer_item)
+            if c_key and c_key != username_key:
+                user_store.add_answer(c_key, answer_item)
+
+            # Central backup in config["saved_answers"]
+            if "saved_answers" not in config:
+                config["saved_answers"] = []
+            config["saved_answers"].append(answer_item)
+            save_config(config)
+
+            # 1. Send Telegram Alert to Owner Bot
             owner_id = str(config.get("owner_chat_id", "")).strip()
             if owner_id and BOT_TOKEN and "YOUR_TELEGRAM" not in BOT_TOKEN:
+                creator_tag = f"<code>{creator_uname}</code>" if creator_uname else "<code>Web App Guest</code>"
                 notif_text = (
                     f"💌 <b>NEW GIRLFRIEND CHAT REPLY RECEIVED!</b> 👸💖\n\n"
-                    f"<b>From:</b> {c_name} (User: <code>{username_key}</code>)\n"
-                    f"<b>Q{q_num}:</b> {q_text}\n"
-                    f"💬 <b>Her Answer:</b> <code>\"{r_text}\"</code>\n\n"
+                    f"• 👸 <b>From:</b> {c_name} (for Creator: {creator_tag})\n"
+                    f"• ❓ <b>Q{q_num}:</b> {q_text}\n"
+                    f"• 💬 <b>Her Answer:</b> <code>\"{r_text}\"</code>\n\n"
                     f"⏱ <i>Received at {t_str}</i>"
                 )
                 send_tg_message(owner_id, notif_text)
 
-            # 2. If user registered via Public Bot (has their own tg_chat_id), notify them too!
-            user_rec = user_store.get_user(username_key)
+            # 2. If creator registered via Public Bot (has their own tg_chat_id), notify them directly in Telegram!
+            user_rec = user_store.load_user(username_key)
             user_tg_id = user_rec.get("tg_chat_id") if user_rec else None
             if user_tg_id and str(user_tg_id) != owner_id:
                 user_notif = (
                     f"💌 <b>NEW CHAT REPLY FROM {c_name.upper()}!</b> 👸💖\n\n"
-                    f"<b>Q{q_num}:</b> {q_text}\n"
-                    f"💬 <b>Answer:</b> <code>\"{r_text}\"</code>\n\n"
-                    f"⏱ <i>Received at {t_str}</i>"
+                    f"• ❓ <b>Q{q_num}:</b> {q_text}\n"
+                    f"• 💬 <b>Answer:</b> <code>\"{r_text}\"</code>\n\n"
+                    f"⏱ <i>Received at {t_str}</i>\n\n"
+                    f"👉 Tap /answers in bot anytime to see the complete Q&A collection!"
                 )
                 send_tg_message(user_tg_id, user_notif)
+
+            # 3. Trigger debounced Cloud Backup to Telegram
+            backup_database_to_telegram_cloud()
 
             self.send_response(200)
             self._set_cors()
@@ -1313,13 +1457,23 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 self._send_json(400, {"status": "error", "message": "Username required"})
                 return
 
-            if not user_store.user_exists(username_key):
+            if action == "register":
+                if user_store.user_exists(username_key):
+                    self._send_json(400, {
+                        "status": "error",
+                        "message": f"Username '{username_key}' is already registered! Please choose a different username or switch to Returning User tab to log in."
+                    })
+                    return
                 user_store.create_user(username_key, password)
             else:
-                if password:
-                    user_store.set_password(username_key, password)
-                user_store.update_last_login(username_key)
+                if not user_store.user_exists(username_key):
+                    user_store.create_user(username_key, password)
+                else:
+                    if password:
+                        user_store.set_password(username_key, password)
+                    user_store.update_last_login(username_key)
 
+            backup_database_to_telegram_cloud()
             self._send_json(200, {"status": "success", "message": "User credentials securely synced with UserStore!"})
             return
 
@@ -1618,6 +1772,9 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     send_tg_message(owner_id, tg_msg)
                 except Exception:
                     pass
+
+            # Backup database snapshot to Telegram Cloud
+            backup_database_to_telegram_cloud()
 
             self._send_json(200, {
                 "status": "success",
@@ -2016,6 +2173,12 @@ if __name__ == "__main__":
     # Start scheduled deletion cleanup thread (runs every 60s)
     cleanup_thread = threading.Thread(target=cleanup_scheduled_deletions, daemon=True)
     cleanup_thread.start()
+
+    # Restore database state from Telegram Cloud if available
+    try:
+        restore_database_from_telegram_cloud()
+    except Exception as _re:
+        print(f"[TelegramCloud] Initial restore skipped: {_re}")
 
     # Configure Telegram 3-line burger menu commands
     setup_telegram_menu()

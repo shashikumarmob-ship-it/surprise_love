@@ -117,47 +117,132 @@ def _default_user(username: str, password: str) -> dict:
     }
 
 
+CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bot_config.json")
+
+
+def _read_central_config() -> dict:
+    """Reads bot_config.json safely."""
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+                if isinstance(cfg, dict):
+                    return cfg
+        except Exception:
+            pass
+    return {}
+
+
+def _write_central_config(cfg: dict) -> bool:
+    """Writes bot_config.json safely."""
+    try:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"[UserStore] Error writing central config: {e}")
+        return False
+
+
 class UserStore:
-    """Thread-safe per-user JSON file store."""
+    """Thread-safe per-user JSON file store with Central State & Telegram Cloud survivability."""
 
     # ------------------------------------------------------------------
     # CRUD
     # ------------------------------------------------------------------
 
     def user_exists(self, username: str) -> bool:
-        return os.path.exists(_user_path(username))
+        if not username:
+            return False
+        safe_u = username.lower().strip().replace("/", "_").replace("..", "_")
+        if os.path.exists(_user_path(safe_u)):
+            return True
+        # Check Central State in bot_config.json
+        cfg = _read_central_config()
+        if safe_u in cfg.get("all_user_records", {}):
+            return True
+        if safe_u in cfg.get("birthday_portal_users", {}):
+            return True
+        return False
 
     def load_user(self, username: str) -> dict | None:
-        path = _user_path(username)
-        if not os.path.exists(path):
+        if not username:
             return None
+        safe_u = username.lower().strip().replace("/", "_").replace("..", "_")
+        path = _user_path(safe_u)
         with _lock:
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                # Ensure all keys exist (forward-compat)
-                default = _default_user(username, "")
-                for k, v in default.items():
-                    if k not in data:
-                        data[k] = v
-                return data
-            except Exception as e:
-                print(f"[UserStore] Error loading {username}: {e}")
+            data = None
+            if os.path.exists(path):
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                except Exception as e:
+                    print(f"[UserStore] Error loading {safe_u} from disk: {e}")
+
+            # If not on disk (e.g. Render restart/redeploy wiped users/ folder), restore from Central State!
+            if not data:
+                cfg = _read_central_config()
+                all_records = cfg.get("all_user_records", {})
+                if safe_u in all_records and isinstance(all_records[safe_u], dict):
+                    data = all_records[safe_u]
+                    # Immediately recreate the local file on disk
+                    try:
+                        with open(path, "w", encoding="utf-8") as f_out:
+                            json.dump(data, f_out, indent=2, ensure_ascii=False)
+                    except Exception as e_w:
+                        print(f"[UserStore] Warning: Could not write restored user file: {e_w}")
+                    print(f"[UserStore] [RESTORE] Restored user '{safe_u}' from Central State to disk successfully")
+                elif safe_u in cfg.get("birthday_portal_users", {}):
+                    # Legacy fallback
+                    urec = cfg["birthday_portal_users"][safe_u]
+                    pwd = urec.get("password", "") if isinstance(urec, dict) else str(urec)
+                    data = _default_user(safe_u, pwd)
+                    if isinstance(urec, dict) and urec.get("tg_chat_id"):
+                        data["tg_chat_id"] = urec.get("tg_chat_id")
+                    try:
+                        with open(path, "w", encoding="utf-8") as f_out:
+                            json.dump(data, f_out, indent=2, ensure_ascii=False)
+                    except Exception:
+                        pass
+
+            if not data:
                 return None
+
+            # Ensure all keys exist (forward-compat)
+            default = _default_user(safe_u, "")
+            for k, v in default.items():
+                if k not in data:
+                    data[k] = v
+            return data
+
+    get_user = load_user
 
     def save_user(self, user: dict) -> bool:
         username = user.get("username", "")
         if not username:
             return False
-        path = _user_path(username)
+        safe_u = username.lower().strip().replace("/", "_").replace("..", "_")
+        user["username"] = safe_u
+        path = _user_path(safe_u)
         with _lock:
+            # 1. Save to local file in users/
             try:
                 with open(path, "w", encoding="utf-8") as f:
                     json.dump(user, f, indent=2, ensure_ascii=False)
-                return True
             except Exception as e:
-                print(f"[UserStore] Error saving {username}: {e}")
-                return False
+                print(f"[UserStore] Error saving {safe_u} to file: {e}")
+
+            # 2. Sync to Central State in bot_config.json (survives Render restarts)
+            try:
+                cfg = _read_central_config()
+                if "all_user_records" not in cfg:
+                    cfg["all_user_records"] = {}
+                cfg["all_user_records"][safe_u] = user
+                _write_central_config(cfg)
+            except Exception as e_cfg:
+                print(f"[UserStore] Error syncing {safe_u} to Central State: {e_cfg}")
+
+            return True
 
     def create_user(self, username: str, password: str, tg_chat_id=None) -> dict | None:
         """Creates a new user. Returns None if username already taken."""
@@ -171,29 +256,56 @@ class UserStore:
         return user
 
     def delete_user(self, username: str) -> bool:
-        """Permanently deletes the user's data file."""
-        path = _user_path(username)
+        """Permanently deletes the user from disk and Central State."""
+        safe_u = username.lower().strip().replace("/", "_").replace("..", "_")
+        path = _user_path(safe_u)
         with _lock:
             if os.path.exists(path):
                 try:
                     os.remove(path)
-                    print(f"[UserStore] Deleted user file: {username}")
-                    return True
+                    print(f"[UserStore] Deleted user file: {safe_u}")
                 except Exception as e:
-                    print(f"[UserStore] Error deleting {username}: {e}")
-                    return False
-        return False
+                    print(f"[UserStore] Error deleting {safe_u}: {e}")
+
+            # Also remove from Central State in bot_config.json
+            try:
+                cfg = _read_central_config()
+                changed = False
+                if "all_user_records" in cfg and safe_u in cfg["all_user_records"]:
+                    del cfg["all_user_records"][safe_u]
+                    changed = True
+                if "birthday_portal_users" in cfg and safe_u in cfg["birthday_portal_users"]:
+                    del cfg["birthday_portal_users"][safe_u]
+                    changed = True
+                if "portal_user_data" in cfg and safe_u in cfg["portal_user_data"]:
+                    del cfg["portal_user_data"][safe_u]
+                    changed = True
+                if "link_expiries" in cfg and safe_u in cfg["link_expiries"]:
+                    del cfg["link_expiries"][safe_u]
+                    changed = True
+                if changed:
+                    _write_central_config(cfg)
+            except Exception as e_c:
+                print(f"[UserStore] Error removing {safe_u} from central config: {e_c}")
+
+            return True
 
     def list_users(self) -> list[str]:
-        """Returns sorted list of all registered usernames."""
+        """Returns sorted list of all registered usernames (from disk + Central State)."""
+        names = set()
         try:
-            files = [
-                f[:-5] for f in os.listdir(USERS_DIR)
-                if f.endswith(".json") and not f.startswith("_")
-            ]
-            return sorted(files)
+            for f in os.listdir(USERS_DIR):
+                if f.endswith(".json") and not f.startswith("_"):
+                    names.add(f[:-5])
         except Exception:
-            return []
+            pass
+        # Add any users from Central State
+        cfg = _read_central_config()
+        for k in cfg.get("all_user_records", {}).keys():
+            names.add(k)
+        for k in cfg.get("birthday_portal_users", {}).keys():
+            names.add(k)
+        return sorted(list(names))
 
     def get_all_users(self) -> list[dict]:
         """Returns list of all user records (full dicts)."""
@@ -449,6 +561,62 @@ class UserStore:
         print(f"[UserStore] Migration complete. {migrated} users migrated.")
         return migrated
 
+    # ------------------------------------------------------------------
+    # TELEGRAM CLOUD SNAPSHOT (Export / Import for Zero Data Loss)
+    # ------------------------------------------------------------------
+
+    def export_cloud_snapshot(self) -> dict:
+        """Exports complete snapshot of all users and surprises for Telegram Cloud backup."""
+        users_map = {}
+        for uname in self.list_users():
+            u = self.load_user(uname)
+            if u:
+                users_map[uname] = u
+
+        cfg = _read_central_config()
+        return {
+            "version": 2,
+            "exported_at": time.strftime("%d %b %Y, %I:%M %p"),
+            "exported_ts": time.time(),
+            "users": users_map,
+            "short_surprise_links": cfg.get("short_surprise_links", {}),
+            "saved_answers": cfg.get("saved_answers", [])
+        }
+
+    def import_cloud_snapshot(self, snapshot: dict) -> int:
+        """Restores users and surprises from Telegram Cloud snapshot."""
+        if not isinstance(snapshot, dict) or "users" not in snapshot:
+            return 0
+        restored_count = 0
+        for uname, udata in snapshot.get("users", {}).items():
+            if isinstance(udata, dict) and uname:
+                self.save_user(udata)
+                restored_count += 1
+
+        cfg = _read_central_config()
+        changed = False
+        if snapshot.get("short_surprise_links"):
+            if "short_surprise_links" not in cfg:
+                cfg["short_surprise_links"] = {}
+            cfg["short_surprise_links"].update(snapshot["short_surprise_links"])
+            changed = True
+        if snapshot.get("saved_answers") and isinstance(snapshot["saved_answers"], list):
+            existing_ans = cfg.get("saved_answers", [])
+            existing_tuples = {(a.get("question"), a.get("reply"), a.get("celebrant")) for a in existing_ans}
+            for a in snapshot["saved_answers"]:
+                tup = (a.get("question"), a.get("reply"), a.get("celebrant"))
+                if tup not in existing_tuples:
+                    existing_ans.append(a)
+                    existing_tuples.add(tup)
+            cfg["saved_answers"] = existing_ans
+            changed = True
+        if changed:
+            _write_central_config(cfg)
+
+        print(f"[UserStore] [CLOUD] Restored {restored_count} users from Telegram Cloud snapshot")
+        return restored_count
+
 
 # Global singleton instance
 user_store = UserStore()
+
