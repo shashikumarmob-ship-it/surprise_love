@@ -1284,18 +1284,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (Array.isArray(parsed)) userSafarnamaChapters = parsed;
               } catch(e) {}
             }
-            let sharedPhoto = d.photo || null;
-            currentPhotoDataUrl = sharedPhoto;
+            // Render all memories photos immediately from TG CDN
+            updateMemoriesPhoto(sharedPhoto, userMemoriesPhotos);
+
             if (sharedPhoto) {
               const img = new Image();
               img.crossOrigin = 'anonymous';
               img.onload = () => {
-                if (scene) scene.updateUserPhoto(img);
-                updateMemoriesPhoto(sharedPhoto, userMemoriesPhotos);
+                if (scene && scene.updateUserPhoto) scene.updateUserPhoto(img);
               };
               img.src = sharedPhoto;
-            } else {
-              updateMemoriesPhoto(null, userMemoriesPhotos);
             }
             updateCelebrantInfo();
             applyTheme(activeTheme);
@@ -1339,19 +1337,19 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch(e) {}
     }
 
+    updateMemoriesPhoto(sharedPhoto, userMemoriesPhotos);
+
     if (sharedPhoto) {
       const img = new Image();
       img.crossOrigin = 'anonymous';
       img.onload = () => {
-        if (scene) scene.updateUserPhoto(img);
-        updateMemoriesPhoto(sharedPhoto, userMemoriesPhotos);
+        if (scene && scene.updateUserPhoto) scene.updateUserPhoto(img);
       };
       img.src = sharedPhoto;
     } else {
       if (scene && scene.clearUserPhoto) {
         scene.clearUserPhoto();
       }
-      updateMemoriesPhoto(null, userMemoriesPhotos);
     }
 
     updateCelebrantInfo();
