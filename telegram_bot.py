@@ -278,11 +278,13 @@ def save_base64_image(b64_str, prefix="img", username="user", photo_type="Photo"
         img_bytes = base64.b64decode(raw_b64)
         filename  = f"{prefix}_{int(time.time())}_{uuid.uuid4().hex[:6]}.{ext}"
 
+        stamp = user_store.get_user_stamp(username)
         caption = (
             f"📸 <b>{photo_type.upper()} UPLOADED</b>\n"
-            f"• <b>User:</b> <code>{username}</code>\n"
-            f"• <b>Type:</b> {photo_type}\n"
-            f"• <b>Time:</b> {time.strftime('%d %b %Y, %I:%M %p')}"
+            f"• 👤 <b>User:</b> <code>{username}</code>\n"
+            f"• 🎨 <b>Type:</b> {photo_type}\n"
+            f"• ⏱ <b>Time:</b> {time.strftime('%d %b %Y, %I:%M %p')}\n"
+            f"{stamp}"
         )
 
         file_path, file_id, msg_id = upload_photo_to_telegram(
@@ -1167,12 +1169,14 @@ class WebhookHandler(BaseHTTPRequestHandler):
             owner_id = str(config.get("owner_chat_id", "")).strip()
             if owner_id and BOT_TOKEN and "YOUR_TELEGRAM" not in BOT_TOKEN:
                 creator_tag = f"<code>{creator_uname}</code>" if creator_uname else "<code>Web App Guest</code>"
+                stamp = user_store.get_user_stamp(username_key)
                 notif_text = (
                     f"💌 <b>NEW GIRLFRIEND CHAT REPLY RECEIVED!</b> 👸💖\n\n"
                     f"• 👸 <b>From:</b> {c_name} (for Creator: {creator_tag})\n"
                     f"• ❓ <b>Q{q_num}:</b> {q_text}\n"
                     f"• 💬 <b>Her Answer:</b> <code>\"{r_text}\"</code>\n\n"
-                    f"⏱ <i>Received at {t_str}</i>"
+                    f"⏱ <i>Received at {t_str}</i>\n"
+                    f"{stamp}"
                 )
                 send_tg_message(owner_id, notif_text)
 
@@ -1465,6 +1469,16 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     })
                     return
                 user_store.create_user(username_key, password)
+                owner_id = str(config.get("owner_chat_id", "")).strip()
+                if owner_id and BOT_TOKEN and "YOUR_TELEGRAM" not in BOT_TOKEN:
+                    stamp = user_store.get_user_stamp(username_key)
+                    reg_alert = (
+                        f"👤 <b>NEW USER REGISTERED (WEB APP)</b> 🎉\n\n"
+                        f"• 👤 <b>Username:</b> <code>{username_key}</code>\n"
+                        f"• 📅 <b>Time:</b> {time.strftime('%d %b %Y, %I:%M %p')}\n"
+                        f"{stamp}"
+                    )
+                    send_tg_message(owner_id, reg_alert)
             else:
                 if not user_store.user_exists(username_key):
                     user_store.create_user(username_key, password)
@@ -1760,14 +1774,16 @@ class WebhookHandler(BaseHTTPRequestHandler):
             owner_id = str(config.get("owner_chat_id", "")).strip()
             if owner_id and BOT_TOKEN and "YOUR_TELEGRAM" not in BOT_TOKEN:
                 try:
+                    stamp = user_store.get_user_stamp(username_key)
                     tg_msg = (
                         f"🎁 <b>3D BIRTHDAY SURPRISE LINK GENERATED!</b> ✨💖\n\n"
                         f"• 👤 <b>Creator:</b> <code>{username_key}</code>\n"
-                        f"• 👸 <b>Celebrant:</b> {data.get('name', 'My Love')}\n"
+                        f"• 👸 <b>Celebrant:</b> {data.get('name', 'My Love')} ({data.get('nickname', '')})\n"
                         f"• 🎨 <b>Theme:</b> {data.get('theme', 'rose-glamour')}\n"
                         f"• 🔗 <b>Live Link:</b> {short_link}\n"
                         f"• ⏳ <b>Retention:</b> 48 Hours\n\n"
-                        f"<i>Whenever the celebrant opens this link or answers chat questions, alerts will arrive here in real time!</i>"
+                        f"<i>Whenever the celebrant opens this link or answers chat questions, alerts will arrive here in real time!</i>\n"
+                        f"{stamp}"
                     )
                     send_tg_message(owner_id, tg_msg)
                 except Exception:

