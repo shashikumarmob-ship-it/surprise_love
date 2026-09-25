@@ -2537,6 +2537,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (portalLandingScreen) portalLandingScreen.classList.remove('hidden');
       // Hide creator dashboard if open
       if (portalCreatorDashboard) portalCreatorDashboard.classList.add('hidden');
+      // Hide curtain container if visible
+      if (curtainContainer) {
+        curtainContainer.style.display = 'none';
+        curtainContainer.classList.remove('opened');
+      }
       // Scroll to top smoothly
       window.scrollTo({ top: 0, behavior: 'smooth' });
       // Hide the back button itself
@@ -2548,6 +2553,10 @@ document.addEventListener('DOMContentLoaded', () => {
     btnPortalViewDemo.addEventListener('click', () => {
       if (portalLandingScreen) portalLandingScreen.classList.add('hidden');
       if (portalCreatorDashboard) portalCreatorDashboard.classList.add('hidden');
+      if (curtainContainer) {
+        curtainContainer.style.display = 'flex';
+        curtainContainer.classList.remove('opened');
+      }
       // Show back button so user can return from preview
       showPreviewBackBtn();
       if (window.birthdayAudio) {
@@ -3480,6 +3489,7 @@ document.addEventListener('DOMContentLoaded', () => {
        } catch(e) {}
        if (portalCreatorDashboard) portalCreatorDashboard.classList.add('hidden');
        if (portalLandingScreen) portalLandingScreen.classList.remove('hidden');
+       if (curtainContainer) curtainContainer.style.display = 'none';
        if (generatedLinkBox) generatedLinkBox.classList.add('hidden');
        window.scrollTo({ top: 0, behavior: 'smooth' });
      });
@@ -3535,6 +3545,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       trackRecipientActivity('link_opened', 'Opened magical birthday surprise link 🚀', '🚀');
     } else {
+      // Normal visit (non-shareable link): Always hide the curtain
+      if (curtainContainer) {
+        curtainContainer.style.display = 'none';
+        curtainContainer.classList.remove('opened');
+      }
       renderSafarnamaBuilder();
       let savedSession = null;
       try { savedSession = localStorage.getItem('birthday_portal_session'); } catch(e) {}

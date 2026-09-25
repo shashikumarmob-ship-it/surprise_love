@@ -961,7 +961,7 @@ body {
   width: 100vw;
   height: 100vh;
   z-index: 1000;
-  display: flex;
+  display: none;
   overflow: hidden;
   pointer-events: auto;
   transition: visibility 1.8s;
