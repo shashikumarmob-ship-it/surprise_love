@@ -74,6 +74,17 @@ config = load_config()
 BOT_TOKEN = config.get("bot_token", "").strip()
 BASE_TG_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
+def get_web_app_url() -> str:
+    """Always reads WEB_APP_URL strictly from environment variable or dynamic config. Never hardcodes localhost."""
+    return (os.environ.get("WEB_APP_URL") or config.get("web_app_url") or "").strip().rstrip("/")
+
+def get_webapp_button(text="🌐 Open Web App", callback_data="menu_webapp") -> dict:
+    """Returns a valid Telegram URL button if WEB_APP_URL is an HTTPS URL, else a callback button."""
+    app_url = get_web_app_url()
+    if app_url.startswith("https://") and "localhost" not in app_url:
+        return {"text": text, "url": app_url}
+    return {"text": text, "callback_data": callback_data}
+
 # ── Organized Per-User Storage ──────────────────────────────────────────────
 from user_store import user_store
 
@@ -668,17 +679,11 @@ def process_user_message(chat_id, user_name, text, raw_msg):
             f"Koi aur isse access nahi kar sakta.\n\n"
             f"<i>👇 Neeche se koi option choose karo ya menu se command select karo!</i>"
         )
-        app_url = config.get("web_app_url", "").strip()
-        if app_url.startswith("https://") and "localhost" not in app_url:
-            webapp_btn = [{"text": "🌐 Open Birthday Web App", "url": app_url}]
-        else:
-            webapp_btn = [{"text": "🌐 Open Birthday Web App", "callback_data": "menu_webapp"}]
-
         inline_keyboard = {
             "inline_keyboard": [
                 [{"text": "👤 All Users & Passwords", "callback_data": "menu_users"}],
                 [{"text": "🟢 Active Users (Today / Valid Link)", "callback_data": "menu_active"}],
-                webapp_btn
+                [get_webapp_button("🌐 Open Birthday Web App", "menu_webapp")]
             ]
         }
         send_tg_message(chat_id, welcome_text, reply_markup=get_main_reply_keyboard())
@@ -844,19 +849,22 @@ def show_active_users(chat_id):
     send_tg_message(chat_id, msg, reply_markup=get_main_reply_keyboard())
 
 def show_webapp_link(chat_id):
-    url = config.get("web_app_url", "http://localhost:8000/")
-    msg = (
-        f"🌐 <b>3D Birthday Studio - Web App</b>\n\n"
-        f"• <b>URL:</b> <code>{url}</code>\n"
-        f"• <b>Status:</b> Online & Synced with Bot 🤖💖\n\n"
-        f"Tap the button below to open the Web App:"
-    )
-    inline_keyboard = {
-        "inline_keyboard": [
-            [{"text": "🚀 Open Web App Now", "url": url}]
-        ]
-    }
-    send_tg_message(chat_id, msg, reply_markup=inline_keyboard)
+    url = get_web_app_url()
+    if url:
+        msg = (
+            f"🌐 <b>3D Birthday Studio - Web App</b>\n\n"
+            f"• <b>URL:</b> <code>{url}</code>\n"
+            f"• <b>Status:</b> Online & Synced with Bot 🤖💖\n\n"
+            f"Tap the button below to open the Web App:"
+        )
+        inline_keyboard = {
+            "inline_keyboard": [
+                [get_webapp_button("🚀 Open Web App Now", "menu_webapp")]
+            ]
+        }
+        send_tg_message(chat_id, msg, reply_markup=inline_keyboard)
+    else:
+        send_tg_message(chat_id, "🌐 <b>Web App URL:</b> Not set yet. Please set <code>WEB_APP_URL</code> in your Render Dashboard environment variables.")
 
 def show_deactive_users(chat_id):
     users = config.get("registered_users", {})
@@ -949,7 +957,8 @@ def process_callback_query(chat_id, cb_data, cb_raw):
         toggle_user_status(chat_id, target_uid)
 
     elif cb_data == "bot_help":
-        send_tg_message(chat_id, "💡 <b>Need Help?</b>\n\nRun the web app on <code>http://localhost:8000</code> or deploy it. When your girlfriend types her answers, this bot will instantly deliver them here in real-time!")
+        web_info = get_web_app_url() or "your deployed website"
+        send_tg_message(chat_id, f"💡 <b>Need Help?</b>\n\nRun or open the web app on <code>{web_info}</code>. When your partner types their answers, this bot will instantly deliver them here in real-time!")
 
     elif cb_data.startswith("mode_"):
         mode = cb_data.replace("mode_", "")
@@ -972,7 +981,7 @@ def process_callback_query(chat_id, cb_data, cb_raw):
         )
 
 def finish_create_wizard(chat_id, session):
-    base_url = config.get("web_app_url", "http://localhost:8000").rstrip("/")
+    base_url = get_web_app_url()
     params = {
         "surprise": "1",
         "mode": session.get("mode", "gf"),
@@ -986,7 +995,7 @@ def finish_create_wizard(chat_id, session):
 
     # Filter empty values
     query_str = urllib.parse.urlencode({k: v for k, v in params.items() if v})
-    final_link = f"{base_url}/?{query_str}"
+    final_link = f"{base_url}/?{query_str}" if base_url else f"?{query_str}"
 
     celebrant_name = session.get("name", "My Love")
     target_role = "Girlfriend 👸" if session.get("mode") == "gf" else "Boyfriend 👦"
@@ -1043,7 +1052,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
 
     def _set_cors(self):
         origin = self.headers.get("Origin", "") if hasattr(self, "headers") and self.headers else ""
-        app_url = config.get("web_app_url", "").rstrip("/")
+        app_url = get_web_app_url()
         if origin:
             if (
                 (app_url and origin == app_url)
@@ -1344,7 +1353,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                                 f"🚀 <b>TELEGRAM BOT CONNECTED SUCCESSFULLY!</b> 💖✨\n\n"
                                 f"• <b>Bot Name:</b> {bot_name} (@{bot_username})\n"
                                 f"• <b>Status:</b> Online & Synced with Web App!\n"
-                                f"• <b>Web App:</b> {config.get('web_app_url', 'http://localhost:8000')}\n\n"
+                                f"• <b>Web App:</b> {get_web_app_url() or 'Configured via WEB_APP_URL'}\n\n"
                                 f"<i>Whenever your girlfriend answers questions in the surprise chat, alerts will arrive here in real time!</i> 💕"
                             )
                             requests.post(f"https://api.telegram.org/bot{token_to_test}/sendMessage", json={
@@ -1847,8 +1856,8 @@ class WebhookHandler(BaseHTTPRequestHandler):
 
             save_config(config)
 
-            web_url = config.get("web_app_url", "http://localhost:8000")
-            short_link = f"{web_url}?s={token}"
+            web_url = get_web_app_url()
+            short_link = f"{web_url}/?s={token}" if web_url else f"?s={token}"
 
             # Sync surprise to user_store if user exists
             if user_store.user_exists(username_key):
@@ -1901,7 +1910,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
         if self.path == "/api/get_env":
             # Safe public configuration (never expose raw bot tokens or chat IDs)
             self._send_json(200, {
-                "web_app_url": config.get("web_app_url", "http://localhost:8000"),
+                "web_app_url": get_web_app_url(),
                 "bot_configured": bool(BOT_TOKEN and "YOUR" not in BOT_TOKEN)
             })
             return
@@ -1911,7 +1920,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 "status": "running",
                 "bot_configured": bool(BOT_TOKEN and "YOUR" not in BOT_TOKEN),
                 "total_answers_saved": len(config.get("saved_answers", [])),
-                "web_app_url": config.get("web_app_url")
+                "web_app_url": get_web_app_url()
             })
             return
 
@@ -2301,7 +2310,7 @@ if __name__ == "__main__":
     print("✨ 3D Birthday Celebration - Telegram Bot & Sync Server")
     print("=" * 60)
     print(f"• Config file: {CONFIG_FILE}")
-    print(f"• Web App URL: {config.get('web_app_url', 'Not configured (using origin)')}")
+    print(f"• Web App URL: {get_web_app_url() or 'Not configured (using dynamic origin)'}")
     print(f"• API Port: {effective_port}")
 
     if not BOT_TOKEN or "YOUR_TELEGRAM_BOT_TOKEN" in BOT_TOKEN:

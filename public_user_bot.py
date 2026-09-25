@@ -78,6 +78,17 @@ config = load_config()
 USER_BOT_TOKEN = config.get("public_bot_token", "").strip() or config.get("bot_token", "").strip()
 BASE_TG_URL = f"https://api.telegram.org/bot{USER_BOT_TOKEN}"
 
+def get_web_app_url() -> str:
+    """Always reads WEB_APP_URL strictly from environment variable or dynamic config. No hardcoded localhost."""
+    return (os.environ.get("WEB_APP_URL") or config.get("web_app_url") or "").strip().rstrip("/")
+
+def get_webapp_button(text="🌐 Open Web App", callback_data="flow_webapp") -> dict:
+    """Returns a valid Telegram URL button if WEB_APP_URL is an HTTPS URL, else a callback button."""
+    app_url = get_web_app_url()
+    if app_url.startswith("https://") and "localhost" not in app_url:
+        return {"text": text, "url": app_url}
+    return {"text": text, "callback_data": callback_data}
+
 # ── Organized Per-User Storage (shared with telegram_bot.py) ─────────────
 from user_store import user_store
 # ─────────────────────────────────────────────────────────────────────────
@@ -244,17 +255,11 @@ def show_welcome(chat_id, user_first_name="Friend"):
             f"<i>👇 Shuru karne ke liye Register ya Login karo!</i>"
         )
 
-    app_url = config.get("web_app_url", "").strip()
-    if app_url.startswith("https://") and "localhost" not in app_url:
-        webapp_btn = [{"text": "🌐 Open Web App", "url": app_url}]
-    else:
-        webapp_btn = [{"text": "🌐 Open Web App", "callback_data": "flow_webapp"}]
-
     inline_kb = {
         "inline_keyboard": [
             [{"text": "🆕 New User Register", "callback_data": "flow_register"}, {"text": "🔑 Existing User Login", "callback_data": "flow_login"}],
             [{"text": "🎁 Create Surprise Wizard", "callback_data": "flow_create"}, {"text": "💌 Chat Answers", "callback_data": "flow_answers"}],
-            webapp_btn,
+            [get_webapp_button("🌐 Open Web App", "flow_webapp")],
             [{"text": "❓ Help & Support", "callback_data": "flow_help"}]
         ]
     }
@@ -350,7 +355,7 @@ def handle_reg_password(chat_id, text):
         "inline_keyboard": [
             [{"text": "🎁 Create 3D Surprise Now", "callback_data": "flow_create"}],
             [{"text": "📋 My Dashboard", "callback_data": "flow_mydata"}],
-            [{"text": "🌐 Launch Web App", "url": config.get("web_app_url", "http://localhost:8000/")}]
+            [get_webapp_button("🌐 Launch Web App", "flow_webapp")]
         ]
     }
     send_tg_message(chat_id, msg, reply_markup=get_user_reply_keyboard(chat_id))
@@ -624,12 +629,12 @@ def handle_create_wish(chat_id, text):
     now_ms = int(time.time() * 1000)
     exp_ms = now_ms + (48 * 3600 * 1000)
 
-    base_url = config.get("web_app_url", "http://localhost:8000/").rstrip("/") + "/"
+    base_url = get_web_app_url()
     import random
     import string
     chars = string.ascii_lowercase + string.digits
     short_token = "".join(random.choices(chars, k=6))
-    final_link = f"{base_url}?s={short_token}"
+    final_link = f"{base_url}/?s={short_token}" if base_url else f"?s={short_token}"
 
     logged_user = session.get("logged_user") or name.lower().replace(" ", "_")
 
@@ -817,7 +822,7 @@ def show_user_dashboard(chat_id):
         btn_row2.append({"text": "🎁 Create Surprise", "callback_data": "flow_create"})
 
     btn_row3 = [
-        {"text": "🌐 Open Web App", "url": config.get("web_app_url", "http://localhost:8000/")},
+        get_webapp_button("🌐 Open Web App", "flow_webapp"),
         {"text": "🗑️ Delete Data", "callback_data": "flow_delete"}
     ]
 
@@ -840,13 +845,13 @@ def show_user_photos(chat_id):
             chat_id,
             f"📸 <b>NO PHOTOS UPLOADED YET!</b>\n\n"
             f"Aapne abhi tak koi photo upload nahi ki hai. Web App dashboard me jakar main portrait photo ya memories album upload karein!",
-            reply_markup={"inline_keyboard": [[{"text": "🌐 Open Web App", "url": config.get("web_app_url", "http://localhost:8000/")}]]}
+            reply_markup={"inline_keyboard": [[get_webapp_button("🌐 Open Web App", "flow_webapp")]]}
         )
         return
 
     send_tg_message(chat_id, f"📸 <b>YOUR UPLOADED PHOTOS ({len(photos)}):</b>\nFetching your photos from Telegram Cloud...")
     owner_token = config.get("bot_token") or USER_BOT_TOKEN
-    web_base = config.get("web_app_url", "http://localhost:8000").rstrip("/")
+    web_base = get_web_app_url()
 
     for idx, p in enumerate(photos, start=1):
         cap = (
@@ -952,7 +957,7 @@ def show_help(chat_id):
 
     buttons = [
         [{"text": "💬 DM Owner (@Mr_anssh00)", "url": owner_tg_url}],
-        [{"text": "🌐 Open Birthday Web App", "url": config.get("web_app_url", "http://localhost:8000/")}]
+        [get_webapp_button("🌐 Open Birthday Web App", "flow_webapp")]
     ]
 
     if logged_user:
@@ -1119,10 +1124,13 @@ def process_user_text(chat_id, user_first_name, text):
         return
 
     elif cmd in ["/webapp", "🌐 open web app", "open web app", "webapp", "web app"]:
-        url = config.get("web_app_url", "http://localhost:8000/")
-        msg = f"🌐 <b>3D Birthday Studio - Web App</b>\n\nTap below to launch the website:"
-        inline_kb = {"inline_keyboard": [[{"text": "🚀 Launch Web App", "url": url}]]}
-        send_tg_message(chat_id, msg, reply_markup=inline_kb)
+        url = get_web_app_url()
+        if url:
+            msg = f"🌐 <b>3D Birthday Studio - Web App</b>\n\nTap below to launch the website:\n<code>{url}</code>"
+            inline_kb = {"inline_keyboard": [[get_webapp_button("🚀 Launch Web App", "flow_webapp")]]}
+            send_tg_message(chat_id, msg, reply_markup=inline_kb)
+        else:
+            send_tg_message(chat_id, "🌐 <b>Web App URL:</b> Not set yet. Please set <code>WEB_APP_URL</code> in environment variables.")
         return
 
     elif cmd in ["/help", "❓ help & dm owner", "help & dm owner", "help", "support", "dm owner"]:
@@ -1187,7 +1195,7 @@ def run_public_user_bot():
     print("✨ 3D Birthday Celebration - Public User Telegram Bot Started")
     print("=" * 60)
     print(f"• Config file: {CONFIG_FILE}")
-    print(f"• Web App URL: {config.get('web_app_url')}")
+    print(f"• Web App URL: {get_web_app_url() or 'Not configured'}")
     print(f"• Bot Token: {'Configured ✅' if USER_BOT_TOKEN and 'YOUR' not in USER_BOT_TOKEN else '⚠️ Missing'}")
 
     setup_user_bot_menu()
