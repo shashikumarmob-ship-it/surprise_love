@@ -97,92 +97,127 @@ import re
 import uuid
 
 def upload_photo_to_telegram(img_bytes, filename="photo.jpg", caption=""):
-    """Uploads an image directly to Telegram Bot and returns Telegram's direct CDN URL and file_id"""
+    """
+    Uploads an image to Telegram Bot (owner chat).
+    Returns (tg_cdn_url, file_id, message_id).
+    message_id is stored so the photo can be deleted later when user deletes account.
+    """
     if not BOT_TOKEN or "YOUR_TELEGRAM" in BOT_TOKEN:
-        return None, None
+        return None, None, None
     owner_id = str(config.get("owner_chat_id", "")).strip()
     if not owner_id:
-        return None, None
-    
+        return None, None, None
+
     try:
         ext = filename.split(".")[-1].lower() if "." in filename else "jpg"
-        mime_map = {
-            "png": "image/png",
-            "webp": "image/webp",
-            "gif": "image/gif",
-            "jpg": "image/jpeg",
-            "jpeg": "image/jpeg"
-        }
+        mime_map = {"png": "image/png", "webp": "image/webp",
+                    "gif": "image/gif", "jpg": "image/jpeg", "jpeg": "image/jpeg"}
         mime = mime_map.get(ext, "image/jpeg")
 
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
-        files = {
-            "photo": (filename, img_bytes, mime)
-        }
-        data = {
-            "chat_id": owner_id,
-            "caption": caption,
-            "parse_mode": "HTML"
-        }
-        res = requests.post(url, data=data, files=files, timeout=12)
+        res = requests.post(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto",
+            data={"chat_id": owner_id, "caption": caption, "parse_mode": "HTML"},
+            files={"photo": (filename, img_bytes, mime)},
+            timeout=20
+        )
         res_json = res.json()
         if res_json.get("ok"):
-            photos = res_json.get("result", {}).get("photo", [])
+            result   = res_json.get("result", {})
+            msg_id   = result.get("message_id")            # for deleteMessage later
+            photos   = result.get("photo", [])
             if photos:
-                # Largest resolution photo is the last item in the list
-                best_photo = photos[-1]
-                file_id = best_photo.get("file_id")
-                # Fetch Telegram Cloud direct file path
-                get_res = requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/getFile?file_id={file_id}", timeout=8).json()
-                if get_res.get("ok"):
-                    file_path = get_res.get("result", {}).get("file_path", "")
-                    tg_cdn_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
-                    return tg_cdn_url, file_id
-        return None, None
+                file_id  = photos[-1].get("file_id")      # largest resolution
+                # Get fresh CDN URL
+                gr = requests.get(
+                    f"https://api.telegram.org/bot{BOT_TOKEN}/getFile?file_id={file_id}",
+                    timeout=8
+                ).json()
+                if gr.get("ok"):
+                    fp  = gr["result"].get("file_path", "")
+                    url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{fp}"
+                    return url, file_id, msg_id
+        return None, None, None
     except Exception as e:
         print(f"[TG Photo Upload Error]: {e}")
-        return None, None
+        return None, None, None
+
+
+def delete_user_photos_from_telegram(username: str):
+    """
+    Deletes all photo messages belonging to a user from the owner's Telegram chat.
+    Called when a user deletes their account or their data expires.
+    """
+    owner_id = str(config.get("owner_chat_id", "")).strip()
+    if not BOT_TOKEN or "YOUR_TELEGRAM" in BOT_TOKEN or not owner_id:
+        return
+    photos = user_store.get_photos(username)
+    deleted = 0
+    for photo in photos:
+        msg_id = photo.get("message_id")
+        if msg_id:
+            try:
+                requests.post(
+                    f"https://api.telegram.org/bot{BOT_TOKEN}/deleteMessage",
+                    json={"chat_id": owner_id, "message_id": msg_id},
+                    timeout=6
+                )
+                deleted += 1
+            except Exception:
+                pass
+    if deleted:
+        print(f"[Photos] Deleted {deleted} TG photo messages for user: {username}")
+
 
 def save_base64_image(b64_str, prefix="img", username="user", photo_type="Photo"):
-    """Saves a base64 encoded image string locally and to Telegram Bot Cloud, returning URL"""
+    """
+    Uploads a base64 image ONLY to Telegram CDN (no local disk storage).
+    Saves file_id + message_id in UserStore under the user's photos list.
+    Returns the Telegram CDN URL, or None on failure.
+    """
     try:
         if not b64_str or not isinstance(b64_str, str):
             return None
-        # Match data:image/xxx;base64,...
         match = re.match(r"^data:image/(\w+);base64,(.+)$", b64_str, re.DOTALL)
         if match:
-            ext = match.group(1).lower()
-            if ext == 'jpeg': ext = 'jpg'
+            ext    = match.group(1).lower()
+            if ext == "jpeg": ext = "jpg"
             raw_b64 = match.group(2)
         else:
-            ext = 'jpg'
+            ext    = "jpg"
             raw_b64 = b64_str
-        
-        img_bytes = base64.b64decode(raw_b64)
-        filename = f"{prefix}_{int(time.time())}_{uuid.uuid4().hex[:6]}.{ext}"
-        filepath = os.path.join(UPLOAD_DIR, filename)
-        with open(filepath, "wb") as f:
-            f.write(img_bytes)
-        
-        web_url = config.get("web_app_url", "http://localhost:8000").rstrip("/")
-        local_url = f"{web_url}/uploads/{filename}"
 
-        # Upload full resolution to Telegram Bot
+        img_bytes = base64.b64decode(raw_b64)
+        filename  = f"{prefix}_{int(time.time())}_{uuid.uuid4().hex[:6]}.{ext}"
+
         caption = (
-            f"📸 <b>NEW HIGH-QUALITY {photo_type.upper()} UPLOADED!</b> ✨\n\n"
+            f"📸 <b>{photo_type.upper()} UPLOADED</b>\n"
             f"• <b>User:</b> <code>{username}</code>\n"
             f"• <b>Type:</b> {photo_type}\n"
-            f"• <b>File:</b> <code>{filename}</code>\n"
-            f"• <b>Time:</b> {time.strftime('%d %b %Y, %I:%M %p')}\n\n"
-            f"<i>Saved to Telegram Cloud and synced with 3D Memories Album!</i> 💕"
+            f"• <b>Time:</b> {time.strftime('%d %b %Y, %I:%M %p')}"
         )
-        tg_url, file_id = upload_photo_to_telegram(img_bytes, filename=filename, caption=caption)
 
-        # Return the Telegram CDN URL if available, otherwise local URL
-        return tg_url if tg_url else local_url
-    except Exception as e:
-        print(f"[Error saving base64 image]: {e}")
+        tg_url, file_id, msg_id = upload_photo_to_telegram(
+            img_bytes, filename=filename, caption=caption
+        )
+
+        if tg_url and file_id:
+            # Store in UserStore so we can delete later
+            user_store.add_photo(
+                username,
+                file_id  = file_id,
+                url      = tg_url,
+                caption  = photo_type,
+                message_id = msg_id,        # for deleteMessage
+            )
+            print(f"[Photo] Saved to TG CDN for {username}: {file_id[:20]}...")
+            return tg_url
+
+        print(f"[Photo] TG upload failed for {username}")
         return None
+    except Exception as e:
+        print(f"[Photo Error] save_base64_image: {e}")
+        return None
+
 
 def send_tg_message(chat_id, text, reply_markup=None, parse_mode="HTML"):
     """Sends a message to a Telegram chat"""
@@ -900,64 +935,46 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"status": "error", "message": "Wrong password"}).encode("utf-8"))
                 return
 
+
             deleted_items = []
 
-            # 1. Delete from portal users DB
-            if username_key in users_db:
-                del users_db[username_key]
-                config["birthday_portal_users"] = users_db
-                deleted_items.append("Login credentials")
+            # 1. Delete photos from Telegram CDN first (before user file is gone)
+            try:
+                delete_user_photos_from_telegram(username_key)
+                deleted_items.append("Telegram CDN photos")
+            except Exception as _pe:
+                print(f"[Delete] Photo cleanup error: {_pe}")
 
-            # 2. Delete user form data
-            if "portal_user_data" in config and username_key in config["portal_user_data"]:
-                del config["portal_user_data"][username_key]
-                deleted_items.append("Saved form data")
+            # 2. Delete user from UserStore (removes users/{username}.json)
+            if user_store.delete_user(username_key):
+                deleted_items.append("User data file (credentials, answers, surprise, chat)")
 
-            # 3. Delete session
-            portal_session = config.get("birthday_portal_session", "")
-            if portal_session and portal_session.lower() == username_key:
-                config["birthday_portal_session"] = ""
-                deleted_items.append("Active session")
+            # 3. Also clean any legacy config keys (backward compat)
+            changed = False
+            for key in ("birthday_portal_users", "portal_user_data", "link_expiries", "live_chats"):
+                section = config.get(key, {})
+                if isinstance(section, dict) and username_key in section:
+                    del section[username_key]
+                    config[key] = section
+                    changed = True
+            if changed:
+                save_config(config)
 
-            # 4. Schedule cleanup of saved_answers linked to this user (clear all)
-            celebrant_data = data.get("celebrant_name", "")
-            if celebrant_data:
-                before_count = len(config.get("saved_answers", []))
-                config["saved_answers"] = [
-                    a for a in config.get("saved_answers", [])
-                    if a.get("celebrant", "").lower() != celebrant_data.lower()
-                ]
-                if before_count != len(config.get("saved_answers", [])):
-                    deleted_items.append("Chat answers")
-
-            # 5. Schedule 24hr permanent TG deletion
             delete_time = time.strftime("%d %b %Y, %I:%M %p")
-            if "scheduled_deletions" not in config:
-                config["scheduled_deletions"] = []
-            config["scheduled_deletions"].append({
-                "username": username_key,
-                "delete_at": time.time() + 86400,  # 24 hours from now
-                "delete_at_readable": delete_time,
-                "tg_chat_id": tg_chat_id
-            })
 
-            save_config(config)
-
-            # 6. Send Telegram notification
-            if tg_token and "YOUR_TELEGRAM" not in tg_token and tg_chat_id:
+            # 4. Notify owner on Telegram
+            owner_id = config.get("owner_chat_id", "")
+            if BOT_TOKEN and "YOUR_TELEGRAM" not in BOT_TOKEN and owner_id:
                 try:
                     notif = (
-                        f"🗑️ <b>ACCOUNT DELETION INITIATED</b>\n\n"
-                        f"• <b>Username:</b> {username_key}\n"
-                        f"• <b>Status:</b> Data wiped from server\n"
-                        f"• <b>Deleted:</b> {', '.join(deleted_items)}\n"
-                        f"• <b>Time:</b> {delete_time}\n\n"
-                        f"⚠️ Your username <code>{username_key}</code> and password are available for 24 hours.\n"
-                        f"After 24 hours, your account is <b>permanently deleted</b> and you will not be able to login again.\n\n"
-                        f"Your data has been completely removed from the server. 💔"
+                        f"\ud83d\uddd1\ufe0f <b>USER ACCOUNT DELETED</b>\n\n"
+                        f"\u2022 <b>Username:</b> <code>{username_key}</code>\n"
+                        f"\u2022 <b>Deleted:</b> {', '.join(deleted_items)}\n"
+                        f"\u2022 <b>Time:</b> {delete_time}\n\n"
+                        f"All data permanently purged. \u2705"
                     )
-                    requests.post(f"https://api.telegram.org/bot{tg_token}/sendMessage", json={
-                        "chat_id": tg_chat_id,
+                    requests.post(f"{BASE_TG_URL}/sendMessage", json={
+                        "chat_id": owner_id,
                         "text": notif,
                         "parse_mode": "HTML"
                     }, timeout=8)
@@ -971,7 +988,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({
                 "status": "success",
                 "deleted_items": deleted_items,
-                "message": f"Account deleted. Credentials valid 24 hrs. Permanent deletion scheduled."
+                "message": "Account and all data permanently deleted."
             }).encode("utf-8"))
             return
 
@@ -1057,28 +1074,35 @@ class WebhookHandler(BaseHTTPRequestHandler):
             username_key = data.get("username", "").lower().strip()
             reason = data.get("reason", "48hr_link_expired")
 
-            users_db = config.get("birthday_portal_users", {})
-            if username_key in users_db:
-                del users_db[username_key]
-                config["birthday_portal_users"] = users_db
+            # 1. Delete photos from Telegram first
+            try:
+                delete_user_photos_from_telegram(username_key)
+            except Exception:
+                pass
 
-            if "portal_user_data" in config and username_key in config["portal_user_data"]:
-                del config["portal_user_data"][username_key]
+            # 2. Delete from UserStore
+            user_store.delete_user(username_key)
 
-            if "link_expiries" in config and username_key in config["link_expiries"]:
-                del config["link_expiries"][username_key]
+            # 3. Clean legacy config keys
+            changed = False
+            for key in ("birthday_portal_users", "portal_user_data", "link_expiries", "live_chats"):
+                section = config.get(key, {})
+                if isinstance(section, dict) and username_key in section:
+                    del section[username_key]
+                    config[key] = section
+                    changed = True
+            if changed:
+                save_config(config)
 
-            save_config(config)
-
-            # Notify Telegram
+            # 4. Notify owner
             owner_id = config.get("owner_chat_id", "")
             if BOT_TOKEN and "YOUR_TELEGRAM" not in BOT_TOKEN and owner_id:
                 try:
                     notif = (
-                        f"⏰ <b>PERMANENT DATA AUTO-DELETED ({reason.upper()})</b>\n\n"
-                        f"• <b>User:</b> <code>{username_key}</code>\n"
-                        f"• <b>Reason:</b> 48-Hour link expiry or 48-72h idle timeout reached.\n"
-                        f"• <b>Status:</b> Photos, wishes, chat answers, and URLs wiped from Telegram and server. ✅\n\n"
+                        f"\u23f0 <b>AUTO-EXPIRED USER DELETED ({reason.upper()})</b>\n\n"
+                        f"\u2022 <b>User:</b> <code>{username_key}</code>\n"
+                        f"\u2022 <b>Reason:</b> 48h link expiry / 72h idle timeout.\n"
+                        f"\u2022 <b>Status:</b> Photos (TG CDN), answers, credentials permanently purged. \u2705\n\n"
                         f"<i>As per privacy policy, user data has been permanently purged.</i>"
                     )
                     requests.post(f"{BASE_TG_URL}/sendMessage", json={
@@ -1525,6 +1549,7 @@ def cleanup_scheduled_deletions():
             # Run UserStore scheduled deletions (manual delete requests)
             auto_deleted = user_store.run_scheduled_deletions()
             for uname in auto_deleted:
+                delete_user_photos_from_telegram(uname)
                 notify_owner(
                     f"\U0001f5d1\ufe0f <b>AUTO-DELETED USER</b>\n\n"
                     f"\u2022 <b>Username:</b> <code>{uname}</code>\n"
@@ -1542,24 +1567,26 @@ def cleanup_scheduled_deletions():
                     continue
 
                 if exp_ms and now_ms >= float(exp_ms):
+                    delete_user_photos_from_telegram(uname)   # delete TG photos first
                     user_store.delete_user(uname)
                     notify_owner(
                         f"\u23f0 <b>48-HOUR LINK EXPIRED - USER DELETED</b>\n\n"
                         f"\u2022 <b>Username:</b> <code>{uname}</code>\n"
                         f"\u2022 <b>Reason:</b> 48-hour surprise link window closed.\n"
-                        f"\u2022 Photos, answers, credentials permanently purged \u2705"
+                        f"\u2022 Photos (TG CDN), answers, credentials permanently purged \u2705"
                     )
                     continue
 
-                reg_ts = user.get("registered_ts", 0)
+                reg_ts   = user.get("registered_ts", 0)
                 has_link = bool(user.get("surprise", {}).get("link"))
                 if not has_link and reg_ts and (now - reg_ts) >= (72 * 3600):
+                    delete_user_photos_from_telegram(uname)   # delete TG photos first
                     user_store.delete_user(uname)
                     notify_owner(
                         f"\u23f0 <b>IDLE USER DELETED (72h, no link)</b>\n\n"
                         f"\u2022 <b>Username:</b> <code>{uname}</code>\n"
                         f"\u2022 <b>Reason:</b> Registered but never created a surprise link in 72 hours.\n"
-                        f"\u2022 Account permanently removed \u2705"
+                        f"\u2022 Account + TG photos permanently removed \u2705"
                     )
 
         except Exception as e:

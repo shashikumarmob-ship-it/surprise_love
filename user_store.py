@@ -216,7 +216,7 @@ class UserStore:
     # PHOTOS (Telegram CDN)
     # ------------------------------------------------------------------
 
-    def add_photo(self, username: str, file_id: str, url: str, caption: str = "") -> bool:
+    def add_photo(self, username: str, file_id: str, url: str, caption: str = "", message_id=None) -> bool:
         user = self.load_user(username)
         if not user:
             return False
@@ -224,6 +224,7 @@ class UserStore:
             "file_id":     file_id,
             "url":         url,
             "caption":     caption,
+            "message_id":  message_id,   # Telegram message_id for deleteMessage
             "uploaded_at": time.strftime("%d %b %Y, %I:%M %p"),
             "uploaded_ts": time.time(),
         }
