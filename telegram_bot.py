@@ -445,15 +445,27 @@ def is_owner(chat_id):
     return not owner_id or str(chat_id) == owner_id
 
 def process_user_message(chat_id, user_name, text, raw_msg):
-    # 🔒 STRICT OWNER-ONLY SECURITY: Block all random users!
+    pub_tok = config.get("public_bot_token", "").strip()
+    has_separate_public_bot = bool(pub_tok and pub_tok != BOT_TOKEN)
+
+    # If sender is NOT owner:
     if not is_owner(chat_id):
-        denied_msg = (
-            f"⛔ <b>ACCESS RESTRICTED - OWNER ONLY</b>\n\n"
-            f"Hello <b>{user_name}</b>, this bot is private and accessible strictly to the <b>Owner</b>.\n"
-            f"You do not have authorization to view user accounts, passwords, or controls."
-        )
-        send_tg_message(chat_id, denied_msg)
-        return
+        if has_separate_public_bot:
+            denied_msg = (
+                f"👑 <b>3D Birthday Studio — Owner Panel</b>\n\n"
+                f"Hello <b>{user_name}</b>, this bot is private and accessible strictly to the <b>Owner</b>.\n"
+                f"To create your own 3D Birthday Surprise or view chat answers, please use our Public User Bot!"
+            )
+            send_tg_message(chat_id, denied_msg)
+            return
+        else:
+            # Single Bot Mode: Seamlessly route public users to Public User Bot engine!
+            try:
+                import public_user_bot
+                public_user_bot.process_user_text(chat_id, user_name, text)
+            except Exception as _pe:
+                print(f"[Public Dispatch Error]: {_pe}")
+            return
 
     cmd = text.strip().lower()
 
@@ -705,9 +717,19 @@ def process_callback_query(chat_id, cb_data, cb_raw):
     except Exception:
         pass
 
-    # 🔒 Owner-only check on callback buttons
+    # Owner vs Public routing for callback buttons
+    pub_tok = config.get("public_bot_token", "").strip()
+    has_separate_public_bot = bool(pub_tok and pub_tok != BOT_TOKEN)
+
     if not is_owner(chat_id):
-        send_tg_message(chat_id, "⛔ <b>Access Denied!</b> Owner only.")
+        if not has_separate_public_bot:
+            try:
+                import public_user_bot
+                public_user_bot.process_callback(chat_id, cb_data, cb_raw)
+            except Exception as _pe:
+                print(f"[Public CB Dispatch Error]: {_pe}")
+        else:
+            send_tg_message(chat_id, "⛔ <b>Access Denied!</b> Owner only.")
         return
 
     if cb_data == "start_create":
@@ -933,6 +955,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
+        global BOT_TOKEN, BASE_TG_URL
         content_length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(content_length).decode("utf-8")
 
@@ -986,8 +1009,8 @@ class WebhookHandler(BaseHTTPRequestHandler):
             r_text = data.get("reply", "")
             c_name = data.get("celebrant", "Girlfriend")
             t_str  = data.get("time", time.strftime("%I:%M %p"))
-            # username key = celebrant name lowercased
-            username_key = c_name.lower().replace(" ", "_")
+            raw_uname = data.get("username", "").strip().lower()
+            username_key = raw_uname if (raw_uname and raw_uname != "user") else c_name.lower().replace(" ", "_")
 
             answer_item = {
                 "question": q_text,
@@ -998,18 +1021,32 @@ class WebhookHandler(BaseHTTPRequestHandler):
             }
             # Save per-user in UserStore
             user_store.add_answer(username_key, answer_item)
+            if username_key != c_name.lower().replace(" ", "_"):
+                user_store.add_answer(c_name.lower().replace(" ", "_"), answer_item)
 
-            # Send Telegram Alert to Owner
-            owner_id = config.get("owner_chat_id")
-            if owner_id:
+            # 1. Send Telegram Alert to Owner
+            owner_id = str(config.get("owner_chat_id", "")).strip()
+            if owner_id and BOT_TOKEN and "YOUR_TELEGRAM" not in BOT_TOKEN:
                 notif_text = (
                     f"💌 <b>NEW GIRLFRIEND CHAT REPLY RECEIVED!</b> 👸💖\n\n"
-                    f"<b>From:</b> {c_name}\n"
+                    f"<b>From:</b> {c_name} (User: <code>{username_key}</code>)\n"
                     f"<b>Q{q_num}:</b> {q_text}\n"
                     f"💬 <b>Her Answer:</b> <code>\"{r_text}\"</code>\n\n"
                     f"⏱ <i>Received at {t_str}</i>"
                 )
                 send_tg_message(owner_id, notif_text)
+
+            # 2. If user registered via Public Bot (has their own tg_chat_id), notify them too!
+            user_rec = user_store.get_user(username_key)
+            user_tg_id = user_rec.get("tg_chat_id") if user_rec else None
+            if user_tg_id and str(user_tg_id) != owner_id:
+                user_notif = (
+                    f"💌 <b>NEW CHAT REPLY FROM {c_name.upper()}!</b> 👸💖\n\n"
+                    f"<b>Q{q_num}:</b> {q_text}\n"
+                    f"💬 <b>Answer:</b> <code>\"{r_text}\"</code>\n\n"
+                    f"⏱ <i>Received at {t_str}</i>"
+                )
+                send_tg_message(user_tg_id, user_notif)
 
             self.send_response(200)
             self._set_cors()
@@ -1023,7 +1060,6 @@ class WebhookHandler(BaseHTTPRequestHandler):
             if not self._require_admin():
                 self._send_json(403, {"status": "error", "message": "Admin access required"})
                 return
-            global BOT_TOKEN, BASE_TG_URL
             new_token = data.get("bot_token", "").strip()
             new_public_token = data.get("public_bot_token", "").strip()
             new_chat_id = str(data.get("owner_chat_id", "")).strip()
@@ -1550,6 +1586,39 @@ class WebhookHandler(BaseHTTPRequestHandler):
             web_url = config.get("web_app_url", "http://localhost:8000")
             short_link = f"{web_url}?s={token}"
 
+            # Sync surprise to user_store if user exists
+            if user_store.user_exists(username_key):
+                try:
+                    user_store.save_surprise(username_key, {
+                        "mode": data.get("mode", "gf"),
+                        "name": data.get("name", ""),
+                        "nickname": data.get("nickname", ""),
+                        "theme": data.get("theme", "rose-glamour"),
+                        "wish": data.get("wish", ""),
+                        "created_at": gen_at,
+                        "expires_at": exp_at,
+                        "link": short_link,
+                    })
+                except Exception as _se:
+                    print(f"[UserStore Sync Surprise Error]: {_se}")
+
+            # Send Telegram Alert to Owner
+            owner_id = str(config.get("owner_chat_id", "")).strip()
+            if owner_id and BOT_TOKEN and "YOUR_TELEGRAM" not in BOT_TOKEN:
+                try:
+                    tg_msg = (
+                        f"🎁 <b>3D BIRTHDAY SURPRISE LINK GENERATED!</b> ✨💖\n\n"
+                        f"• 👤 <b>Creator:</b> <code>{username_key}</code>\n"
+                        f"• 👸 <b>Celebrant:</b> {data.get('name', 'My Love')}\n"
+                        f"• 🎨 <b>Theme:</b> {data.get('theme', 'rose-glamour')}\n"
+                        f"• 🔗 <b>Live Link:</b> {short_link}\n"
+                        f"• ⏳ <b>Retention:</b> 48 Hours\n\n"
+                        f"<i>Whenever the celebrant opens this link or answers chat questions, alerts will arrive here in real time!</i>"
+                    )
+                    send_tg_message(owner_id, tg_msg)
+                except Exception:
+                    pass
+
             self._send_json(200, {
                 "status": "success",
                 "token": token,
@@ -1625,7 +1694,25 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 return
             user_data = config.get("portal_user_data", {}).get(username_key, {})
             portal_users = config.get("birthday_portal_users", {})
-            is_existing = username_key in portal_users
+            is_existing = (username_key in portal_users) or user_store.user_exists(username_key)
+
+            # If user configured surprise via Public Bot, restore it directly into the web app!
+            if (not user_data or not user_data.get("name")) and user_store.user_exists(username_key):
+                s = user_store.get_surprise(username_key)
+                photos = user_store.get_photos(username_key)
+                main_photo = photos[0].get("url", "") if photos else ""
+                memories_photos = [p.get("url") for p in photos if p.get("url")]
+                if s and s.get("name"):
+                    user_data = {
+                        "name": s.get("name", ""),
+                        "nickname": s.get("nickname", ""),
+                        "age": s.get("age", ""),
+                        "theme": s.get("theme", "rose-glamour"),
+                        "wish": s.get("wish", ""),
+                        "mode": s.get("mode", "gf"),
+                        "photoUrl": s.get("photo", "") or main_photo,
+                        "memoriesPhotos": memories_photos
+                    }
 
             # Check if user is banned (in scheduled_deletions with future delete_at)
             is_banned = any(

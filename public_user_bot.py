@@ -527,24 +527,17 @@ def handle_create_wish(chat_id, text):
     exp_ms = now_ms + (48 * 3600 * 1000)
 
     base_url = config.get("web_app_url", "http://localhost:8000/").rstrip("/") + "/"
-    params = {
-        "surprise": "1",
-        "mode": mode,
-        "name": name,
-        "theme": theme,
-        "wish": wish,
-        "exp": str(exp_ms)
-    }
-    if nick:
-        params["nickname"] = nick
-
-    final_link = f"{base_url}?{urlencode(params)}"
+    import random
+    import string
+    chars = string.ascii_lowercase + string.digits
+    short_token = "".join(random.choices(chars, k=6))
+    final_link = f"{base_url}?s={short_token}"
 
     logged_user = session.get("logged_user") or name.lower().replace(" ", "_")
 
-    # Save surprise to organized UserStore
+    # 1. Save surprise to organized UserStore
     user_store.save_surprise(logged_user, {
-        "mode":       session.get("data", {}).get("mode", "gf"),
+        "mode":       mode,
         "name":       name,
         "nickname":   nick,
         "theme":      theme,
@@ -552,12 +545,55 @@ def handle_create_wish(chat_id, text):
         "created_at": now_ms,
         "expires_at": exp_ms,
         "link":       final_link,
+        "token":      short_token
     })
+
+    # 2. Save into short_surprise_links & portal_user_data config for Web App access
+    if "short_surprise_links" not in config:
+        config["short_surprise_links"] = {}
+    surprise_entry = {
+        "mode": mode,
+        "name": name,
+        "nickname": nick,
+        "theme": theme,
+        "wish": wish,
+        "gen_at": now_ms,
+        "exp": exp_ms,
+        "username": logged_user,
+        "token": short_token
+    }
+    config["short_surprise_links"][short_token] = surprise_entry
+    if "portal_user_data" not in config:
+        config["portal_user_data"] = {}
+    config["portal_user_data"][logged_user] = surprise_entry
+    save_config(config)
 
     session["step"] = None
     session["data"] = {}
 
     exp_date_str = time.strftime("%A, %d %b %Y at %I:%M %p", time.localtime(exp_ms / 1000.0))
+
+    # 3. Send Telegram Cloud Alert to Owner
+    owner_id = str(config.get("owner_chat_id", "")).strip()
+    owner_token = config.get("bot_token") or USER_BOT_TOKEN
+    if owner_id and owner_token and "YOUR_TELEGRAM" not in owner_token:
+        try:
+            owner_alert = (
+                f"🎁 <b>NEW SURPRISE CREATED (via Public Bot)!</b> ✨💖\n\n"
+                f"• 👤 <b>User:</b> <code>{logged_user}</code>\n"
+                f"• 👸 <b>Celebrant:</b> {name} {f'({nick})' if nick else ''}\n"
+                f"• 🎨 <b>Theme:</b> {theme}\n"
+                f"• 🔗 <b>Link:</b> {final_link}\n"
+                f"• ⌛ <b>Expires:</b> {exp_date_str}\n\n"
+                f"<i>Girlfriend's chat answers will be monitored and delivered in real-time!</i>"
+            )
+            requests.post(f"https://api.telegram.org/bot{owner_token}/sendMessage", json={
+                "chat_id": owner_id,
+                "text": owner_alert,
+                "parse_mode": "HTML"
+            }, timeout=6)
+        except Exception:
+            pass
 
     success_msg = (
         f"🎉 <b>3D BIRTHDAY SURPRISE CREATED!</b> 🎂✨💖\n\n"

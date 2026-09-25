@@ -863,6 +863,7 @@ document.addEventListener('DOMContentLoaded', () => {
       question: currentQData ? currentQData.question : `Question ${currentQuestionIndex + 1}`,
       reply: text,
       celebrant: celebrantName || 'Girlfriend',
+      username: getRecipientUserKey(),
       time: timeStr,
       date: now.toLocaleDateString()
     };
@@ -2631,68 +2632,90 @@ document.addEventListener('DOMContentLoaded', () => {
      } catch(e) {}
   }
 
-  // --- Helper: Restore saved form data ---
-  function restoreUserFormData(userKey) {
-    if (!userKey) return;
-    let data = null;
-    try {
-      const local = localStorage.getItem(`birthday_userdata_${userKey}`);
-      if (local) data = JSON.parse(local);
-    } catch(e) {}
-
-    if (data) {
-      if (creatorInputName && data.name) creatorInputName.value = data.name;
-      if (creatorInputNickname && data.nickname) creatorInputNickname.value = data.nickname;
-      if (creatorInputAge && data.age) creatorInputAge.value = data.age;
-      if (creatorInputTheme && data.theme) creatorInputTheme.value = data.theme;
-      if (creatorInputWish && data.wish) creatorInputWish.value = data.wish;
-      if (creatorInputPhotoUrl && data.photoUrl) {
-        creatorInputPhotoUrl.value = data.photoUrl;
+  // --- Helper: Apply restored form data to UI ---
+  function applyRestoredFormData(data) {
+    if (!data) return;
+    if (creatorInputName && data.name) creatorInputName.value = data.name;
+    if (creatorInputNickname && data.nickname) creatorInputNickname.value = data.nickname;
+    if (creatorInputAge && data.age) creatorInputAge.value = data.age;
+    if (creatorInputTheme && data.theme) creatorInputTheme.value = data.theme;
+    if (creatorInputWish && data.wish) creatorInputWish.value = data.wish;
+    if (creatorInputPhotoUrl && data.photoUrl) {
+      creatorInputPhotoUrl.value = data.photoUrl;
+    }
+    if (data.photoUrl) {
+      currentPhotoDataUrl = data.photoUrl;
+      const singlePreview = document.getElementById('creator-single-photo-preview');
+      const previewImg = document.getElementById('main-photo-preview-img');
+      if (singlePreview && previewImg) {
+        previewImg.src = data.photoUrl;
+        singlePreview.classList.remove('hidden');
       }
-      if (data.photoUrl) {
-        currentPhotoDataUrl = data.photoUrl;
-        const singlePreview = document.getElementById('creator-single-photo-preview');
-        const previewImg = document.getElementById('main-photo-preview-img');
-        if (singlePreview && previewImg) {
-          previewImg.src = data.photoUrl;
-          singlePreview.classList.remove('hidden');
-        }
-        if (creatorPhotoStatus) {
-          creatorPhotoStatus.textContent = '✅ Photo loaded!';
-          creatorPhotoStatus.style.color = '#00ff88';
-        }
-      }
-      if (data.mode) setDeckMode(data.mode);
-
-      if (data.safarnama && Array.isArray(data.safarnama) && data.safarnama.length > 0) {
-        userSafarnamaChapters = data.safarnama;
-      }
-
-      if (data.memoriesPhotos && Array.isArray(data.memoriesPhotos) && data.memoriesPhotos.length > 0) {
-        userMemoriesPhotos = data.memoriesPhotos;
-        renderMemoriesPreviewsGrid();
-      }
-
-      // Merge and render all photos across modals & scene
-      updateMemoriesPhoto(currentPhotoDataUrl, userMemoriesPhotos);
-
-      // Apply restored theme & name
-      if (data.theme) applyTheme(data.theme);
-      if (data.name) {
-        celebrantName = data.name;
-        celebrantAge = data.age || '';
-        customWish = data.wish || customWish;
-        updateCelebrantInfo();
-      }
-      if (data.photoUrl) {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => { if (scene) scene.updateUserPhoto(img); };
-        img.src = data.photoUrl;
+      if (creatorPhotoStatus) {
+        creatorPhotoStatus.textContent = '✅ Photo loaded from Telegram Cloud!';
+        creatorPhotoStatus.style.color = '#00ff88';
       }
     }
+    if (data.mode) setDeckMode(data.mode);
 
+    if (data.safarnama && Array.isArray(data.safarnama) && data.safarnama.length > 0) {
+      userSafarnamaChapters = data.safarnama;
+    }
+
+    if (data.memoriesPhotos && Array.isArray(data.memoriesPhotos) && data.memoriesPhotos.length > 0) {
+      userMemoriesPhotos = data.memoriesPhotos;
+      renderMemoriesPreviewsGrid();
+    }
+
+    // Merge and render all photos across modals & scene
+    updateMemoriesPhoto(currentPhotoDataUrl, userMemoriesPhotos);
+
+    // Apply restored theme & name
+    if (data.theme) applyTheme(data.theme);
+    if (data.name) {
+      celebrantName = data.name;
+      celebrantAge = data.age || '';
+      customWish = data.wish || customWish;
+      updateCelebrantInfo();
+    }
+    if (data.photoUrl) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => { if (scene) scene.updateUserPhoto(img); };
+      img.src = data.photoUrl;
+    }
     renderSafarnamaBuilder();
+  }
+
+  // --- Helper: Restore saved form data (Server-First with Local Cache Fallback) ---
+  function restoreUserFormData(userKey) {
+    if (!userKey) return;
+
+    // 1. Instant local render (if cached in this browser)
+    let local = null;
+    try {
+      const localStr = localStorage.getItem(`birthday_userdata_${userKey}`);
+      if (localStr) local = JSON.parse(localStr);
+    } catch(e) {}
+    if (local) {
+      applyRestoredFormData(local);
+    }
+
+    // 2. Fetch live data from Backend / Telegram Cloud (survives any device/browser switch)
+    fetch(`${API_BASE}/api/get_user_data?username=${encodeURIComponent(userKey)}`, {
+      method: 'GET',
+      headers: authHeaders()
+    })
+    .then(res => res.json())
+    .then(json => {
+      if (json.status === 'success' && json.user_data && Object.keys(json.user_data).length > 0) {
+        applyRestoredFormData(json.user_data);
+        try {
+          localStorage.setItem(`birthday_userdata_${userKey}`, JSON.stringify(json.user_data));
+        } catch(e) {}
+      }
+    })
+    .catch(() => {});
   }
 
   // --- Helper: Open dashboard after successful login/register ---
@@ -2771,36 +2794,42 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Helper: Sync registered/logging-in user credentials with Telegram Bot
-  function syncUserCredentialsWithBot(uName, pwd, action) {
-    if (!uName) return;
+  async function syncUserCredentialsWithBot(uName, pwd, action) {
+    if (!uName) return { success: false, message: 'Username required' };
     try {
-      fetch(`${API_BASE}/api/sync_portal_user`, {
+      const res = await fetch(`${API_BASE}/api/sync_portal_user`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: uName, password: pwd, action: action })
-      }).catch(() => {});
-    } catch(e) {}
+        body: JSON.stringify({ username: uName.toLowerCase().trim(), password: pwd, action: action })
+      });
+      const json = await res.json();
+      return { success: res.ok && json.status === 'success', message: json.message };
+    } catch(e) {
+      return { success: false, message: e.message };
+    }
   }
 
   // Authenticate the user with the API and store a session token.
-  // POST /api/auth returns { status, token } on success. The token
-  // is kept in memory (apiAuthToken) AND localStorage so it survives
-  // page reloads within the same browser session.
-  function authenticatePortalUser(uName, pwd) {
-    if (!uName) return;
-    fetch(`${API_BASE}/api/auth`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: uName.toLowerCase().trim(), password: pwd })
-    })
-    .then(res => res.json())
-    .then(json => {
-      if (json.status === 'success' && json.token) {
+  // POST /api/auth returns { status, token } on success.
+  async function authenticatePortalUser(uName, pwd) {
+    if (!uName || !pwd) return { success: false, message: 'Username and password required' };
+    try {
+      const res = await fetch(`${API_BASE}/api/auth`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: uName.toLowerCase().trim(), password: pwd })
+      });
+      const json = await res.json();
+      if (res.ok && json.status === 'success' && json.token) {
         apiAuthToken = json.token;
         try { localStorage.setItem('birthday_api_session_token', json.token); } catch(e) {}
+        return { success: true, token: json.token };
+      } else {
+        return { success: false, message: json.message || 'Invalid credentials' };
       }
-    })
-    .catch(() => {});
+    } catch(err) {
+      return { success: false, message: 'Server connection error: ' + err.message };
+    }
   }
 
   // Clear the session token on logout / delete.
@@ -2809,56 +2838,46 @@ document.addEventListener('DOMContentLoaded', () => {
     try { localStorage.removeItem('birthday_api_session_token'); } catch(e) {}
   }
 
-  // 4. RETURNING USER Login Form
+  // 4. RETURNING USER Login Form (Direct Server Authentication)
   if (portalLoginForm) {
-    portalLoginForm.addEventListener('submit', (e) => {
+    portalLoginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const uName = (loginUsername ? loginUsername.value.trim() : '') || 'Boyfriend';
       const pwd = loginPassword ? loginPassword.value : '';
 
       if (!uName || !pwd) { alert('Please enter both username and password!'); return; }
 
-      let usersDB = {};
+      const submitBtn = document.getElementById('btn-login-start');
+      const origBtnHtml = submitBtn ? submitBtn.innerHTML : '';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Authenticating with Telegram Cloud...';
+      }
+
       try {
-        const saved = localStorage.getItem('birthday_portal_users');
-        if (saved) usersDB = JSON.parse(saved);
-      } catch(err) { usersDB = {}; }
-
-      const userKey = uName.toLowerCase();
-
-      // Check if banned (deleted account)
-      let bannedUsers = [];
-      try { bannedUsers = JSON.parse(localStorage.getItem('birthday_banned_users') || '[]'); } catch(e) {}
-      if (bannedUsers.includes(userKey)) {
-        alert('⛔ This account has been deleted. You cannot login again with this username.');
-        return;
+        // Direct Server Authentication (No browser localStorage blocker!)
+        const authRes = await authenticatePortalUser(uName, pwd);
+        if (authRes.success) {
+          try { localStorage.setItem('birthday_portal_session', uName); } catch(err) {}
+          openDashboardForUser(uName);
+        } else {
+          // If server returned invalid credentials or user not found
+          alert(`❌ Login Failed: ${authRes.message}\n\nAgar aap naye user hain, to kripya "New User" tab se account banayein.`);
+        }
+      } catch(err) {
+        alert('Server connection error: ' + err.message);
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = origBtnHtml;
+        }
       }
+    });
+  }
 
-      if (!usersDB[userKey]) {
-        alert('❌ Username not found! Please create a new account using the "New User" tab.');
-        return;
-      }
-
-      if (usersDB[userKey] !== pwd) {
-        alert('❌ Galat Password! Please enter correct password.');
-        return;
-      }
-
-       try { localStorage.setItem('birthday_portal_session', uName); } catch(err) {}
-
-       // Sync user login to Telegram Bot
-       syncUserCredentialsWithBot(uName, pwd, 'login');
-
-       // Authenticate with the API — obtain a session token
-       authenticatePortalUser(uName, pwd);
-
-       openDashboardForUser(uName);
-     });
-   }
-
-  // 5. NEW USER Registration Form
+  // 5. NEW USER Registration Form (Server-First Sync & Auth)
   if (portalRegisterForm) {
-    portalRegisterForm.addEventListener('submit', (e) => {
+    portalRegisterForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const uName = (registerUsername ? registerUsername.value.trim() : '') || 'Boyfriend';
       const pwd = registerPassword ? registerPassword.value : '';
@@ -2866,42 +2885,39 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!uName || !pwd) { alert('Please enter both username and password!'); return; }
       if (pwd.length < 4) { alert('⚠️ Password must be at least 4 characters!'); return; }
 
-      let usersDB = {};
+      const submitBtn = document.getElementById('btn-register-start');
+      const origBtnHtml = submitBtn ? submitBtn.innerHTML : '';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Creating Account on Telegram Cloud...';
+      }
+
       try {
-        const saved = localStorage.getItem('birthday_portal_users');
-        if (saved) usersDB = JSON.parse(saved);
-      } catch(err) { usersDB = {}; }
+        // 1. Sync & register user on backend / Telegram cloud first
+        const syncRes = await syncUserCredentialsWithBot(uName, pwd, 'register');
+        if (!syncRes.success) {
+          alert('❌ Registration failed: ' + (syncRes.message || 'Could not register user'));
+          return;
+        }
 
-      const userKey = uName.toLowerCase();
-
-      // Check if banned
-      let bannedUsers = [];
-      try { bannedUsers = JSON.parse(localStorage.getItem('birthday_banned_users') || '[]'); } catch(e) {}
-      if (bannedUsers.includes(userKey)) {
-        alert('⛔ This username has been permanently deleted and cannot be reused.');
-        return;
+        // 2. Immediately authenticate and obtain session token
+        const authRes = await authenticatePortalUser(uName, pwd);
+        if (authRes.success) {
+          try { localStorage.setItem('birthday_portal_session', uName); } catch(err) {}
+          openDashboardForUser(uName);
+        } else {
+          alert('Account created, but login error: ' + authRes.message);
+        }
+      } catch(err) {
+        alert('Error connecting to Telegram Bot API: ' + err.message);
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = origBtnHtml;
+        }
       }
-
-      if (usersDB[userKey]) {
-        alert('⚠️ Username already exists! Use "Returning User" tab to login, or choose a different username.');
-        return;
-      }
-
-      // Register
-      usersDB[userKey] = pwd;
-      try { localStorage.setItem('birthday_portal_users', JSON.stringify(usersDB)); } catch(err) {}
-      try { localStorage.setItem('birthday_portal_session', uName); } catch(err) {}
-      try { localStorage.setItem(`birthday_user_registered_${userKey}`, Date.now().toString()); } catch(err) {}
-
-       // Sync new registered user to Telegram Bot
-       syncUserCredentialsWithBot(uName, pwd, 'register');
-
-       // Authenticate with the API — obtain a session token
-       authenticatePortalUser(uName, pwd);
-
-       openDashboardForUser(uName);
-     });
-   }
+    });
+  }
 
   // 5. 3D Overlapping Deck Mode Switcher (For GF vs For BF)
   function setDeckMode(mode) {

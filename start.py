@@ -88,10 +88,17 @@ if __name__ == "__main__":
     # Small delay to ensure the HTTP server is fully up
     time.sleep(1)
 
-    # 2. Start Public User Bot in background thread
-    pub_bot_thread = threading.Thread(target=run_public_bot, daemon=True)
-    pub_bot_thread.start()
-    print("🤖 Public User Bot thread launched")
+    # 2. Start Public User Bot ONLY if a separate dedicated token is configured
+    b_tok = os.environ.get("BOT_TOKEN", "").strip() or telegram_bot.config.get("bot_token", "").strip()
+    p_tok = os.environ.get("PUBLIC_BOT_TOKEN", "").strip() or telegram_bot.config.get("public_bot_token", "").strip()
+    has_separate_tokens = bool(p_tok and p_tok != b_tok)
+
+    if has_separate_tokens:
+        pub_bot_thread = threading.Thread(target=run_public_bot, daemon=True)
+        pub_bot_thread.start()
+        print("🤖 Public User Bot thread launched on dedicated token")
+    else:
+        print("🤖 Single Bot Mode: Intelligently routing Owner & Public users on BOT_TOKEN (No 409 Conflicts)")
 
     # 3. Start Scheduled Deletion Cleanup in background thread
     cleanup_thread = threading.Thread(
