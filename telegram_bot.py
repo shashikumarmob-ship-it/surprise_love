@@ -637,17 +637,27 @@ def finish_create_wizard(chat_id, session):
     send_tg_message(chat_id, msg_text, reply_markup=keyboard)
 
 def show_saved_answers(chat_id):
-    answers = config.get("saved_answers", [])
-    if not answers:
+    """Show owner all recent answers across all users from UserStore."""
+    all_users = user_store.get_all_users()
+    all_answers = []
+    for u in all_users:
+        uname = u.get("username", "")
+        for ans in u.get("answers", []):
+            ans["_user"] = uname
+            all_answers.append(ans)
+
+    if not all_answers:
         send_tg_message(chat_id, "💌 <b>No chat answers recorded yet!</b>\n\nOnce your girlfriend answers questions in the live chat during the surprise, her replies will appear right here in real time! 💕")
         return
 
-    text = f"💖 <b>SAVED GIRLFRIEND CHAT ANSWERS ({len(answers)})</b> 💖\n\n"
-    for idx, item in enumerate(answers[-8:], 1):
+    # Show last 8 across all users
+    recent = all_answers[-8:]
+    text = f"💖 <b>SAVED GIRLFRIEND CHAT ANSWERS ({len(all_answers)} total)</b> 💖\n\n"
+    for idx, item in enumerate(recent, 1):
         text += (
             f"<b>Q{idx}:</b> {item.get('question', '')}\n"
             f"👸 <b>Her Reply:</b> <i>\"{item.get('reply', '')}\"</i>\n"
-            f"⏱ <i>{item.get('time', '')}</i>\n"
+            f"👤 <i>User: {item.get('_user', '?')}</i> ⏱ <i>{item.get('time', '')}</i>\n"
             f"{'—'*24}\n"
         )
     send_tg_message(chat_id, text)
@@ -702,23 +712,23 @@ class WebhookHandler(BaseHTTPRequestHandler):
 
         if self.path == "/api/notify_answer":
             # Live Chat Answer notification from girlfriend
-            q_num = data.get("questionNumber", 1)
+            q_num  = data.get("questionNumber", 1)
             q_text = data.get("question", "")
             r_text = data.get("reply", "")
             c_name = data.get("celebrant", "Girlfriend")
-            t_str = data.get("time", time.strftime("%I:%M %p"))
+            t_str  = data.get("time", time.strftime("%I:%M %p"))
+            # username key = celebrant name lowercased
+            username_key = c_name.lower().replace(" ", "_")
 
-            # Save in config
             answer_item = {
                 "question": q_text,
-                "reply": r_text,
+                "reply":    r_text,
                 "celebrant": c_name,
-                "time": t_str
+                "time":     t_str,
+                "q_num":    q_num,
             }
-            if "saved_answers" not in config:
-                config["saved_answers"] = []
-            config["saved_answers"].append(answer_item)
-            save_config(config)
+            # Save per-user in UserStore
+            user_store.add_answer(username_key, answer_item)
 
             # Send Telegram Alert to Owner
             owner_id = config.get("owner_chat_id")

@@ -369,9 +369,8 @@ def show_chat_answers(chat_id):
         send_tg_message(chat_id, prompt_msg, reply_markup=inline_kb)
         return
 
-    # User is logged in! Fetch answers
-    cfg = load_config()
-    all_answers = cfg.get("saved_answers", [])
+    # User is logged in! Fetch answers from UserStore (per-user)
+    all_answers = user_store.get_answers(logged_user)
 
     if not all_answers:
         msg = (
@@ -396,13 +395,12 @@ def show_chat_answers(chat_id):
     for idx, item in enumerate(all_answers, start=1):
         q_text = item.get("question", "N/A")
         a_text = item.get("reply", "N/A")
-        c_name = item.get("celebrant", "Partner")
-        t_str = item.get("time", "")
+        t_str  = item.get("time", "")
 
         msg += (
             f"<b>Q{idx}. Question:</b> <i>{q_text}</i>\n"
             f"💬 <b>Answer:</b> <code>\"{a_text}\"</code>\n"
-            f"👤 <b>From:</b> {c_name} {f'| ⏱ {t_str}' if t_str else ''}\n"
+            f"{f'⏱ {t_str}' if t_str else ''}\n"
             f"{'—' * 26}\n\n"
         )
 
@@ -536,19 +534,17 @@ def handle_create_wish(chat_id, text):
 
     logged_user = session.get("logged_user") or name.lower().replace(" ", "_")
 
-    # Save to config link expiries
-    cfg = load_config()
-    if "link_expiries" not in cfg:
-        cfg["link_expiries"] = {}
-
-    cfg["link_expiries"][logged_user] = {
-        "generated_at": now_ms,
+    # Save surprise to organized UserStore
+    user_store.save_surprise(logged_user, {
+        "mode":       session.get("data", {}).get("mode", "gf"),
+        "name":       name,
+        "nickname":   nick,
+        "theme":      theme,
+        "wish":       wish,
+        "created_at": now_ms,
         "expires_at": exp_ms,
-        "expires_at_sec": exp_ms / 1000.0,
-        "link": final_link,
-        "created_str": time.strftime("%d %b %Y, %I:%M %p")
-    }
-    save_config(cfg)
+        "link":       final_link,
+    })
 
     session["step"] = None
     session["data"] = {}
@@ -581,18 +577,13 @@ def show_share_data(chat_id):
     session = get_session(chat_id)
     logged_user = session.get("logged_user")
 
-    cfg = load_config()
-    expiries = cfg.get("link_expiries", {})
-
     target_info = None
-    target_uname = None
+    target_uname = logged_user
 
-    if logged_user and logged_user in expiries:
-        target_info = expiries[logged_user]
-        target_uname = logged_user
-    elif expiries:
-        # Take latest created
-        target_uname, target_info = list(expiries.items())[-1]
+    if logged_user:
+        surprise = user_store.get_surprise(logged_user)
+        if surprise.get("link"):
+            target_info = surprise
 
     if not target_info:
         msg = (
@@ -608,8 +599,8 @@ def show_share_data(chat_id):
         send_tg_message(chat_id, msg, reply_markup=inline_kb)
         return
 
-    now_ms = time.time() * 1000.0
-    exp_ms = target_info.get("expires_at", 0)
+    now_ms  = time.time() * 1000.0
+    exp_ms  = target_info.get("expires_at", 0) or 0
     is_active = exp_ms > now_ms
 
     if is_active:
@@ -620,15 +611,20 @@ def show_share_data(chat_id):
     else:
         status_str = "🔴 EXPIRED"
 
-    link_url = target_info.get("link") or config.get("web_app_url", "http://localhost:8000/")
-    created_str = target_info.get("created_str", "Recently")
+    link_url    = target_info.get("link") or config.get("web_app_url", "")
+    created_str = target_info.get("created_str") or time.strftime("%d %b %Y, %I:%M %p")
+    cel_name    = target_info.get("name") or target_uname
+    cel_nick    = target_info.get("nickname") or ""
+    theme_str   = target_info.get("theme") or ""
 
     msg = (
         f"🔗 <b>SURPRISE SHARE DATA</b> 💖🎂\n\n"
         f"• 👤 <b>Account:</b> <code>{target_uname}</code>\n"
+        f"• 🎁 <b>Celebrant:</b> {cel_name}{f' ({cel_nick})' if cel_nick else ''}\n"
+        f"• 🎨 <b>Theme:</b> {theme_str}\n"
         f"• 📅 <b>Created:</b> {created_str}\n"
         f"• 🏷 <b>Status:</b> {status_str}\n"
-        f"• ⏳ <b>Retention Window:</b> 48 Hours\n\n"
+        f"• ⏳ <b>Retention:</b> 48 Hours\n\n"
         f"🌐 <b>Surprise URL:</b>\n"
         f"<code>{link_url}</code>\n\n"
         f"<i>Send this link to your birthday partner so they can experience the 3D celebration!</i>"
