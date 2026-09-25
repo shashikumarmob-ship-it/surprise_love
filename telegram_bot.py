@@ -111,6 +111,58 @@ import secrets
 import hashlib
 import hmac
 
+AUTH_SECRET = os.environ.get("ADMIN_SECRET", "").strip() or config.get("bot_token", "").strip() or "birthday_stateless_secret_2026"
+
+def create_auth_token(username: str) -> str:
+    """Creates a cryptographically signed HMAC token valid for API_TOKEN_TTL (survives server restarts)."""
+    uname = username.lower().strip()
+    exp = int(time.time() + API_TOKEN_TTL)
+    msg = f"{uname}:{exp}"
+    sig = hmac.new(AUTH_SECRET.encode(), msg.encode(), hashlib.sha256).hexdigest()
+    token = f"{msg}:{sig}"
+    api_tokens[token] = {
+        "username": uname,
+        "issued_at": time.time(),
+        "expires_at": exp,
+    }
+    return token
+
+def verify_auth_token(token_str: str):
+    """Verifies a token from in-memory cache OR via HMAC signature (survives restart)."""
+    if not token_str:
+        return None
+    now = time.time()
+    # 1. In-memory check
+    if token_str in api_tokens:
+        entry = api_tokens[token_str]
+        if entry.get("expires_at", 0) >= now:
+            entry["expires_at"] = now + API_TOKEN_TTL
+            return entry.get("username")
+        else:
+            api_tokens.pop(token_str, None)
+            return None
+    # 2. Cryptographic signature check (survives server restart / deploy)
+    parts = token_str.split(":")
+    if len(parts) == 3:
+        uname, exp_str, sig = parts
+        try:
+            exp = int(exp_str)
+            if exp < now:
+                return None
+            msg = f"{uname}:{exp_str}"
+            expected_sig = hmac.new(AUTH_SECRET.encode(), msg.encode(), hashlib.sha256).hexdigest()
+            if secrets.compare_digest(sig, expected_sig):
+                # Valid HMAC signature! Cache in memory with renewed TTL
+                api_tokens[token_str] = {
+                    "username": uname,
+                    "issued_at": now,
+                    "expires_at": now + API_TOKEN_TTL,
+                }
+                return uname
+        except (ValueError, TypeError):
+            pass
+    return None
+
 TELEGRAM_FILE_URL_RE = re.compile(r"^https?://api\.telegram\.org/file/bot[^/]+/(.+)$")
 
 
@@ -1034,21 +1086,13 @@ class WebhookHandler(BaseHTTPRequestHandler):
         """
         Returns the authenticated username if the request carries a
         valid Bearer token, otherwise returns None.
-        Tokens are issued by POST /api/auth and stored in api_tokens.
+        Supports both in-memory and HMAC signed tokens (survives restarts).
         """
         auth_header = self.headers.get("Authorization", "")
         if not auth_header.startswith("Bearer "):
             return None
         token = auth_header[7:].strip()
-        if not token or token not in api_tokens:
-            return None
-        entry = api_tokens[token]
-        if not entry or entry.get("expires_at", 0) < time.time():
-            api_tokens.pop(token, None)
-            return None
-        # Extend TTL on use
-        entry["expires_at"] = time.time() + API_TOKEN_TTL
-        return entry.get("username")
+        return verify_auth_token(token)
 
     def _is_loopback_request(self):
         """True when the TCP peer is this machine (local development)."""
@@ -1119,12 +1163,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
             if not user_store.verify_password(username, password):
                 self._send_json(401, {"status": "error", "message": "Invalid credentials"})
                 return
-            token = secrets.token_hex(32)
-            api_tokens[token] = {
-                "username": username,
-                "issued_at": time.time(),
-                "expires_at": time.time() + API_TOKEN_TTL,
-            }
+            token = create_auth_token(username)
             self._send_json(200, {"status": "success", "token": token})
             return
 

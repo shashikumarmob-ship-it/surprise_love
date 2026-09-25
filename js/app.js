@@ -3975,6 +3975,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
      try {
        const res = await fetch(`${API_BASE}/api/live_progress?username=${encodeURIComponent(userKey)}`, { headers: authHeaders() });
+       if (res.status === 401) {
+         if (liveTrackerPollInterval) {
+           clearInterval(liveTrackerPollInterval);
+           liveTrackerPollInterval = null;
+         }
+         return;
+       }
        if (!res.ok) return;
        const data = await res.json();
 
