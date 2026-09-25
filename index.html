@@ -33,12 +33,7 @@
     <div class="portal-landing-backdrop"></div>
     <div class="portal-ambient-glows"></div>
 
-    <!-- Upper Left Fixed ENV Test Button -->
-    <button type="button" class="portal-env-topleft-btn" id="btn-portal-topleft-env" title="Open Admin ENV & Telegram Bot Setup" onclick="document.getElementById('admin-env-modal').classList.add('show');">
-      <span class="env-pulse-dot"></span>
-      <i class="fa-solid fa-terminal"></i>
-      <span class="env-text-label">ENV</span>
-    </button>
+
 
     <div class="portal-landing-container">
       
@@ -113,89 +108,10 @@
         <button type="button" class="btn-portal-guest" id="btn-portal-view-demo">
           <i class="fa-solid fa-play"></i> Quick Preview Surprise World 💖
         </button>
-        <button type="button" class="btn-portal-sandbox" id="btn-portal-open-sandbox" onclick="document.getElementById('admin-env-modal').classList.add('show');">
-          <i class="fa-brands fa-telegram"></i> ⚙️ Admin ENV & Telegram Bot Setup 🤖
-        </button>
       </div>
 
     </div>
   </section>
-
-  <!-- =========================================================
-       ADMIN ENVIRONMENT (ENV) & TELEGRAM BOT CONFIG MODAL
-       ========================================================= -->
-  <div class="modal-overlay" id="admin-env-modal">
-    <div class="modal-card admin-env-card">
-      <button type="button" class="modal-close" id="close-admin-env-modal" onclick="document.getElementById('admin-env-modal').classList.remove('show');">&times;</button>
-      
-      <div class="admin-env-header">
-        <div class="admin-tg-icon-badge"><i class="fa-brands fa-telegram"></i></div>
-        <h2>Admin ENV & Telegram Bot Setup ⚙️</h2>
-        <p>Configure your Telegram Bot token so the project connects with your Telegram bot for live chat alerts and surprise sync.</p>
-        
-        <div class="env-bot-status-pill" id="env-bot-status-badge">
-          <span class="status-indicator-dot" id="env-status-dot"></span>
-          <span id="env-status-text">Checking Bot Status...</span>
-        </div>
-      </div>
-
-      <form id="admin-env-form" class="admin-env-form" autocomplete="off" onsubmit="return false;">
-        
-        <div class="env-form-group">
-          <label><i class="fa-solid fa-crown"></i> 1. Owner Bot Token (Private - Control Panel)</label>
-          <div class="password-input-wrap">
-            <input type="password" id="env-bot-token" placeholder="Paste Owner Bot Token (from @BotFather)" required autocomplete="new-password">
-            <button type="button" class="btn-toggle-pwd" id="btn-toggle-env-token" title="Show / Mask Token">
-              <i class="fa-solid fa-eye"></i>
-            </button>
-          </div>
-          <span class="env-field-hint">💡 Owner Bot sirf aapke liye (`/user`, `/active_user`, `/webapp`). Token masked <b>(••••••)</b> rahega.</span>
-        </div>
-
-        <div class="env-form-group">
-          <label><i class="fa-solid fa-users"></i> 2. Public User Bot Token (For Random Users)</label>
-          <div class="password-input-wrap">
-            <input type="password" id="env-public-bot-token" placeholder="Paste Public User Bot Token (or leave blank to use same token)" autocomplete="new-password">
-            <button type="button" class="btn-toggle-pwd" id="btn-toggle-public-env-token" title="Show / Mask Token">
-              <i class="fa-solid fa-eye"></i>
-            </button>
-          </div>
-          <span class="env-field-hint">💡 Random Users ke liye (`public_user_bot.py`). New/Existing login, Q&A, create surprise, help.</span>
-        </div>
-
-        <div class="env-form-group">
-          <label><i class="fa-solid fa-id-badge"></i> Your Telegram Chat ID (OWNER_CHAT_ID)</label>
-          <div class="env-input-wrapper">
-            <input type="text" id="env-chat-id" placeholder="e.g. Your Chat ID (auto-detected on /start)">
-          </div>
-          <span class="env-field-hint">💡 Jahan par aapko girlfriend ke live answers aur notifications chahiye.</span>
-        </div>
-
-        <div class="env-form-group">
-          <label><i class="fa-solid fa-globe"></i> Web App Host URL (WEB_APP_URL)</label>
-          <div class="env-input-wrapper">
-            <input type="text" id="env-web-url" value="" placeholder="e.g. https://your-app.onrender.com or http://localhost:8000">
-          </div>
-        </div>
-
-        <div class="admin-env-actions">
-          <button type="button" class="btn-env-save" id="btn-env-save">
-            <span class="btn-shine"></span>
-            <i class="fa-solid fa-floppy-disk"></i> Save & Connect Bot 💾
-          </button>
-          
-          <button type="button" class="btn-env-test" id="btn-env-test-ping">
-            <i class="fa-solid fa-bolt"></i> Real Verify & Ping ⚡
-          </button>
-        </div>
-        
-        <div class="env-feedback-toast hidden" id="env-feedback-toast">
-          <i class="fa-solid fa-circle-check" id="env-feedback-icon"></i>
-          <span id="env-feedback-msg">Environment settings saved and verified!</span>
-        </div>
-      </form>
-    </div>
-  </div>
 
   <!-- =========================================================
        NEON GLASSY LOGIN POPUP MODAL (New User / Returning User)
