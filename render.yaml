@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: surprise-love
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python telegram_bot.py
+    envVars:
+      - key: PORT
+        value: 5000
+      - key: BOT_TOKEN
+        sync: false
+      - key: OWNER_CHAT_ID
+        sync: false
+      - key: WEB_APP_URL
+        sync: false

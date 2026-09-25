@@ -34,10 +34,10 @@ from urllib.parse import urlencode
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bot_config.json")
 
 DEFAULT_CONFIG = {
-    "bot_token": "8845203919:AAEOKVwNqw5Q6yn2DJbx5JL-uWMqQa57hL8",
+    "bot_token": "",
     "public_bot_token": "",
-    "owner_chat_id": "7034154766",
-    "web_app_url": "http://localhost:8000/",
+    "owner_chat_id": "",
+    "web_app_url": "",
     "api_port": 5000,
     "user_credentials": {},
     "saved_answers": [],
@@ -45,13 +45,25 @@ DEFAULT_CONFIG = {
 }
 
 def load_config():
+    cfg = DEFAULT_CONFIG.copy()
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                saved = json.load(f)
+                if isinstance(saved, dict):
+                    cfg.update(saved)
         except Exception:
             pass
-    return DEFAULT_CONFIG.copy()
+    # Support Environment Variables for Cloud / Render Hosting
+    if os.environ.get("BOT_TOKEN"):
+        cfg["bot_token"] = os.environ.get("BOT_TOKEN").strip()
+    if os.environ.get("PUBLIC_BOT_TOKEN"):
+        cfg["public_bot_token"] = os.environ.get("PUBLIC_BOT_TOKEN").strip()
+    if os.environ.get("OWNER_CHAT_ID"):
+        cfg["owner_chat_id"] = os.environ.get("OWNER_CHAT_ID").strip()
+    if os.environ.get("WEB_APP_URL"):
+        cfg["web_app_url"] = os.environ.get("WEB_APP_URL").strip()
+    return cfg
 
 def save_config(cfg):
     try:

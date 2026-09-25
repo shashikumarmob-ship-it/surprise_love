@@ -1,0 +1,26 @@
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Environment files with secrets
+.env
+.env.local
+.env.*.local
+bot_config.local.json
+
+# Temporary uploads (keep folder structure with .gitkeep)
+uploads/*
+!uploads/.gitkeep
+
+# Logs and OS files
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

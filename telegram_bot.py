@@ -25,25 +25,43 @@ if hasattr(sys.stdout, 'reconfigure'):
     except Exception:
         pass
 
-# CONFIGURATION (Set your Bot Token from @BotFather or in config.json)
-CONFIG_FILE = "bot_config.json"
+# CONFIGURATION (Loaded from environment variables or bot_config.json)
+CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bot_config.json")
 DEFAULT_CONFIG = {
-    "bot_token": "YOUR_TELEGRAM_BOT_TOKEN_HERE",
+    "bot_token": "",
+    "public_bot_token": "",
     "owner_chat_id": "",
-    "web_app_url": "http://localhost:8000",
+    "web_app_url": "",
     "api_port": 5000,
     "user_credentials": {},
     "saved_answers": []
 }
 
 def load_config():
+    cfg = DEFAULT_CONFIG.copy()
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                saved = json.load(f)
+                if isinstance(saved, dict):
+                    cfg.update(saved)
         except Exception:
             pass
-    return DEFAULT_CONFIG.copy()
+    # Support Environment Variables (ideal for Render / Cloud deployment)
+    if os.environ.get("BOT_TOKEN"):
+        cfg["bot_token"] = os.environ.get("BOT_TOKEN").strip()
+    if os.environ.get("PUBLIC_BOT_TOKEN"):
+        cfg["public_bot_token"] = os.environ.get("PUBLIC_BOT_TOKEN").strip()
+    if os.environ.get("OWNER_CHAT_ID"):
+        cfg["owner_chat_id"] = os.environ.get("OWNER_CHAT_ID").strip()
+    if os.environ.get("WEB_APP_URL"):
+        cfg["web_app_url"] = os.environ.get("WEB_APP_URL").strip()
+    if os.environ.get("PORT"):
+        try:
+            cfg["api_port"] = int(os.environ.get("PORT"))
+        except ValueError:
+            pass
+    return cfg
 
 def save_config(cfg):
     try:
@@ -53,7 +71,7 @@ def save_config(cfg):
         print(f"[Error saving config]: {e}")
 
 config = load_config()
-BOT_TOKEN = config.get("bot_token", "YOUR_TELEGRAM_BOT_TOKEN_HERE")
+BOT_TOKEN = config.get("bot_token", "").strip()
 BASE_TG_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 # User conversation session states for /create wizard
@@ -269,7 +287,7 @@ def get_main_reply_keyboard():
 
 def is_owner(chat_id):
     """Verify if the sender is the authorized bot Owner"""
-    owner_id = str(config.get("owner_chat_id", "7034154766")).strip()
+    owner_id = str(config.get("owner_chat_id", "")).strip()
     return not owner_id or str(chat_id) == owner_id
 
 def process_user_message(chat_id, user_name, text, raw_msg):
@@ -1412,6 +1430,42 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 self._send_json(404, {"status": "not_found", "message": "Image not found"})
                 return
 
+        # Fallback: Serve static web app files (index.html, style.css, js/app.js, media, etc.)
+        req_path = self.path.split("?")[0]
+        if req_path == "/" or req_path == "":
+            req_path = "/index.html"
+
+        workspace_dir = os.path.dirname(os.path.abspath(__file__))
+        rel_path = req_path.lstrip("/").replace("/", os.sep)
+        full_filepath = os.path.abspath(os.path.join(workspace_dir, rel_path))
+
+        if full_filepath.startswith(workspace_dir) and os.path.isfile(full_filepath):
+            mime_types = {
+                ".html": "text/html; charset=utf-8",
+                ".css": "text/css; charset=utf-8",
+                ".js": "application/javascript; charset=utf-8",
+                ".json": "application/json; charset=utf-8",
+                ".png": "image/png",
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".webp": "image/webp",
+                ".gif": "image/gif",
+                ".mp4": "video/mp4",
+                ".mp3": "audio/mpeg",
+                ".svg": "image/svg+xml",
+                ".ico": "image/x-icon"
+            }
+            ext = os.path.splitext(full_filepath)[1].lower()
+            content_type = mime_types.get(ext, "application/octet-stream")
+            try:
+                with open(full_filepath, "rb") as f:
+                    file_bytes = f.read()
+                self._send_bytes(200, content_type, file_bytes)
+                return
+            except Exception as e:
+                self._send_json(500, {"status": "error", "message": str(e)})
+                return
+
         self._send_json(200, {
             "status": "ok",
             "message": "Birthday Telegram Sync Server is running",
@@ -1569,28 +1623,28 @@ def setup_telegram_menu():
         print(f"[Telegram Menu Setup]: {e}")
 
 def start_api_server(port=5000):
-    server = ThreadingHTTPServer(("127.0.0.1", port), WebhookHandler)
-    print(f"🚀 Birthday Webhook API Server running on http://localhost:{port}")
+    server = ThreadingHTTPServer(("0.0.0.0", port), WebhookHandler)
+    print(f"🚀 Birthday Webhook API Server running on port {port} (0.0.0.0:{port})")
     server.serve_forever()
 
 # =========================================================
 # MAIN ENTRYPOINT
 # =========================================================
 if __name__ == "__main__":
+    effective_port = int(os.environ.get("PORT", config.get("api_port", 5000)))
     print("=" * 60)
     print("✨ 3D Birthday Celebration - Telegram Bot & Sync Server")
     print("=" * 60)
     print(f"• Config file: {CONFIG_FILE}")
-    print(f"• Web App URL: {config.get('web_app_url')}")
-    print(f"• API Port: {config.get('api_port', 5000)}")
+    print(f"• Web App URL: {config.get('web_app_url', 'Not configured (using origin)')}")
+    print(f"• API Port: {effective_port}")
 
     if not BOT_TOKEN or "YOUR_TELEGRAM_BOT_TOKEN" in BOT_TOKEN:
-        print("\n⚠️ NOTE: Bot Token is currently placeholder.")
-        print("👉 Please edit `bot_config.json` with your real Telegram Bot Token from @BotFather")
-        print("👉 Or send commands via the web app / local API.\n")
+        print("\n⚠️ NOTE: Bot Token is not set yet.")
+        print("👉 Set `BOT_TOKEN` in Render Environment variables or in `bot_config.json`.\n")
 
     # Start HTTP API server in background thread
-    api_thread = threading.Thread(target=start_api_server, args=(config.get("api_port", 5000),), daemon=True)
+    api_thread = threading.Thread(target=start_api_server, args=(effective_port,), daemon=True)
     api_thread.start()
 
     # Start scheduled deletion cleanup thread (runs every 60s)

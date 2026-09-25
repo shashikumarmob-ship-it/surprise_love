@@ -5,6 +5,13 @@
 document.addEventListener('DOMContentLoaded', () => {
   const scene = new BirthdayScene('canvas-container');
 
+  // Dynamic API Base URL: Works locally (port 8000 -> 5000) and automatically on Render (origin)
+  const API_BASE = (window.location.protocol.startsWith('http'))
+    ? ((window.location.port === '8000' || window.location.port === '3000' || window.location.port === '5500')
+        ? 'http://localhost:5000'
+        : window.location.origin)
+    : 'http://localhost:5000';
+
   // App State - Romantic Defaults
   let celebrantName = 'My Love';
   let celebrantAge = '';
@@ -283,7 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try { liveChatBus.postMessage({ type: 'activity', data: actData }); } catch(e) {}
     }
 
-    fetch('http://localhost:5000/api/track_activity', {
+    fetch(`${API_BASE}/api/track_activity`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(actData)
@@ -661,7 +668,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function syncAnswerToTelegram(data) {
     // 1. Send to local Telegram bot API server
     try {
-      fetch('http://localhost:5000/api/notify_answer', {
+      fetch(`${API_BASE}/api/notify_answer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -765,7 +772,7 @@ document.addEventListener('DOMContentLoaded', () => {
         time: timeStr
       };
 
-      fetch('http://localhost:5000/api/live_chat_send', {
+      fetch(`${API_BASE}/api/live_chat_send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(livePayload)
@@ -1261,7 +1268,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (params.has('s') && params.get('s').trim()) {
       const token = params.get('s').trim();
       try {
-        const res = await fetch(`http://localhost:5000/api/get_surprise?s=${encodeURIComponent(token)}`);
+        const res = await fetch(`${API_BASE}/api/get_surprise?s=${encodeURIComponent(token)}`);
         if (res.status === 410) {
           // Link expired
           document.body.innerHTML = `
@@ -2538,7 +2545,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Also try server
     try {
       const tgToken = localStorage.getItem('birthday_tg_bot_token') || '';
-      fetch('http://localhost:5000/api/save_user_data', {
+      fetch(`${API_BASE}/api/save_user_data`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: userKey, user_data: data })
@@ -2689,7 +2696,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function syncUserCredentialsWithBot(uName, pwd, action) {
     if (!uName) return;
     try {
-      fetch('http://localhost:5000/api/sync_portal_user', {
+      fetch(`${API_BASE}/api/sync_portal_user`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: uName, password: pwd, action: action })
@@ -2882,7 +2889,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setMainPortraitPhoto(dataUrl, '⏳ Uploading to Server...');
 
         // Upload original lossless file to server & Telegram Cloud
-        fetch('http://localhost:5000/api/upload_image', {
+        fetch(`${API_BASE}/api/upload_image`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -3045,7 +3052,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (currentPortalUser) saveUserFormData(currentPortalUser);
 
       // Attempt 1: Upload to local server API & Telegram Cloud (lossless, original resolution)
-      fetch('http://localhost:5000/api/upload_image', {
+      fetch(`${API_BASE}/api/upload_image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -3202,7 +3209,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Send server purge request
     try {
-      fetch('http://localhost:5000/api/expire_user', {
+      fetch(`${API_BASE}/api/expire_user`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: userKey, reason: '48hr_link_expired' })
@@ -3288,7 +3295,7 @@ document.addEventListener('DOMContentLoaded', () => {
       saveUserFormData(uKey);
 
       try {
-        const res = await fetch('http://localhost:5000/api/save_surprise', {
+        const res = await fetch(`${API_BASE}/api/save_surprise`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(surprisePayload)
@@ -3315,7 +3322,7 @@ document.addEventListener('DOMContentLoaded', () => {
         startLinkExpiryCountdown(expAt, uKey);
 
         // Also notify bot server about expiry (legacy compat)
-        fetch('http://localhost:5000/api/save_link_expiry', {
+        fetch(`${API_BASE}/api/save_link_expiry`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username: uKey, link_generated_at: genAt, link_expires_at: expAt, link: shortLink })
@@ -3591,7 +3598,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 2. Fetch from Python Bot API server if running
-    fetch('http://localhost:5000/api/get_env')
+    fetch(`${API_BASE}/api/get_env`)
       .then(res => res.json())
       .then(data => {
         if (data) {
@@ -3699,7 +3706,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch(err) {}
 
     // 3. Sync to Python backend server (if active)
-    fetch('http://localhost:5000/api/save_env', {
+    fetch(`${API_BASE}/api/save_env`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -4087,7 +4094,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }).catch(() => {});
           }
           // Also notify server
-          await fetch('http://localhost:5000/api/delete_user', {
+          await fetch(`${API_BASE}/api/delete_user`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -4250,7 +4257,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!userKey) return;
 
     try {
-      const res = await fetch(`http://localhost:5000/api/live_progress?username=${encodeURIComponent(userKey)}`);
+      const res = await fetch(`${API_BASE}/api/live_progress?username=${encodeURIComponent(userKey)}`);
       if (!res.ok) return;
       const data = await res.json();
 
@@ -4341,7 +4348,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Mark unread as read on server
       const userKey = currentPortalUser || (localStorage.getItem('birthday_portal_session') || '').toLowerCase();
       if (userKey) {
-        fetch('http://localhost:5000/api/live_chat_mark_read', {
+        fetch(`${API_BASE}/api/live_chat_mark_read`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username: userKey })
@@ -4382,7 +4389,7 @@ document.addEventListener('DOMContentLoaded', () => {
     creatorLiveInput.value = '';
 
     // 1. Post to backend server
-    fetch('http://localhost:5000/api/live_chat_send', {
+    fetch(`${API_BASE}/api/live_chat_send`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(msgPayload)
