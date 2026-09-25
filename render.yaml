@@ -1,15 +1,30 @@
 services:
+  # ============================================================
+  # ONE Web Service = Web App + API + Owner Bot + Public User Bot
+  # - start.py runs everything in one process (4 threads)
+  # - Serves 3D Birthday Web App (index.html, style.css, js/)
+  # - Runs REST API for real-time sync on $PORT
+  # - Runs Owner's private Telegram bot polling
+  # - Runs Public User Telegram bot polling
+  # ============================================================
   - type: web
     name: surprise-love
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python telegram_bot.py
+    startCommand: python start.py
     envVars:
-      - key: PORT
-        value: 5000
       - key: BOT_TOKEN
         sync: false
+
+      # Optional: set a separate bot for public users
+      # If not set, public bot will reuse BOT_TOKEN
+      - key: PUBLIC_BOT_TOKEN
+        sync: false
+
       - key: OWNER_CHAT_ID
         sync: false
+
+      # Set this to your Render URL AFTER first deploy
+      # e.g. https://surprise-love.onrender.com
       - key: WEB_APP_URL
         sync: false
