@@ -257,13 +257,14 @@ class UserStore:
     # PHOTOS (Telegram CDN)
     # ------------------------------------------------------------------
 
-    def add_photo(self, username: str, file_id: str, url: str, caption: str = "", message_id=None) -> bool:
+    def add_photo(self, username: str, file_id: str, url: str, caption: str = "", message_id=None, file_path: str = "") -> bool:
         user = self.load_user(username)
         if not user:
             return False
         photo = {
             "file_id":     file_id,
-            "url":         url,
+            "url":         url,   # token-free proxy URL (/api/photo?...), never a raw TG CDN URL
+            "file_path":   file_path or "",
             "caption":     caption,
             "message_id":  message_id,   # Telegram message_id for deleteMessage
             "uploaded_at": time.strftime("%d %b %Y, %I:%M %p"),

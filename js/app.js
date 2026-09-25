@@ -12,6 +12,24 @@ document.addEventListener('DOMContentLoaded', () => {
         : window.location.origin)
     : 'http://localhost:5000';
 
+  // SECURITY: Resolve photo URLs to the token-free proxy.
+  // - New proxy URLs look like "/api/photo?file_id=..." -> prefix with API_BASE.
+  // - Legacy direct Telegram CDN URLs (api.telegram.org/file/bot<TOKEN>/...)
+  //   are converted client-side to the proxy so the bot token is never used
+  //   in the browser (covers cached localStorage data from older links).
+  function resolvePhotoUrl(u) {
+    if (!u || typeof u !== 'string') return u;
+    const s = u.trim();
+    if (!s) return s;
+    if (s.startsWith('data:') || s.startsWith('blob:')) return s;
+    if (s.startsWith('/api/photo')) return API_BASE + s;
+    const tgMatch = s.match(/^https?:\/\/api\.telegram\.org\/file\/bot[^/]+\/(.+)$/);
+    if (tgMatch && tgMatch[1]) {
+      return API_BASE + '/api/photo?p=' + encodeURIComponent(tgMatch[1]);
+    }
+    return s;
+  }
+
   // App State - Romantic Defaults
   let celebrantName = 'My Love';
   let celebrantAge = '';
@@ -1295,16 +1313,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (Array.isArray(parsed)) userSafarnamaChapters = parsed;
               } catch(e) {}
             }
-            // Render all memories photos immediately from TG CDN
-            updateMemoriesPhoto(sharedPhoto, userMemoriesPhotos);
+            // Main portrait from server (sanitized proxy URL, resolved for display)
+            const serverPhoto = d.photo ? resolvePhotoUrl(d.photo) : null;
+            if (serverPhoto) currentPhotoDataUrl = d.photo;
+            // Render all memories photos immediately via token-free proxy
+            updateMemoriesPhoto(d.photo || null, userMemoriesPhotos);
 
-            if (sharedPhoto) {
+            if (serverPhoto) {
               const img = new Image();
               img.crossOrigin = 'anonymous';
               img.onload = () => {
                 if (scene && scene.updateUserPhoto) scene.updateUserPhoto(img);
               };
-              img.src = sharedPhoto;
+              img.src = serverPhoto;
             }
             updateCelebrantInfo();
             applyTheme(activeTheme);
@@ -1333,8 +1354,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Check shared photo in URL hash/param
     let sharedPhoto = params.get('photo') || null;
+    if (sharedPhoto) sharedPhoto = resolvePhotoUrl(sharedPhoto);
     currentPhotoDataUrl = sharedPhoto;
-    if (inputPhotoUrl && sharedPhoto && sharedPhoto.startsWith('http')) {
+    if (inputPhotoUrl && sharedPhoto && (sharedPhoto.startsWith('http') || sharedPhoto.startsWith('/'))) {
       inputPhotoUrl.value = sharedPhoto;
     }
 
@@ -1356,7 +1378,7 @@ document.addEventListener('DOMContentLoaded', () => {
       img.onload = () => {
         if (scene && scene.updateUserPhoto) scene.updateUserPhoto(img);
       };
-      img.src = sharedPhoto;
+      img.src = resolvePhotoUrl(sharedPhoto);
     } else {
       if (scene && scene.clearUserPhoto) {
         scene.clearUserPhoto();
@@ -1419,6 +1441,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Lightbox overlay for full image preview (original resolution) ---
   function openMemoryLightbox(src) {
     if (!src) return;
+    src = resolvePhotoUrl(src);
     let lb = document.getElementById('memory-lightbox-overlay');
     if (!lb) {
       lb = document.createElement('div');
@@ -1444,7 +1467,7 @@ document.addEventListener('DOMContentLoaded', () => {
       lb.addEventListener('click', (e) => { if (e.target === lb || e.target === lbClose) lb.remove(); });
     }
     const imgEl = document.getElementById('memory-lightbox-img');
-    if (imgEl) imgEl.src = src;
+    if (imgEl) imgEl.src = resolvePhotoUrl(src);
   }
 
   // --- Inject uploaded photos into all memory/polaroid frames ---
@@ -1454,11 +1477,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!item) return null;
       if (typeof item === 'string') {
         const s = item.trim();
-        return s && s !== 'null' && s !== 'undefined' ? s : null;
+        if (!s || s === 'null' || s === 'undefined') return null;
+        return resolvePhotoUrl(s);
       }
       if (typeof item === 'object') {
         const u = (item.cdnUrl || item.localUrl || item.url || '').trim();
-        return u && u !== 'null' && u !== 'undefined' ? u : null;
+        if (!u || u === 'null' || u === 'undefined') return null;
+        return resolvePhotoUrl(u);
       }
       return null;
     }
@@ -2844,14 +2869,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // Helper: Set and preview main portrait photo
   function setMainPortraitPhoto(url, statusMsg = '✅ Photo Ready!') {
     if (!url) return;
-    currentPhotoDataUrl = url;
-    if (creatorInputPhotoUrl && url.startsWith('http')) {
-      creatorInputPhotoUrl.value = url;
+    currentPhotoDataUrl = url; // store raw (relative proxy stays portable)
+    if (creatorInputPhotoUrl && (url.startsWith('http') || url.startsWith('/api/photo'))) {
+      creatorInputPhotoUrl.value = url.startsWith('/api/') ? (API_BASE + url) : url;
     }
     const singlePreview = document.getElementById('creator-single-photo-preview');
     const previewImg = document.getElementById('main-photo-preview-img');
     if (singlePreview && previewImg) {
-      previewImg.src = url;
+      previewImg.src = resolvePhotoUrl(url);
       singlePreview.classList.remove('hidden');
     }
     if (creatorPhotoStatus) {
@@ -2975,7 +3000,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let html = '';
     userMemoriesPhotos.forEach((photo, idx) => {
-      const src = typeof photo === 'object' ? (photo.cdnUrl || photo.localUrl || '') : photo;
+      const rawSrc = typeof photo === 'object' ? (photo.cdnUrl || photo.localUrl || '') : photo;
+      const src = resolvePhotoUrl(rawSrc);
       const isUploading = typeof photo === 'object' && photo.uploading;
       html += `
         <div class="memory-thumb-chip" data-idx="${idx}" style="cursor:pointer;" title="Click to view full image">
@@ -3045,12 +3071,8 @@ document.addEventListener('DOMContentLoaded', () => {
           updateMemoriesPhoto(currentPhotoDataUrl, userMemoriesPhotos);
           if (currentPortalUser) saveUserFormData(currentPortalUser);
           if (onDone) onDone();
-          photoEntry.uploading = false;
-          renderMemoriesPreviewsGrid();
-          updateMemoriesPhoto(currentPhotoDataUrl, userMemoriesPhotos);
-          if (currentPortalUser) saveUserFormData(currentPortalUser);
-          if (onDone) onDone();
-        })
+        }
+      })
         .catch(() => {
           photoEntry.uploading = false;
           renderMemoriesPreviewsGrid();

@@ -96,10 +96,88 @@ import base64
 import re
 import uuid
 
+TELEGRAM_FILE_URL_RE = re.compile(r"^https?://api\.telegram\.org/file/bot[^/]+/(.+)$")
+
+
+def proxy_url_for_file_id(file_id: str) -> str:
+    """Public proxy URL for a Telegram file_id. Never contains the bot token."""
+    return f"/api/photo?file_id={urllib.parse.quote(str(file_id), safe='')}"
+
+
+def proxy_url_for_file_path(file_path: str) -> str:
+    """Public proxy URL for a Telegram file_path. Never contains the bot token."""
+    return f"/api/photo?p={urllib.parse.quote(str(file_path), safe='')}"
+
+
+def sanitize_telegram_url(url):
+    """
+    Converts a legacy direct Telegram CDN URL (which embeds BOT_TOKEN)
+    into a token-free proxy URL. Non-Telegram URLs pass through unchanged.
+    """
+    if not url or not isinstance(url, str):
+        return url
+    m = TELEGRAM_FILE_URL_RE.match(url.strip())
+    if m:
+        return proxy_url_for_file_path(m.group(1))
+    return url
+
+
+def sanitize_photo_item(item):
+    """Sanitizes a photo entry that may be a str or {cdnUrl,localUrl,url} dict."""
+    if isinstance(item, str):
+        return sanitize_telegram_url(item)
+    if isinstance(item, dict):
+        out = dict(item)
+        for k in ("cdnUrl", "localUrl", "url", "photo"):
+            if isinstance(out.get(k), str):
+                # Only rewrite CDN-ish keys; keep data: URLs and external URLs as-is.
+                v = out[k].strip()
+                if TELEGRAM_FILE_URL_RE.match(v):
+                    out[k] = sanitize_telegram_url(v)
+        return out
+    return item
+
+
+def sanitize_surprise_payload(payload: dict) -> dict:
+    """Returns a copy of a surprise payload with all Telegram CDN URLs proxied."""
+    if not isinstance(payload, dict):
+        return payload
+    out = dict(payload)
+    if isinstance(out.get("photo"), str):
+        out["photo"] = sanitize_telegram_url(out["photo"])
+    if isinstance(out.get("memories"), list):
+        out["memories"] = [sanitize_photo_item(x) for x in out["memories"]]
+    return out
+
+
+def get_telegram_file_path(file_id: str):
+    """Resolves a Telegram file_id to its file_path via getFile (server-side only)."""
+    try:
+        gr = requests.get(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/getFile?file_id={urllib.parse.quote(str(file_id), safe='')}",
+            timeout=8,
+        ).json()
+        if gr.get("ok"):
+            return gr["result"].get("file_path", "")
+    except Exception as e:
+        print(f"[TG getFile Error]: {e}")
+    return ""
+
+
+def fetch_telegram_file_bytes(file_path: str):
+    """Downloads Telegram file bytes server-side. Token never leaves the server."""
+    url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
+    r = requests.get(url, timeout=20)
+    r.raise_for_status()
+    return r.content
+
+
 def upload_photo_to_telegram(img_bytes, filename="photo.jpg", caption=""):
     """
     Uploads an image to Telegram Bot (owner chat).
-    Returns (tg_cdn_url, file_id, message_id).
+    Returns (file_path, file_id, message_id).
+    The raw Telegram CDN URL (which embeds BOT_TOKEN) is NEVER constructed
+    or returned — callers must use proxy_url_for_file_id() instead.
     message_id is stored so the photo can be deleted later when user deletes account.
     """
     if not BOT_TOKEN or "YOUR_TELEGRAM" in BOT_TOKEN:
@@ -126,16 +204,11 @@ def upload_photo_to_telegram(img_bytes, filename="photo.jpg", caption=""):
             msg_id   = result.get("message_id")            # for deleteMessage later
             photos   = result.get("photo", [])
             if photos:
-                file_id  = photos[-1].get("file_id")      # largest resolution
-                # Get fresh CDN URL
-                gr = requests.get(
-                    f"https://api.telegram.org/bot{BOT_TOKEN}/getFile?file_id={file_id}",
-                    timeout=8
-                ).json()
-                if gr.get("ok"):
-                    fp  = gr["result"].get("file_path", "")
-                    url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{fp}"
-                    return url, file_id, msg_id
+                file_id = photos[-1].get("file_id")      # largest resolution
+                # Resolve file_path server-side (never expose token-bearing URL)
+                fp = get_telegram_file_path(file_id)
+                if fp:
+                    return fp, file_id, msg_id
         return None, None, None
     except Exception as e:
         print(f"[TG Photo Upload Error]: {e}")
@@ -171,8 +244,9 @@ def delete_user_photos_from_telegram(username: str):
 def save_base64_image(b64_str, prefix="img", username="user", photo_type="Photo"):
     """
     Uploads a base64 image ONLY to Telegram CDN (no local disk storage).
-    Saves file_id + message_id in UserStore under the user's photos list.
-    Returns the Telegram CDN URL, or None on failure.
+    Saves file_id + file_path + message_id in UserStore under the user's photos list.
+    Returns a token-free proxy URL (/api/photo?file_id=...), or None on failure.
+    The direct Telegram CDN URL (embeds BOT_TOKEN) is never returned or stored.
     """
     try:
         if not b64_str or not isinstance(b64_str, str):
@@ -196,21 +270,34 @@ def save_base64_image(b64_str, prefix="img", username="user", photo_type="Photo"
             f"• <b>Time:</b> {time.strftime('%d %b %Y, %I:%M %p')}"
         )
 
-        tg_url, file_id, msg_id = upload_photo_to_telegram(
+        file_path, file_id, msg_id = upload_photo_to_telegram(
             img_bytes, filename=filename, caption=caption
         )
 
-        if tg_url and file_id:
-            # Store in UserStore so we can delete later
-            user_store.add_photo(
-                username,
-                file_id  = file_id,
-                url      = tg_url,
-                caption  = photo_type,
-                message_id = msg_id,        # for deleteMessage
-            )
+        if file_path and file_id:
+            # Store in UserStore so we can delete later.
+            # `url` is the token-free proxy URL — the raw TG CDN URL is never stored.
+            proxy_url = proxy_url_for_file_id(file_id)
+            try:
+                user_store.add_photo(
+                    username,
+                    file_id  = file_id,
+                    url      = proxy_url,
+                    caption  = photo_type,
+                    message_id = msg_id,        # for deleteMessage
+                    file_path = file_path,
+                )
+            except TypeError:
+                # Backward-compat with older UserStore.add_photo() signature
+                user_store.add_photo(
+                    username,
+                    file_id  = file_id,
+                    url      = proxy_url,
+                    caption  = photo_type,
+                    message_id = msg_id,
+                )
             print(f"[Photo] Saved to TG CDN for {username}: {file_id[:20]}...")
-            return tg_url
+            return proxy_url
 
         print(f"[Photo] TG upload failed for {username}")
         return None
@@ -915,12 +1002,15 @@ class WebhookHandler(BaseHTTPRequestHandler):
             return
 
         elif self.path == "/api/save_user_data":
-            # Save user's form data (name, photo, wish, theme etc.) keyed by username
+            # Save user's form data (name, photo, wish, theme etc.) keyed by username.
+            # Sanitize legacy token-bearing URLs so they are never stored/returned.
             username_key = data.get("username", "").lower().strip()
             user_data = data.get("user_data", {})
             if username_key and user_data:
                 if "portal_user_data" not in config:
                     config["portal_user_data"] = {}
+                if isinstance(user_data, dict):
+                    user_data = sanitize_surprise_payload(user_data)
                 config["portal_user_data"][username_key] = user_data
                 save_config(config)
                 self.send_response(200)
@@ -1247,7 +1337,8 @@ class WebhookHandler(BaseHTTPRequestHandler):
             return
 
         elif self.path == "/api/upload_image":
-            # Direct base64 image upload to server uploads/ directory and Telegram cloud
+            # Direct base64 image upload to Telegram cloud.
+            # Returns a token-free proxy URL (/api/photo?file_id=...) — never a raw TG CDN URL.
             b64_img = data.get("image", "")
             fname = data.get("filename", "photo.jpg")
             uname = data.get("username", "user").lower().strip()
@@ -1259,6 +1350,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     self._send_json(200, {
                         "status": "success",
                         "url": saved_url,
+                        "tg_url": saved_url,
                         "message": "Photo uploaded to Telegram and saved!"
                     })
                     return
@@ -1272,13 +1364,15 @@ class WebhookHandler(BaseHTTPRequestHandler):
 
             username_key = data.get("username", "user").lower().strip()
 
-            # Convert base64 profile photo to TG CDN
-            if data.get("photo", "").startswith("data:image/"):
+            # Convert base64 profile photo to TG CDN (stored as token-free proxy URL)
+            if isinstance(data.get("photo"), str) and data.get("photo", "").startswith("data:image/"):
                 saved_photo = save_base64_image(data["photo"], prefix="profile", username=username_key, photo_type="Main Portrait")
                 if saved_photo:
                     data["photo"] = saved_photo
+            elif isinstance(data.get("photo"), str):
+                data["photo"] = sanitize_telegram_url(data.get("photo"))
 
-            # Convert any base64 memories photos to TG CDN
+            # Convert any base64 memories photos to TG CDN (stored as proxy URLs)
             if "memories" in data and isinstance(data["memories"], list):
                 saved_memories = []
                 for item in data["memories"]:
@@ -1287,16 +1381,16 @@ class WebhookHandler(BaseHTTPRequestHandler):
                             s = save_base64_image(item, prefix="memory", username=username_key, photo_type="Memories Album")
                             if s:
                                 saved_memories.append(s)
-                        elif item.startswith("http"):
-                            saved_memories.append(item)
+                        elif item.startswith("http") or item.startswith("/api/photo"):
+                            saved_memories.append(sanitize_telegram_url(item))
                     elif isinstance(item, dict):
                         u = item.get("cdnUrl") or item.get("localUrl") or item.get("url") or ""
                         if u.startswith("data:image/"):
                             s = save_base64_image(u, prefix="memory", username=username_key, photo_type="Memories Album")
                             if s:
                                 saved_memories.append(s)
-                        elif u.startswith("http"):
-                            saved_memories.append(u)
+                        elif u.startswith("http") or u.startswith("/api/photo"):
+                            saved_memories.append(sanitize_telegram_url(u))
                 data["memories"] = saved_memories
             token = data.get("token", "")  # reuse existing token for regeneration
             if not token:
@@ -1408,6 +1502,9 @@ class WebhookHandler(BaseHTTPRequestHandler):
             if link_exp and (time.time() * 1000.0 >= link_exp.get("expires_at", 0)):
                 link_expired = True
 
+            # Sanitize any legacy Telegram CDN URLs before sending to the client
+            if isinstance(user_data, dict):
+                user_data = sanitize_surprise_payload(user_data)
             self._send_json(200, {
                 "status": "success",
                 "is_existing_user": is_existing,
@@ -1433,8 +1530,61 @@ class WebhookHandler(BaseHTTPRequestHandler):
             })
             return
 
+        elif self.path.startswith("/api/photo"):
+            # Token-free image proxy. Token never leaves the server.
+            # Usage: /api/photo?file_id=XXX  (preferred)  or  /api/photo?p=photos/file_X.jpg (legacy)
+            import urllib.parse as up
+            qs = up.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
+            file_id = qs.get("file_id", [""])[0].strip()
+            file_path = qs.get("p", [""])[0].strip()
+            if not BOT_TOKEN or "YOUR_TELEGRAM" in BOT_TOKEN:
+                self._send_json(503, {"status": "error", "message": "Bot not configured"})
+                return
+            try:
+                if file_id:
+                    # Basic validation: Telegram file_ids are opaque base64-ish strings
+                    if len(file_id) > 256 or not re.match(r"^[A-Za-z0-9_\-=+/:]+$", file_id):
+                        self._send_json(400, {"status": "error", "message": "Invalid file_id"})
+                        return
+                    file_path = get_telegram_file_path(file_id)
+                    if not file_path:
+                        self._send_json(404, {"status": "not_found", "message": "File not found"})
+                        return
+                if not file_path:
+                    self._send_json(400, {"status": "error", "message": "Missing photo reference"})
+                    return
+                # Strict allowlist: prevent path traversal / SSRF
+                file_path = urllib.parse.unquote(file_path)
+                if ".." in file_path or file_path.startswith("/") or "://" in file_path:
+                    self._send_json(400, {"status": "error", "message": "Invalid file path"})
+                    return
+                if not re.match(r"^[A-Za-z0-9_\-/\.]+$", file_path):
+                    self._send_json(400, {"status": "error", "message": "Invalid file path"})
+                    return
+                img_bytes = fetch_telegram_file_bytes(file_path)
+                ext = file_path.rsplit(".", 1)[-1].lower() if "." in file_path else "jpg"
+                mime_map = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+                            "webp": "image/webp", "gif": "image/gif", "mp4": "video/mp4"}
+                content_type = mime_map.get(ext, "image/jpeg")
+                self.send_response(200)
+                self._set_cors()
+                # Allow <img> + canvas use across origins; cache aggressively (files are immutable)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(img_bytes)))
+                self.send_header("Cache-Control", "public, max-age=86400, immutable")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.wfile.write(img_bytes)
+                self.wfile.flush()
+                return
+            except Exception as e:
+                print(f"[Photo Proxy Error]: {e}")
+                self._send_json(502, {"status": "error", "message": "Failed to fetch photo"})
+                return
+
         elif self.path.startswith("/api/get_surprise"):
-            # Returns full surprise data for a short token
+            # Returns full surprise data for a short token.
+            # All Telegram CDN URLs are sanitized to token-free proxy URLs before sending.
             import urllib.parse as up
             qs = up.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
             token = qs.get("s", [""])[0].strip()
@@ -1447,7 +1597,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 if exp_at and now_ms >= exp_at:
                     self._send_json(410, {"status": "expired", "message": "Link expired"})
                     return
-                self._send_json(200, {"status": "success", "data": entry})
+                self._send_json(200, {"status": "success", "data": sanitize_surprise_payload(entry)})
             else:
                 self._send_json(404, {"status": "not_found"})
             return
