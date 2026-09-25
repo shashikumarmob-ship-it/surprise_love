@@ -559,6 +559,13 @@ def handle_updates():
         _start_owner_autosave("owner", user_sessions)
     except Exception as _ae:
         print(f"[session_store] Owner autosave not started: {_ae}")
+    # Clear any stale webhook so polling is guaranteed to receive updates
+    try:
+        del_res = requests.post(f"{BASE_TG_URL}/deleteWebhook", json={"drop_pending_updates": False}, timeout=10)
+        print(f"[Owner Bot] Webhook reset status: {del_res.status_code}", flush=True)
+    except Exception as _we:
+        print(f"[Owner Bot] Webhook reset: {_we}", flush=True)
+
     while True:
         try:
             if not BOT_TOKEN or "YOUR_TELEGRAM_BOT_TOKEN" in BOT_TOKEN:
@@ -568,6 +575,8 @@ def handle_updates():
             res = requests.get(f"{BASE_TG_URL}/getUpdates", params={"offset": offset, "timeout": 20}, timeout=25)
             data = res.json()
             if not data.get("ok"):
+                err = data.get("description", "Unknown Telegram error")
+                print(f"⚠️ [Owner Bot getUpdates Error]: {err}", flush=True)
                 time.sleep(3)
                 continue
 
@@ -618,7 +627,7 @@ def get_main_reply_keyboard():
     return {
         "keyboard": [
             [{"text": "👤 User"}, {"text": "🟢 Active User"}],
-            [{"text": "🌐 Open Web App"}]
+            [{"text": "🎉 Public Bot Menu"}, {"text": "🌐 Open Web App"}]
         ],
         "resize_keyboard": True,
         "is_persistent": True
@@ -629,11 +638,57 @@ def is_owner(chat_id):
     owner_id = str(config.get("owner_chat_id", "")).strip()
     return not owner_id or str(chat_id) == owner_id
 
+def show_owner_welcome(chat_id, user_name="Owner"):
+    welcome_text = (
+        f"👑 <b>3D Birthday Studio — Owner Bot</b> 🤖💖\n\n"
+        f"Hello <b>{user_name}</b>! 👋\n\n"
+        f"<b>🤖 Mai Kaun Hoon?</b>\n"
+        f"Mai <b>3D Birthday Studio</b> ka <b>Owner Control Bot</b> hoon — "
+        f"ek private Telegram bot jo sirf <b>aapke (Owner)</b> ke liye bana hai. "
+        f"Is bot ke zariye aap apne users, unki photos, surprise links, aur live "
+        f"girlfriend/boyfriend chat replies ko real-time me monitor kar sakte ho.\n\n"
+        f"<b>⚡ Kya Kya Karta Hoon:</b>\n"
+        f"• 👤 <b>User:</b> Sabhi registered users ki list (with details)\n"
+        f"• 🟢 <b>Active User:</b> Aaj login kiye ya active surprise link wale users\n"
+        f"• 🌐 <b>Web App:</b> 3D Birthday Celebration website launch karo\n"
+        f"• 📸 <b>Photo Alerts:</b> Jab koi user photo upload kare, seedha yahan aata hai\n"
+        f"• 💌 <b>Live Chat Replies:</b> Girlfriend ke har jawab ka instant alert\n"
+        f"• ☁️ <b>Cloud Backup:</b> Saara data Telegram Cloud me safe rehta hai\n\n"
+        f"<b>🔒 Security:</b>\n"
+        f"Ye bot sirf aapke Chat ID (<code>{chat_id}</code>) se control hota hai.\n\n"
+        f"<i>👇 Neeche se koi option choose karo ya menu se command select karo!</i>"
+    )
+    inline_keyboard = {
+        "inline_keyboard": [
+            [{"text": "👤 All Users & Passwords", "callback_data": "menu_users"}],
+            [{"text": "🟢 Active Users (Today / Valid Link)", "callback_data": "menu_active"}],
+            [{"text": "🎉 Open Public User Bot Menu", "callback_data": "flow_welcome"}],
+            [get_webapp_button("🌐 Open Birthday Web App", "menu_webapp")]
+        ]
+    }
+    send_tg_message(chat_id, welcome_text, reply_markup=get_main_reply_keyboard())
+    send_tg_message(chat_id, "👇 Quick Actions:", reply_markup=inline_keyboard)
+
 def process_user_message(chat_id, user_name, text, raw_msg):
     pub_tok = config.get("public_bot_token", "").strip()
     has_separate_public_bot = bool(pub_tok and pub_tok != BOT_TOKEN)
+    cmd = text.strip().lower()
 
-    # If sender is NOT owner:
+    # Public user bot commands set (supported seamlessly even in single-bot mode)
+    PUBLIC_COMMANDS = {
+        "/register", "register", "🆕 new user register", "🆕 new user login", "new user register", "new user login", "new user",
+        "/login", "login", "🔑 existing user login", "existing user login",
+        "/create", "create", "🎁 create surprise", "create surprise",
+        "/answers", "answers", "💌 chat answers", "chat answers", "chat answer",
+        "/mydata", "mydata", "📋 my data & share", "my data", "profile", "/profile", "dashboard", "/dashboard",
+        "/photos", "photos", "📸 my photos", "my photos",
+        "/share", "share", "🔗 share data", "share data", "my link",
+        "/help", "help", "❓ help & dm owner", "support", "dm owner",
+        "/deletedata", "deletedata", "delete data", "delete my data", "delete account", "delete my account",
+        "/public", "public", "/userbot", "userbot", "switch_user", "🎉 public bot menu", "public bot menu"
+    }
+
+    # 1. Non-owner routing
     if not is_owner(chat_id):
         if has_separate_public_bot:
             denied_msg = (
@@ -652,42 +707,25 @@ def process_user_message(chat_id, user_name, text, raw_msg):
                 print(f"[Public Dispatch Error]: {_pe}")
             return
 
-    cmd = text.strip().lower()
+    # 2. Owner routing:
+    # If the owner is currently in a public wizard step (e.g. typing username/password/wish)
+    # OR if the owner sent a Public Bot command:
+    # Seamlessly route to public_user_bot!
+    try:
+        import public_user_bot
+        pub_session = public_user_bot.get_session(chat_id)
+        if pub_session.get("step") or cmd in PUBLIC_COMMANDS:
+            public_user_bot.process_user_text(chat_id, user_name, text)
+            return
+    except Exception as _pe:
+        print(f"[Owner-to-Public Dispatch Error]: {_pe}")
 
-    # 1. /start command + Greetings (hi, hello, hey, h, hei, etc.)
+    # 3. Owner Greetings (/start, hi, hello, etc.)
     greetings = ["/start", "start", "hi", "hii", "hiii", "hello", "helo", "hlo",
                  "hey", "heyy", "h", "hei", "hui", "ho", "hoi", "hola",
                  "sup", "yo", "hy", "henlo", "namaste", "namaskar"]
     if cmd in greetings:
-        welcome_text = (
-            f"👑 <b>3D Birthday Studio — Owner Bot</b> 🤖💖\n\n"
-            f"Hello <b>{user_name}</b>! 👋\n\n"
-            f"<b>🤖 Mai Kaun Hoon?</b>\n"
-            f"Mai <b>3D Birthday Studio</b> ka <b>Owner Control Bot</b> hoon — "
-            f"ek private Telegram bot jo sirf <b>aapke (Owner)</b> ke liye bana hai. "
-            f"Is bot ke zariye aap apne users, unki photos, surprise links, aur live "
-            f"girlfriend/boyfriend chat replies ko real-time me monitor kar sakte ho.\n\n"
-            f"<b>⚡ Kya Kya Karta Hoon:</b>\n"
-            f"• 👤 <b>User:</b> Sabhi registered users ki list (with details)\n"
-            f"• 🟢 <b>Active User:</b> Aaj login kiye ya active surprise link wale users\n"
-            f"• 🌐 <b>Web App:</b> 3D Birthday Celebration website launch karo\n"
-            f"• 📸 <b>Photo Alerts:</b> Jab koi user photo upload kare, seedha yahan aata hai\n"
-            f"• 💌 <b>Live Chat Replies:</b> Girlfriend ke har jawab ka instant alert\n"
-            f"• ☁️ <b>Cloud Backup:</b> Saara data Telegram Cloud me safe rehta hai\n\n"
-            f"<b>🔒 Security:</b>\n"
-            f"Ye bot sirf aapke Chat ID (<code>{chat_id}</code>) se control hota hai. "
-            f"Koi aur isse access nahi kar sakta.\n\n"
-            f"<i>👇 Neeche se koi option choose karo ya menu se command select karo!</i>"
-        )
-        inline_keyboard = {
-            "inline_keyboard": [
-                [{"text": "👤 All Users & Passwords", "callback_data": "menu_users"}],
-                [{"text": "🟢 Active Users (Today / Valid Link)", "callback_data": "menu_active"}],
-                [get_webapp_button("🌐 Open Birthday Web App", "menu_webapp")]
-            ]
-        }
-        send_tg_message(chat_id, welcome_text, reply_markup=get_main_reply_keyboard())
-        send_tg_message(chat_id, "👇 Quick Actions:", reply_markup=inline_keyboard)
+        show_owner_welcome(chat_id, user_name)
         return
 
     # 2. 👤 User command
@@ -919,10 +957,20 @@ def process_callback_query(chat_id, cb_data, cb_raw):
     except Exception:
         pass
 
-    # Owner vs Public routing for callback buttons
-    pub_tok = config.get("public_bot_token", "").strip()
-    has_separate_public_bot = bool(pub_tok and pub_tok != BOT_TOKEN)
+    if cb_data == "switch_to_owner":
+        show_owner_welcome(chat_id)
+        return
 
+    # Route any public bot callback directly to public_user_bot (works for both owner & public users)
+    if cb_data.startswith("flow_") or cb_data.startswith("mode_") or cb_data.startswith("theme_"):
+        try:
+            import public_user_bot
+            public_user_bot.process_callback(chat_id, cb_data, cb_raw)
+            return
+        except Exception as _pe:
+            print(f"[Public CB Dispatch Error]: {_pe}")
+
+    # Non-owner guard for private owner admin callbacks
     if not is_owner(chat_id):
         if not has_separate_public_bot:
             try:

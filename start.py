@@ -61,20 +61,21 @@ def run_owner_bot():
 if __name__ == "__main__":
     # Determine port from env (Render sets PORT automatically)
     port = int(os.environ.get("PORT", 10000))
-
-    print("=" * 65)
-    print("✨  3D Birthday Celebration — Unified Render Launcher")
-    print("=" * 65)
-    print(f"• PORT          : {port}")
-    print(f"• BOT_TOKEN     : {'✅ Set' if os.environ.get('BOT_TOKEN') else '⚠️  Not set'}")
-    print(f"• PUBLIC_BOT_TOKEN: {'✅ Set' if os.environ.get('PUBLIC_BOT_TOKEN') else '⚠️  Using BOT_TOKEN'}")
-    print(f"• OWNER_CHAT_ID : {os.environ.get('OWNER_CHAT_ID', '⚠️  Not set')}")
-    print(f"• WEB_APP_URL   : {os.environ.get('WEB_APP_URL', '⚠️  Not set — set this to your Render URL')}")
-    print(f"• ADMIN_SECRET  : {'✅ Set (admin API locked)' if os.environ.get('ADMIN_SECRET') else '⚠️  Not set (admin API = loopback only)'}")
-    print("=" * 65)
-
-    # Import telegram_bot to access the HTTP server starter
     import telegram_bot
+    b_tok = os.environ.get("BOT_TOKEN", "").strip() or telegram_bot.config.get("bot_token", "").strip()
+    p_tok = os.environ.get("PUBLIC_BOT_TOKEN", "").strip() or telegram_bot.config.get("public_bot_token", "").strip()
+    has_separate_tokens = bool(p_tok and p_tok != b_tok)
+
+    print("=" * 65, flush=True)
+    print("✨  3D Birthday Celebration — Unified Render Launcher", flush=True)
+    print("=" * 65, flush=True)
+    print(f"• PORT             : {port}", flush=True)
+    print(f"• BOT_TOKEN        : {'✅ Set' if b_tok else '⚠️  Not set'}", flush=True)
+    print(f"• PUBLIC_BOT_TOKEN : {'✅ Set (Dedicated Public Bot active)' if has_separate_tokens else 'ℹ️  Not set (Unified Single-Bot mode active)'}", flush=True)
+    print(f"• OWNER_CHAT_ID    : {os.environ.get('OWNER_CHAT_ID', '⚠️  Not set')}", flush=True)
+    print(f"• WEB_APP_URL      : {os.environ.get('WEB_APP_URL', '⚠️  Not set')}", flush=True)
+    print(f"• ADMIN_SECRET     : {'✅ Set' if os.environ.get('ADMIN_SECRET') else '⚠️  Not set'}", flush=True)
+    print("=" * 65, flush=True)
 
     # 1. Start HTTP API + Web App server in background thread
     api_thread = threading.Thread(
@@ -83,7 +84,7 @@ if __name__ == "__main__":
         daemon=True
     )
     api_thread.start()
-    print(f"🌐 Web App & API Server started on 0.0.0.0:{port}")
+    print(f"🌐 Web App & API Server started on 0.0.0.0:{port}", flush=True)
 
     # Small delay to ensure the HTTP server is fully up
     time.sleep(1)
@@ -92,19 +93,15 @@ if __name__ == "__main__":
     try:
         telegram_bot.restore_database_from_telegram_cloud()
     except Exception as _re:
-        print(f"[TelegramCloud] Initial restore skipped: {_re}")
+        print(f"[TelegramCloud] Initial restore skipped: {_re}", flush=True)
 
     # 2. Start Public User Bot ONLY if a separate dedicated token is configured
-    b_tok = os.environ.get("BOT_TOKEN", "").strip() or telegram_bot.config.get("bot_token", "").strip()
-    p_tok = os.environ.get("PUBLIC_BOT_TOKEN", "").strip() or telegram_bot.config.get("public_bot_token", "").strip()
-    has_separate_tokens = bool(p_tok and p_tok != b_tok)
-
     if has_separate_tokens:
         pub_bot_thread = threading.Thread(target=run_public_bot, daemon=True)
         pub_bot_thread.start()
-        print("🤖 Public User Bot thread launched on dedicated token")
+        print("🤖 Dedicated Public User Bot thread launched on separate token", flush=True)
     else:
-        print("🤖 Single Bot Mode: Intelligently routing Owner & Public users on BOT_TOKEN (No 409 Conflicts)")
+        print("🤖 Unified Single Bot Mode: Owner & Public user flows are unified on BOT_TOKEN", flush=True)
 
     # 3. Start Scheduled Deletion Cleanup in background thread
     cleanup_thread = threading.Thread(
@@ -112,7 +109,7 @@ if __name__ == "__main__":
         daemon=True
     )
     cleanup_thread.start()
-    print("🧹 Cleanup thread launched")
+    print("🧹 Cleanup thread launched", flush=True)
 
     # 4. Run Owner Bot in main thread (keeps process alive)
     print("👑 Owner Bot starting (main thread)...")

@@ -263,6 +263,10 @@ def show_welcome(chat_id, user_first_name="Friend"):
             [{"text": "❓ Help & Support", "callback_data": "flow_help"}]
         ]
     }
+    owner_id = str(config.get("owner_chat_id", "")).strip()
+    if owner_id and str(chat_id) == owner_id:
+        inline_kb["inline_keyboard"].append([{"text": "👑 Switch to Owner Control Panel", "callback_data": "switch_to_owner"}])
+
     send_tg_message(chat_id, msg, reply_markup=get_user_reply_keyboard(chat_id))
     send_tg_message(chat_id, "👇 Quick Actions:", reply_markup=inline_kb)
 
@@ -1181,22 +1185,37 @@ def process_callback(chat_id, cb_data, cb_raw):
         theme = cb_data.replace("theme_", "")
         handle_create_theme_select(chat_id, theme)
     elif cb_data == "flow_webapp":
-        app_url = config.get("web_app_url", "").strip()
+        app_url = get_web_app_url()
         if app_url:
             send_tg_message(chat_id, f"🌐 <b>3D Birthday Studio — Web App:</b>\n{app_url}")
         else:
             send_tg_message(chat_id, "🌐 <b>Web App:</b> Website URL is being initialized by admin.")
+    elif cb_data == "flow_welcome":
+        show_welcome(chat_id)
+    elif cb_data == "switch_to_owner":
+        try:
+            import telegram_bot
+            telegram_bot.show_owner_welcome(chat_id)
+        except Exception as _oe:
+            print(f"[switch_to_owner error]: {_oe}")
 
 # =========================================================
 # POLLING LOOP
 # =========================================================
 def run_public_user_bot():
-    print("=" * 60)
-    print("✨ 3D Birthday Celebration - Public User Telegram Bot Started")
-    print("=" * 60)
-    print(f"• Config file: {CONFIG_FILE}")
-    print(f"• Web App URL: {get_web_app_url() or 'Not configured'}")
-    print(f"• Bot Token: {'Configured ✅' if USER_BOT_TOKEN and 'YOUR' not in USER_BOT_TOKEN else '⚠️ Missing'}")
+    print("=" * 60, flush=True)
+    print("✨ 3D Birthday Celebration - Public User Telegram Bot Started", flush=True)
+    print("=" * 60, flush=True)
+    print(f"• Config file: {CONFIG_FILE}", flush=True)
+    print(f"• Web App URL: {get_web_app_url() or 'Not configured'}", flush=True)
+    print(f"• Bot Token: {'Configured ✅' if USER_BOT_TOKEN and 'YOUR' not in USER_BOT_TOKEN else '⚠️ Missing'}", flush=True)
+
+    # 1. Reset any stale webhook so polling is guaranteed to receive updates
+    try:
+        del_res = requests.post(f"{BASE_TG_URL}/deleteWebhook", json={"drop_pending_updates": False}, timeout=10)
+        print(f"🌐 [Public Bot] Webhook reset status: {del_res.status_code}", flush=True)
+    except Exception as _we:
+        print(f"⚠️ [Public Bot] Webhook reset error: {_we}", flush=True)
 
     setup_user_bot_menu()
 
@@ -1204,10 +1223,10 @@ def run_public_user_bot():
         from session_store import start_session_autosave as _start_public_autosave
         _start_public_autosave("public", user_sessions)
     except Exception as _ae:
-        print(f"[session_store] Public autosave not started: {_ae}")
+        print(f"[session_store] Public autosave not started: {_ae}", flush=True)
 
     offset = 0
-    print("🤖 Public User Bot polling service is active...")
+    print("🤖 Public User Bot polling service is active...", flush=True)
 
     while True:
         try:
@@ -1219,6 +1238,8 @@ def run_public_user_bot():
             data = res.json()
 
             if not data.get("ok"):
+                err_desc = data.get("description", "Unknown Telegram error")
+                print(f"⚠️ [Public Bot getUpdates Error]: {err_desc}", flush=True)
                 time.sleep(3)
                 continue
 
