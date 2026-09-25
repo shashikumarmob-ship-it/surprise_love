@@ -1331,6 +1331,39 @@ body {
   color: #ffccd5;
 }
 
+.btn-resume-questions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #ff4d6d 0%, #ff758c 100%);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 0 16px rgba(255, 77, 109, 0.6);
+  animation: pulseResumeBtn 2s infinite ease-in-out;
+  transition: all 0.25s ease;
+  white-space: nowrap;
+}
+
+.btn-resume-questions:hover {
+  transform: translateY(-1px) scale(1.04);
+  box-shadow: 0 0 24px rgba(255, 117, 140, 0.9);
+  background: linear-gradient(135deg, #ff2a55 0%, #ff5c7a 100%);
+}
+
+@keyframes pulseResumeBtn {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(255, 77, 109, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 22px rgba(255, 117, 140, 0.9);
+  }
+}
+
 .btn-skip-chat {
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.2);

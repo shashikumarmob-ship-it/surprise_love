@@ -280,6 +280,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const quoteChapterTitle = document.getElementById('quote-chapter-title');
   const quoteChapterDesc = document.getElementById('quote-chapter-desc');
   const btnCancelQuote = document.getElementById('btn-cancel-quote');
+  const btnResumeQuestions = document.getElementById('btn-resume-questions');
 
   // 2-Way Live Follow-up Chat & Quote State
   let activeFollowUpQuote = null; // { chapterNum, heading, snippet }
@@ -323,14 +324,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }).catch(() => {});
   }
 
+  // Resume System Automated Questions
+  function resumeSystemQuestions() {
+    isAutomatedChatPaused = false;
+    activeFollowUpQuote = null;
+    if (chatQuoteBarContainer) chatQuoteBarContainer.classList.add('hidden');
+    if (btnResumeQuestions) btnResumeQuestions.classList.add('hidden');
+    if (chatLiveStatus) chatLiveStatus.textContent = "Typing with love...";
+    if (chatUserInput) {
+      chatUserInput.disabled = true;
+      chatUserInput.value = '';
+      chatUserInput.placeholder = "Boyfriend is typing a question...";
+    }
+    if (chatSendBtn) chatSendBtn.disabled = true;
+    if (chatQuickReplies) chatQuickReplies.innerHTML = '';
+    typeNextQuestion();
+  }
+
+  // Continue / Resume Questions Button Handler
+  if (btnResumeQuestions) {
+    btnResumeQuestions.addEventListener('click', (e) => {
+      e.preventDefault();
+      resumeSystemQuestions();
+    });
+  }
+
   // Cancel Quote Button Handler
   if (btnCancelQuote) {
     btnCancelQuote.addEventListener('click', () => {
-      activeFollowUpQuote = null;
-      if (chatQuoteBarContainer) chatQuoteBarContainer.classList.add('hidden');
-      if (chatUserInput) {
-        chatUserInput.placeholder = isAutomatedChatPaused ? "Type your message to him..." : "Please enter your reply...";
-      }
+      resumeSystemQuestions();
     });
   }
 
@@ -769,6 +791,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // If she is in follow-up / 2-way live chat mode:
     if (isAutomatedChatPaused || quotedData) {
       isAutomatedChatPaused = true;
+      if (btnResumeQuestions) btnResumeQuestions.classList.remove('hidden');
 
       // Reset input for next custom live message
       if (chatUserInput) {
@@ -2284,6 +2307,10 @@ document.addEventListener('DOMContentLoaded', () => {
       romanticChatScreen.style.transform = 'none';
     }
 
+    if (isAutomatedChatPaused && btnResumeQuestions) {
+      btnResumeQuestions.classList.remove('hidden');
+    }
+
     const chatCard = document.querySelector('.chat-card-window');
     if (chatCard) {
       chatCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -2367,6 +2394,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 1. Pause automated question flow so boyfriend & girlfriend can converse
         isAutomatedChatPaused = true;
+        if (btnResumeQuestions) {
+          btnResumeQuestions.classList.remove('hidden');
+        }
 
         // 2. Set active WhatsApp-style follow-up quote
         activeFollowUpQuote = {
