@@ -28,3 +28,9 @@ services:
       # e.g. https://surprise-love.onrender.com
       - key: WEB_APP_URL
         sync: false
+
+      # Required in production: locks /api/save_env & /api/test_bot behind
+      # an X-Admin-Secret header. Without it those endpoints are loopback-only.
+      # Render auto-generates a random value on first deploy (never in repo).
+      - key: ADMIN_SECRET
+        generateValue: true

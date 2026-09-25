@@ -70,6 +70,7 @@ if __name__ == "__main__":
     print(f"• PUBLIC_BOT_TOKEN: {'✅ Set' if os.environ.get('PUBLIC_BOT_TOKEN') else '⚠️  Using BOT_TOKEN'}")
     print(f"• OWNER_CHAT_ID : {os.environ.get('OWNER_CHAT_ID', '⚠️  Not set')}")
     print(f"• WEB_APP_URL   : {os.environ.get('WEB_APP_URL', '⚠️  Not set — set this to your Render URL')}")
+    print(f"• ADMIN_SECRET  : {'✅ Set (admin API locked)' if os.environ.get('ADMIN_SECRET') else '⚠️  Not set (admin API = loopback only)'}")
     print("=" * 65)
 
     # Import telegram_bot to access the HTTP server starter

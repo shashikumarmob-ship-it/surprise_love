@@ -28,3 +28,6 @@ Thumbs.db
 # Per-user organized data (private — never commit to GitHub)
 users/*
 !users/.gitkeep
+
+# Bot session snapshots (private — chat ids + wizard state)
+*_sessions.json

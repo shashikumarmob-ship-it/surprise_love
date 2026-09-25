@@ -82,9 +82,15 @@ BASE_TG_URL = f"https://api.telegram.org/bot{USER_BOT_TOKEN}"
 from user_store import user_store
 # ─────────────────────────────────────────────────────────────────────────
 
-# In-memory sessions for user interactions
+# In-memory sessions for user interactions (persisted to public_sessions.json
+# so restarts no longer log users out or break mid-wizard flows).
 # user_sessions[chat_id] = { "logged_user": "username", "step": "step_name", "data": {...} }
 user_sessions = {}
+try:
+    from session_store import load_sessions as _load_public_sessions
+    user_sessions.update(_load_public_sessions("public"))
+except Exception as _se:
+    print(f"[session_store] Public session restore skipped: {_se}")
 
 # =========================================================
 # TELEGRAM API HELPERS
@@ -898,6 +904,12 @@ def run_public_user_bot():
     print(f"• Bot Token: {'Configured ✅' if USER_BOT_TOKEN and 'YOUR' not in USER_BOT_TOKEN else '⚠️ Missing'}")
 
     setup_user_bot_menu()
+
+    try:
+        from session_store import start_session_autosave as _start_public_autosave
+        _start_public_autosave("public", user_sessions)
+    except Exception as _ae:
+        print(f"[session_store] Public autosave not started: {_ae}")
 
     offset = 0
     print("🤖 Public User Bot polling service is active...")

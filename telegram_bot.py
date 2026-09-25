@@ -86,8 +86,15 @@ except Exception as _me:
     print(f"[UserStore] Migration skipped: {_me}")
 # ────────────────────────────────────────────────────────────────────────────
 
-# User conversation session states for /create wizard
+# User conversation session states for /create wizard.
+# Persisted to owner_sessions.json so a restart no longer wipes
+# mid-wizard state (see session_store.py).
 user_sessions = {}
+try:
+    from session_store import load_sessions as _load_owner_sessions
+    user_sessions.update(_load_owner_sessions("owner"))
+except Exception as _se:
+    print(f"[session_store] Owner session restore skipped: {_se}")
 
 # Active API session tokens: {token_str: {username, expires_at}}
 # Tokens are issued by POST /api/auth and expire after 24h of inactivity.
@@ -362,6 +369,11 @@ def send_tg_photo(chat_id, photo_url, caption=""):
 def handle_updates():
     offset = 0
     print("🤖 Telegram Bot Polling service started...")
+    try:
+        from session_store import start_session_autosave as _start_owner_autosave
+        _start_owner_autosave("owner", user_sessions)
+    except Exception as _ae:
+        print(f"[session_store] Owner autosave not started: {_ae}")
     while True:
         try:
             if not BOT_TOKEN or "YOUR_TELEGRAM_BOT_TOKEN" in BOT_TOKEN:
@@ -874,6 +886,46 @@ class WebhookHandler(BaseHTTPRequestHandler):
         entry["expires_at"] = time.time() + API_TOKEN_TTL
         return entry.get("username")
 
+    def _is_loopback_request(self):
+        """True when the TCP peer is this machine (local development)."""
+        try:
+            host = self.client_address[0] if self.client_address else ""
+        except Exception:
+            return False
+        return host in ("127.0.0.1", "::1", "::ffff:127.0.0.1")
+
+    def _require_admin(self):
+        """
+        Gate for destructive admin endpoints (/api/save_env, /api/test_bot).
+
+        Those endpoints can overwrite bot tokens / owner chat id and can
+        send Telegram messages, so a logged-in *regular* user token must
+        NOT suffice. Two tiers:
+
+          1. If ADMIN_SECRET env var is set (Render/production): the
+             request must carry a matching `X-Admin-Secret` header
+             (constant-time compare). Loopback alone is NOT enough,
+             because behind a reverse proxy client_address is the proxy.
+          2. If ADMIN_SECRET is unset (local dev): only loopback
+             requests are allowed; every remote request is denied.
+
+        Returns True when the request is authorised as admin.
+        """
+        secret = os.environ.get("ADMIN_SECRET", "").strip()
+        if secret:
+            given = ""
+            try:
+                given = (self.headers.get("X-Admin-Secret", "") or "").strip()
+            except Exception:
+                given = ""
+            try:
+                if given and hmac.compare_digest(given, secret):
+                    return True
+            except Exception:
+                pass
+            return False
+        return self._is_loopback_request()
+
     def do_OPTIONS(self):
         self.send_response(200)
         self._set_cors()
@@ -967,6 +1019,10 @@ class WebhookHandler(BaseHTTPRequestHandler):
             return
 
         elif self.path == "/api/save_env":
+            # 🔒 Admin-only gate (see WebhookHandler._require_admin).
+            if not self._require_admin():
+                self._send_json(403, {"status": "error", "message": "Admin access required"})
+                return
             global BOT_TOKEN, BASE_TG_URL
             new_token = data.get("bot_token", "").strip()
             new_public_token = data.get("public_bot_token", "").strip()
@@ -994,6 +1050,12 @@ class WebhookHandler(BaseHTTPRequestHandler):
             return
 
         elif self.path == "/api/test_bot":
+            # 🔒 Admin-only gate (see WebhookHandler._require_admin).
+            # Without this, anyone could use this server to validate
+            # arbitrary bot tokens and send messages to arbitrary chats.
+            if not self._require_admin():
+                self._send_json(403, {"status": "error", "message": "Admin access required"})
+                return
             token_to_test = data.get("bot_token", "").strip() or BOT_TOKEN
             chat_id_test = str(data.get("owner_chat_id", "")).strip() or config.get("owner_chat_id", "")
 
