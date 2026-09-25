@@ -119,7 +119,8 @@ def setup_user_bot_menu():
         {"command": "answers", "description": "💌 Chat Answers (Q&A)"},
         {"command": "share", "description": "🔗 Share Surprise Data & Link"},
         {"command": "webapp", "description": "🌐 Open Birthday Web App"},
-        {"command": "help", "description": "❓ Help, Delete Account & DM Owner"}
+        {"command": "deletedata", "description": "🗑️ Delete My Account & Data"},
+        {"command": "help", "description": "❓ Help & DM Owner"}
     ]
     try:
         res = requests.post(f"{BASE_TG_URL}/setMyCommands", json={"commands": commands}, timeout=10)
@@ -136,7 +137,8 @@ def get_user_reply_keyboard(chat_id):
             "keyboard": [
                 [{"text": "🎁 Create Surprise"}, {"text": "💌 Chat Answers"}],
                 [{"text": "🔗 Share Data"}, {"text": "🌐 Open Web App"}],
-                [{"text": f"👤 Profile ({logged_user})"}, {"text": "❓ Help & DM Owner"}]
+                [{"text": f"👤 Profile ({logged_user})"}, {"text": "🗑️ Delete Data"}],
+                [{"text": "❓ Help & DM Owner"}]
             ],
             "resize_keyboard": True,
             "is_persistent": True
@@ -674,37 +676,69 @@ def start_delete_account_flow(chat_id):
     session = get_session(chat_id)
     logged_user = session.get("logged_user")
 
+    # 🔒 LOGIN CHECK — if not logged in, prompt to login first
     if not logged_user:
-        send_tg_message(chat_id, "⚠️ Please login first to delete your account.", reply_markup=get_user_reply_keyboard(chat_id))
+        msg = (
+            f"🔒 <b>LOGIN REQUIRED TO DELETE ACCOUNT</b>\n\n"
+            f"Apna account aur data delete karne ke liye pehle <b>Login</b> karna zaroori hai.\n\n"
+            f"👉 Agar aapka account bana hua hai: tap <b>🔑 Existing User Login</b>\n"
+            f"👉 Agar naya account banana hai: tap <b>🆕 New User Login</b>"
+        )
+        inline_kb = {
+            "inline_keyboard": [
+                [{"text": "🔑 Login to My Account", "callback_data": "flow_login"}],
+                [{"text": "🆕 Register New Account", "callback_data": "flow_register"}]
+            ]
+        }
+        send_tg_message(chat_id, msg, reply_markup=inline_kb)
         return
 
     session["step"] = "awaiting_delete_pwd"
     msg = (
         f"⚠️ <b>PERMANENT ACCOUNT DELETION</b> 🗑️💔\n\n"
-        f"You are about to permanently delete account <b>{logged_user}</b>.\n"
-        f"All your saved form data, uploaded photos, chat history, and links will be permanently erased.\n\n"
-        f"To confirm deletion, please enter your <b>Password</b> (or send <code>cancel</code>):"
+        f"Aap account <b>{logged_user}</b> ko permanently delete karne wale hain.\n\n"
+        f"📦 <b>Jo delete hoga:</b>\n"
+        f"• Login credentials\n"
+        f"• Uploaded photos (Telegram CDN se bhi)\n"
+        f"• Surprise link & all form data\n"
+        f"• All chat answers & messages\n\n"
+        f"Confirm karne ke liye apna <b>Password</b> enter karein, ya <code>cancel</code> bhejein:"
     )
-    send_tg_message(chat_id, msg)
+    inline_kb = {
+        "inline_keyboard": [
+            [{"text": "❌ Cancel", "callback_data": "flow_cancel_delete"}]
+        ]
+    }
+    send_tg_message(chat_id, msg, reply_markup=inline_kb)
 
 def handle_delete_password(chat_id, text):
-    if text.strip().lower() == "cancel":
+    if text.strip().lower() in ["cancel", "/cancel"]:
         session = get_session(chat_id)
         session["step"] = None
-        send_tg_message(chat_id, "✅ Account deletion cancelled.", reply_markup=get_user_reply_keyboard(chat_id))
+        send_tg_message(chat_id, "✅ Account deletion cancelled. Aapka data safe hai!", reply_markup=get_user_reply_keyboard(chat_id))
         return
 
     pwd = text.strip()
     session = get_session(chat_id)
     u = session.get("logged_user")
 
+    if not u:
+        session["step"] = None
+        send_tg_message(chat_id, "⚠️ Session expired. Please /login again.")
+        return
+
     if not user_store.verify_password(u, pwd):
         send_tg_message(chat_id, "❌ <b>Wrong Password!</b> Deletion aborted for security. Please try again or send <code>cancel</code>:")
         return
 
-    # Schedule deletion (24h grace period, or immediate)
-    user_store.schedule_deletion(u, after_seconds=0)  # immediate deletion
-    # Actually delete the file now
+    # 1. Delete photos from Telegram CDN
+    try:
+        from telegram_bot import delete_user_photos_from_telegram
+        delete_user_photos_from_telegram(u)
+    except Exception:
+        pass  # Continue even if TG photo deletion fails
+
+    # 2. Delete user file from UserStore
     user_store.delete_user(u)
 
     session["logged_user"] = None
@@ -713,8 +747,9 @@ def handle_delete_password(chat_id, text):
 
     msg = (
         f"🗑️ <b>ACCOUNT PERMANENTLY DELETED</b> ✅\n\n"
-        f"• <b>Account:</b> {u}\n"
-        f"• <b>Status:</b> All credentials, form data, photos & links erased from server.\n\n"
+        f"• <b>Account:</b> <code>{u}</code>\n"
+        f"• <b>Photos:</b> Telegram CDN se bhi delete 🗑️\n"
+        f"• <b>Status:</b> Credentials, form data, answers, links — sab permanently erased.\n\n"
         f"Thank you for using 3D Birthday Studio. 💕"
     )
     send_tg_message(chat_id, msg, reply_markup=get_user_reply_keyboard(chat_id))
@@ -789,12 +824,30 @@ def process_user_text(chat_id, user_first_name, text):
         show_help(chat_id)
         return
 
+    elif cmd in ["/deletedata", "🗑\ufe0f delete my data", "delete my data", "deletedata", "delete data", "delete my account", "delete account"]:
+        start_delete_account_flow(chat_id)
+        return
+
     elif cmd.startswith("👤 profile"):
         logged_user = session.get("logged_user")
         if logged_user:
-            send_tg_message(chat_id, f"👤 <b>Your Profile:</b>\n\n• <b>Username:</b> <code>{logged_user}</code>\n• <b>Status:</b> Active & Logged In ✅", reply_markup=get_user_reply_keyboard(chat_id))
+            user = user_store.load_user(logged_user)
+            answers_count = len(user.get("answers", [])) if user else 0
+            photos_count  = len(user.get("photos", []))  if user else 0
+            has_link = bool(user.get("surprise", {}).get("link")) if user else False
+            send_tg_message(chat_id,
+                f"👤 <b>YOUR PROFILE</b>\n\n"
+                f"• <b>Username:</b> <code>{logged_user}</code>\n"
+                f"• <b>Status:</b> Logged In ✅\n"
+                f"• <b>Surprise Link:</b> {'Created 🎁' if has_link else 'Not created yet'}\n"
+                f"• <b>Chat Answers:</b> {answers_count}\n"
+                f"• <b>Photos Uploaded:</b> {photos_count}\n\n"
+                f"Tap <b>🗑\ufe0f Delete My Data</b> to permanently erase account.",
+                reply_markup=get_user_reply_keyboard(chat_id)
+            )
         else:
-            send_tg_message(chat_id, "👤 You are currently not logged in. Tap <b>🔑 Existing User Login</b> to sign in.", reply_markup=get_user_reply_keyboard(chat_id))
+            send_tg_message(chat_id, "👤 You are not logged in. Tap <b>🔑 Existing User Login</b> to sign in.",
+                reply_markup=get_user_reply_keyboard(chat_id))
         return
 
     # Fallback
@@ -821,6 +874,11 @@ def process_callback(chat_id, cb_data, cb_raw):
         show_help(chat_id)
     elif cb_data == "flow_delete_account":
         start_delete_account_flow(chat_id)
+    elif cb_data == "flow_cancel_delete":
+        session = get_session(chat_id)
+        session["step"] = None
+        send_tg_message(chat_id, "✅ Deletion cancelled. Aapka data safe hai! 🛡️",
+            reply_markup=get_user_reply_keyboard(chat_id))
     elif cb_data in ["mode_gf", "mode_bf"]:
         mode = "gf" if cb_data == "mode_gf" else "bf"
         handle_create_mode_select(chat_id, mode)

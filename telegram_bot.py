@@ -1270,19 +1270,21 @@ class WebhookHandler(BaseHTTPRequestHandler):
             import random
             import string
 
-            # Convert base64 profile photo to static file
+            username_key = data.get("username", "user").lower().strip()
+
+            # Convert base64 profile photo to TG CDN
             if data.get("photo", "").startswith("data:image/"):
-                saved_photo = save_base64_image(data["photo"], prefix="profile")
+                saved_photo = save_base64_image(data["photo"], prefix="profile", username=username_key, photo_type="Main Portrait")
                 if saved_photo:
                     data["photo"] = saved_photo
 
-            # Convert any base64 memories photos to static files
+            # Convert any base64 memories photos to TG CDN
             if "memories" in data and isinstance(data["memories"], list):
                 saved_memories = []
                 for item in data["memories"]:
                     if isinstance(item, str):
                         if item.startswith("data:image/"):
-                            s = save_base64_image(item, prefix="memory")
+                            s = save_base64_image(item, prefix="memory", username=username_key, photo_type="Memories Album")
                             if s:
                                 saved_memories.append(s)
                         elif item.startswith("http"):
@@ -1290,14 +1292,12 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     elif isinstance(item, dict):
                         u = item.get("cdnUrl") or item.get("localUrl") or item.get("url") or ""
                         if u.startswith("data:image/"):
-                            s = save_base64_image(u, prefix="memory")
+                            s = save_base64_image(u, prefix="memory", username=username_key, photo_type="Memories Album")
                             if s:
                                 saved_memories.append(s)
                         elif u.startswith("http"):
                             saved_memories.append(u)
                 data["memories"] = saved_memories
-
-            username_key = data.get("username", "user").lower().strip()
             token = data.get("token", "")  # reuse existing token for regeneration
             if not token:
                 chars = string.ascii_lowercase + string.digits
