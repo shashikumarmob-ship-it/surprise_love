@@ -78,6 +78,10 @@ config = load_config()
 USER_BOT_TOKEN = config.get("public_bot_token", "").strip() or config.get("bot_token", "").strip()
 BASE_TG_URL = f"https://api.telegram.org/bot{USER_BOT_TOKEN}"
 
+# ── Organized Per-User Storage (shared with telegram_bot.py) ─────────────
+from user_store import user_store
+# ─────────────────────────────────────────────────────────────────────────
+
 # In-memory sessions for user interactions
 # user_sessions[chat_id] = { "logged_user": "username", "step": "step_name", "data": {...} }
 user_sessions = {}
@@ -213,9 +217,7 @@ def handle_reg_username(chat_id, text):
         send_tg_message(chat_id, "⚠️ Username must be at least 3 characters. Please enter a valid username:")
         return
 
-    cfg = load_config()
-    users = cfg.get("birthday_portal_users", {})
-    if u in users:
+    if user_store.user_exists(u):
         send_tg_message(
             chat_id,
             f"⚠️ Username <code>{u}</code> already exists!\n\n"
@@ -243,25 +245,13 @@ def handle_reg_password(chat_id, text):
     session = get_session(chat_id)
     u = session["data"].get("reg_username")
 
-    cfg = load_config()
-    if "birthday_portal_users" not in cfg:
-        cfg["birthday_portal_users"] = {}
+    # Create user in organized UserStore
+    new_user = user_store.create_user(u, pwd, tg_chat_id=chat_id)
+    if not new_user:
+        send_tg_message(chat_id, f"⚠️ Username <code>{u}</code> was just taken! Please /register again with a different name.")
+        return
 
-    now_str = time.strftime("%d %b %Y, %I:%M %p")
-    today_str = time.strftime("%Y-%m-%d")
-    now_ts = time.time()
-
-    cfg["birthday_portal_users"][u] = {
-        "username": u,
-        "password": pwd,
-        "registered_at": now_str,
-        "last_login": now_str,
-        "last_login_date": today_str,
-        "last_login_ts": now_ts,
-        "tg_chat_id": chat_id
-    }
-    save_config(cfg)
-
+    now_str = new_user["registered_at"]
     session["logged_user"] = u
     session["step"] = None
     session["data"] = {}
@@ -295,10 +285,8 @@ def start_login_flow(chat_id):
 
 def handle_login_username(chat_id, text):
     u = text.strip().lower()
-    cfg = load_config()
-    users = cfg.get("birthday_portal_users", {})
 
-    if u not in users:
+    if not user_store.user_exists(u):
         inline_kb = {
             "inline_keyboard": [
                 [{"text": "🆕 Register New Account", "callback_data": "flow_register"}],
@@ -320,18 +308,13 @@ def handle_login_username(chat_id, text):
     msg = f"👤 Username: <code>{u}</code>\n\nPlease enter your <b>Password</b>:"
     send_tg_message(chat_id, msg)
 
+
 def handle_login_password(chat_id, text):
     pwd = text.strip()
     session = get_session(chat_id)
     u = session["data"].get("login_username")
 
-    cfg = load_config()
-    users = cfg.get("birthday_portal_users", {})
-    user_rec = users.get(u, {})
-
-    actual_pwd = user_rec.get("password") if isinstance(user_rec, dict) else str(user_rec)
-
-    if actual_pwd != pwd:
+    if not user_store.verify_password(u, pwd):
         inline_kb = {
             "inline_keyboard": [
                 [{"text": "🔄 Try Again", "callback_data": "flow_login"}]
@@ -340,18 +323,9 @@ def handle_login_password(chat_id, text):
         send_tg_message(chat_id, "❌ <b>Wrong Password!</b> Please check and try again.", reply_markup=inline_kb)
         return
 
-    # Update last login
+    # Update last login in UserStore
+    user_store.update_last_login(u)
     now_str = time.strftime("%d %b %Y, %I:%M %p")
-    today_str = time.strftime("%Y-%m-%d")
-    now_ts = time.time()
-
-    if isinstance(user_rec, dict):
-        user_rec["last_login"] = now_str
-        user_rec["last_login_date"] = today_str
-        user_rec["last_login_ts"] = now_ts
-        user_rec["tg_chat_id"] = chat_id
-        cfg["birthday_portal_users"][u] = user_rec
-        save_config(cfg)
 
     session["logged_user"] = u
     session["step"] = None
@@ -728,27 +702,14 @@ def handle_delete_password(chat_id, text):
     session = get_session(chat_id)
     u = session.get("logged_user")
 
-    cfg = load_config()
-    users = cfg.get("birthday_portal_users", {})
-    user_rec = users.get(u, {})
-    actual_pwd = user_rec.get("password") if isinstance(user_rec, dict) else str(user_rec)
-
-    if actual_pwd != pwd:
+    if not user_store.verify_password(u, pwd):
         send_tg_message(chat_id, "❌ <b>Wrong Password!</b> Deletion aborted for security. Please try again or send <code>cancel</code>:")
         return
 
-    # Delete from config
-    if u in users:
-        del users[u]
-        cfg["birthday_portal_users"] = users
-
-    if "portal_user_data" in cfg and u in cfg["portal_user_data"]:
-        del cfg["portal_user_data"][u]
-
-    if "link_expiries" in cfg and u in cfg["link_expiries"]:
-        del cfg["link_expiries"][u]
-
-    save_config(cfg)
+    # Schedule deletion (24h grace period, or immediate)
+    user_store.schedule_deletion(u, after_seconds=0)  # immediate deletion
+    # Actually delete the file now
+    user_store.delete_user(u)
 
     session["logged_user"] = None
     session["step"] = None

@@ -74,6 +74,18 @@ config = load_config()
 BOT_TOKEN = config.get("bot_token", "").strip()
 BASE_TG_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
+# ── Organized Per-User Storage ──────────────────────────────────────────────
+from user_store import user_store
+
+# One-time migration: move old flat bot_config.json data into per-user files
+try:
+    migrated = user_store.migrate_from_config(config)
+    if migrated:
+        print(f"[UserStore] ✅ Migrated {migrated} users from old bot_config.json")
+except Exception as _me:
+    print(f"[UserStore] Migration skipped: {_me}")
+# ────────────────────────────────────────────────────────────────────────────
+
 # User conversation session states for /create wizard
 user_sessions = {}
 
@@ -1475,133 +1487,70 @@ class WebhookHandler(BaseHTTPRequestHandler):
         return
 
 def cleanup_scheduled_deletions():
-    """Runs every 60 seconds, permanently removes users whose 48hr link or 24hr deletion has expired"""
+    """
+    Runs every 60 seconds.
+    1. Deletes users whose surprise link has expired (48h)
+    2. Deletes users who were manually scheduled for deletion
+    3. Deletes idle users who never generated a link (72h)
+    Uses the new per-user UserStore - no more flat bot_config.json juggling.
+    """
     while True:
-        time.sleep(60)  # Check every 1 minute
+        time.sleep(60)
         try:
-            cfg = load_config()
-            now = time.time()
+            now    = time.time()
             now_ms = now * 1000.0
-            changes_made = False
+            owner_id = str(config.get("owner_chat_id", "")).strip()
 
-            # 1. Check 48-Hour Link Expiries -> Auto-wipe user data permanently
-            link_expiries = cfg.get("link_expiries", {})
-            users_db = cfg.get("birthday_portal_users", {})
-            portal_data = cfg.get("portal_user_data", {})
-            active_links = {}
+            def notify_owner(text: str):
+                if BOT_TOKEN and "YOUR_TELEGRAM" not in BOT_TOKEN and owner_id:
+                    try:
+                        requests.post(f"{BASE_TG_URL}/sendMessage", json={
+                            "chat_id": owner_id,
+                            "text": text,
+                            "parse_mode": "HTML"
+                        }, timeout=8)
+                    except Exception:
+                        pass
 
-            for uname, ldata in link_expiries.items():
-                exp_ts = ldata.get("expires_at", 0)
-                if exp_ts and now_ms >= exp_ts:
-                    # 48 Hours has passed! Permanently purge user data
-                    if uname in users_db:
-                        del users_db[uname]
-                        changes_made = True
-                    if uname in portal_data:
-                        del portal_data[uname]
-                        changes_made = True
+            # Run UserStore scheduled deletions (manual delete requests)
+            auto_deleted = user_store.run_scheduled_deletions()
+            for uname in auto_deleted:
+                notify_owner(
+                    f"\U0001f5d1\ufe0f <b>AUTO-DELETED USER</b>\n\n"
+                    f"\u2022 <b>Username:</b> <code>{uname}</code>\n"
+                    f"\u2022 <b>Time:</b> {time.strftime('%d %b %Y, %I:%M %p')}\n"
+                    f"\u2022 All data (photos, answers, surprise, credentials) permanently erased \u2705"
+                )
 
-                    # Notify Telegram
-                    owner_id = cfg.get("owner_chat_id", "")
-                    if BOT_TOKEN and "YOUR_TELEGRAM" not in BOT_TOKEN and owner_id:
-                        try:
-                            msg = (
-                                f"⏰ <b>48-HOUR SURPRISE LINK EXPIRED & PERMANENTLY DELETED</b>\n\n"
-                                f"• <b>Username:</b> <code>{uname}</code>\n"
-                                f"• <b>Status:</b> 48 hours completed since link generation.\n"
-                                f"• <b>Purged:</b> Photos, wishes, URLs, and account credentials permanently erased from Telegram and server. ✅"
-                            )
-                            requests.post(f"{BASE_TG_URL}/sendMessage", json={
-                                "chat_id": owner_id,
-                                "text": msg,
-                                "parse_mode": "HTML"
-                            }, timeout=8)
-                        except Exception:
-                            pass
-                else:
-                    active_links[uname] = ldata
+            # 48h link expiry check + 72h idle check via UserStore
+            for user in user_store.get_all_users():
+                uname   = user.get("username", "")
+                exp_ms  = user.get("surprise", {}).get("expires_at")
+                sched   = user.get("scheduled_delete_at")
 
-            if len(active_links) != len(link_expiries):
-                cfg["link_expiries"] = active_links
-                changes_made = True
+                if sched:
+                    continue
 
-            # 2. Check 48-72h Idle Registered Users who NEVER generated a link
-            registered_stamps = cfg.get("registered_portal_timestamps", {})
-            active_stamps = {}
-            idle_timeout_sec = 72 * 3600  # 72 hours (between 48 to 72 hours)
+                if exp_ms and now_ms >= float(exp_ms):
+                    user_store.delete_user(uname)
+                    notify_owner(
+                        f"\u23f0 <b>48-HOUR LINK EXPIRED - USER DELETED</b>\n\n"
+                        f"\u2022 <b>Username:</b> <code>{uname}</code>\n"
+                        f"\u2022 <b>Reason:</b> 48-hour surprise link window closed.\n"
+                        f"\u2022 Photos, answers, credentials permanently purged \u2705"
+                    )
+                    continue
 
-            for uname, reg_time in registered_stamps.items():
-                if uname not in active_links and (now - reg_time) >= idle_timeout_sec:
-                    # 72h passed without generating a link -> Purge
-                    if uname in users_db:
-                        del users_db[uname]
-                        changes_made = True
-                    if uname in portal_data:
-                        del portal_data[uname]
-                        changes_made = True
-
-                    owner_id = cfg.get("owner_chat_id", "")
-                    if BOT_TOKEN and "YOUR_TELEGRAM" not in BOT_TOKEN and owner_id:
-                        try:
-                            msg = (
-                                f"⏰ <b>IDLE USER DATA DELETED (72 HOURS)</b>\n\n"
-                                f"• <b>Username:</b> <code>{uname}</code>\n"
-                                f"• <b>Reason:</b> No link was generated within 48 to 72 hours.\n"
-                                f"• Account data has been permanently deleted from server. ✅"
-                            )
-                            requests.post(f"{BASE_TG_URL}/sendMessage", json={
-                                "chat_id": owner_id,
-                                "text": msg,
-                                "parse_mode": "HTML"
-                            }, timeout=8)
-                        except Exception:
-                            pass
-                else:
-                    active_stamps[uname] = reg_time
-
-            if len(active_stamps) != len(registered_stamps):
-                cfg["registered_portal_timestamps"] = active_stamps
-                changes_made = True
-
-            # 3. Check Manual Scheduled Deletions (24h ban)
-            pending = cfg.get("scheduled_deletions", [])
-            still_pending = []
-
-            for d in pending:
-                if d.get("delete_at", 0) <= now:
-                    uname = d.get("username", "")
-                    if uname in users_db:
-                        del users_db[uname]
-                        changes_made = True
-
-                    tg_chat_id = d.get("tg_chat_id", "") or cfg.get("owner_chat_id", "")
-                    if BOT_TOKEN and "YOUR_TELEGRAM" not in BOT_TOKEN and tg_chat_id:
-                        try:
-                            msg = (
-                                f"🗑️ <b>PERMANENT DELETION COMPLETE</b>\n\n"
-                                f"• <b>Username:</b> <code>{uname}</code>\n"
-                                f"• <b>Status:</b> Account permanently deleted ✅\n"
-                                f"• <b>Time:</b> {time.strftime('%d %b %Y, %I:%M %p')}\n\n"
-                                f"This user can no longer login to the Birthday Portal."
-                            )
-                            requests.post(f"{BASE_TG_URL}/sendMessage", json={
-                                "chat_id": tg_chat_id,
-                                "text": msg,
-                                "parse_mode": "HTML"
-                            }, timeout=8)
-                        except Exception:
-                            pass
-                else:
-                    still_pending.append(d)
-
-            if len(still_pending) != len(pending):
-                cfg["scheduled_deletions"] = still_pending
-                changes_made = True
-
-            if changes_made:
-                cfg["birthday_portal_users"] = users_db
-                cfg["portal_user_data"] = portal_data
-                save_config(cfg)
+                reg_ts = user.get("registered_ts", 0)
+                has_link = bool(user.get("surprise", {}).get("link"))
+                if not has_link and reg_ts and (now - reg_ts) >= (72 * 3600):
+                    user_store.delete_user(uname)
+                    notify_owner(
+                        f"\u23f0 <b>IDLE USER DELETED (72h, no link)</b>\n\n"
+                        f"\u2022 <b>Username:</b> <code>{uname}</code>\n"
+                        f"\u2022 <b>Reason:</b> Registered but never created a surprise link in 72 hours.\n"
+                        f"\u2022 Account permanently removed \u2705"
+                    )
 
         except Exception as e:
             print(f"[Cleanup Error]: {e}")
