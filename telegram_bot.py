@@ -551,14 +551,99 @@ def restore_database_from_telegram_cloud():
 # =========================================================
 # TELEGRAM BOT POLLING & COMMAND HANDLERS
 # =========================================================
+_owner_bot_username = ""
+_public_bot_username = ""
+_public_bot_thread = None
+_public_bot_lock = threading.Lock()
+
+def get_owner_bot_username() -> str:
+    global _owner_bot_username
+    if _owner_bot_username:
+        return _owner_bot_username
+    tok = (os.environ.get("BOT_TOKEN") or config.get("bot_token") or "").strip()
+    if tok and "YOUR" not in tok:
+        try:
+            r = requests.get(f"https://api.telegram.org/bot{tok}/getMe", timeout=8).json()
+            if r.get("ok"):
+                _owner_bot_username = r["result"].get("username", "")
+        except Exception:
+            pass
+    return _owner_bot_username
+
+def get_public_bot_username() -> str:
+    global _public_bot_username
+    if _public_bot_username:
+        return _public_bot_username
+    tok = (os.environ.get("PUBLIC_BOT_TOKEN") or config.get("public_bot_token") or "").strip()
+    if tok and "YOUR" not in tok:
+        try:
+            r = requests.get(f"https://api.telegram.org/bot{tok}/getMe", timeout=8).json()
+            if r.get("ok"):
+                _public_bot_username = r["result"].get("username", "")
+        except Exception:
+            pass
+    return _public_bot_username
+
+def start_public_bot_thread(token=None):
+    """Dynamically launches the public user bot thread if not already running."""
+    global _public_bot_thread
+    with _public_bot_lock:
+        if _public_bot_thread and _public_bot_thread.is_alive():
+            print("[Public Bot] Thread already active and running", flush=True)
+            return True
+        try:
+            import public_user_bot
+            if token:
+                os.environ["PUBLIC_BOT_TOKEN"] = token
+                config["public_bot_token"] = token
+                save_config(config)
+            _public_bot_thread = threading.Thread(target=public_user_bot.run_public_user_bot, daemon=True)
+            _public_bot_thread.start()
+            print("🤖 [Public Bot] Polling thread dynamically started", flush=True)
+            return True
+        except Exception as _e:
+            print(f"⚠️ [Public Bot] Failed to dynamically start thread: {_e}", flush=True)
+            return False
+
+def is_greeting_or_start(text: str) -> bool:
+    if not text:
+        return False
+    t = text.strip().lower()
+    if t.startswith("/start") or t.startswith("/menu") or t.startswith("/help") or t.startswith("/intro"):
+        return True
+    cleaned = "".join(ch for ch in t if ch.isalnum() or ch.isspace()).strip()
+    words = cleaned.split()
+    greetings_set = {
+        "start", "hi", "hii", "hiii", "hiiii", "hello", "helo", "hlo", "hlw",
+        "hey", "heyy", "heyyy", "h", "hei", "hui", "ho", "hoi", "hola",
+        "sup", "yo", "hy", "henlo", "namaste", "namaskar", "kese ho", "kaise ho",
+        "intro", "introduction", "menu", "help", "shuru", "start bot"
+    }
+    if cleaned in greetings_set or (words and words[0] in greetings_set):
+        return True
+    return False
+
 def handle_updates():
     offset = 0
-    print("🤖 Telegram Bot Polling service started...")
+    print("🤖 Owner Telegram Bot Polling service started...", flush=True)
     try:
         from session_store import start_session_autosave as _start_owner_autosave
         _start_owner_autosave("owner", user_sessions)
     except Exception as _ae:
-        print(f"[session_store] Owner autosave not started: {_ae}")
+        print(f"[session_store] Owner autosave not started: {_ae}", flush=True)
+
+    # Verify Owner Token with getMe
+    if BOT_TOKEN and "YOUR" not in BOT_TOKEN:
+        try:
+            me_res = requests.get(f"{BASE_TG_URL}/getMe", timeout=12).json()
+            if me_res.get("ok"):
+                o_user = me_res["result"].get("username", "Unknown")
+                print(f"👑 [Owner Bot] Authenticated successfully as @{o_user} (ID: {me_res['result'].get('id')})", flush=True)
+            else:
+                print(f"❌ [Owner Bot] Token rejected by Telegram: {me_res.get('description')}", flush=True)
+        except Exception as _me_err:
+            print(f"⚠️ [Owner Bot] Could not reach Telegram /getMe: {_me_err}", flush=True)
+
     # Clear any stale webhook so polling is guaranteed to receive updates
     try:
         del_res = requests.post(f"{BASE_TG_URL}/deleteWebhook", json={"drop_pending_updates": False}, timeout=10)
@@ -581,31 +666,35 @@ def handle_updates():
                 continue
 
             for update in data.get("result", []):
-                offset = update["update_id"] + 1
+                offset = max(offset, update["update_id"] + 1)
+                try:
+                    # Handle Message
+                    if "message" in update:
+                        msg = update["message"]
+                        chat_id = msg["chat"]["id"]
+                        text = msg.get("text", "").strip()
+                        user_name = msg.get("from", {}).get("first_name", "Friend")
 
-                # Handle Message
-                if "message" in update:
-                    msg = update["message"]
-                    chat_id = msg["chat"]["id"]
-                    text = msg.get("text", "").strip()
-                    user_name = msg.get("from", {}).get("first_name", "Friend")
+                        # Auto set owner chat id if not configured
+                        if not config.get("owner_chat_id"):
+                            config["owner_chat_id"] = str(chat_id)
+                            save_config(config)
 
-                    # Auto set owner chat id if not configured
-                    if not config.get("owner_chat_id"):
-                        config["owner_chat_id"] = str(chat_id)
-                        save_config(config)
+                        process_user_message(chat_id, user_name, text, msg)
 
-                    process_user_message(chat_id, user_name, text, msg)
-
-                # Handle Inline Button Callback
-                elif "callback_query" in update:
-                    cb = update["callback_query"]
-                    chat_id = cb["message"]["chat"]["id"]
-                    cb_data = cb.get("data", "")
-                    process_callback_query(chat_id, cb_data, cb)
+                    # Handle Inline Button Callback
+                    elif "callback_query" in update:
+                        cb = update["callback_query"]
+                        chat_id = cb["message"]["chat"]["id"]
+                        cb_data = cb.get("data", "")
+                        process_callback_query(chat_id, cb_data, cb)
+                except Exception as _upd_err:
+                    print(f"⚠️ [Owner Bot Error processing update {update.get('update_id')}]: {_upd_err}", flush=True)
+                    import traceback
+                    traceback.print_exc()
 
         except Exception as e:
-            # Polling retry
+            print(f"⚠️ [Owner Bot Polling Exception]: {e}", flush=True)
             time.sleep(3)
 
 def setup_telegram_menu():
@@ -615,13 +704,14 @@ def setup_telegram_menu():
     commands = [
         {"command": "user", "description": "👤 All Users & Passwords (1, 2, 3...)"},
         {"command": "active_user", "description": "🟢 Active Users (Today / Active Link)"},
+        {"command": "botstatus", "description": "📊 Bot Status & Diagnostics"},
         {"command": "webapp", "description": "🌐 Open Birthday Web App"}
     ]
     try:
         res = requests.post(f"{BASE_TG_URL}/setMyCommands", json={"commands": commands}, timeout=10)
-        print(f"📋 Telegram 3-line Menu configured: {res.status_code}")
+        print(f"📋 Telegram 3-line Menu configured: {res.status_code}", flush=True)
     except Exception as e:
-        print(f"Error configuring Telegram menu: {e}")
+        print(f"Error configuring Telegram menu: {e}", flush=True)
 
 def get_main_reply_keyboard():
     return {
@@ -660,10 +750,9 @@ def show_owner_welcome(chat_id, user_name="Owner"):
     )
     inline_keyboard = {
         "inline_keyboard": [
-            [{"text": "👤 All Users & Passwords", "callback_data": "menu_users"}],
-            [{"text": "🟢 Active Users (Today / Valid Link)", "callback_data": "menu_active"}],
+            [{"text": "👤 All Users & Passwords", "callback_data": "menu_users"}, {"text": "🟢 Active Users", "callback_data": "menu_active"}],
             [{"text": "🎉 Open Public User Bot Menu", "callback_data": "flow_welcome"}],
-            [get_webapp_button("🌐 Open Birthday Web App", "menu_webapp")]
+            [{"text": "📊 Bot Diagnostics", "callback_data": "menu_botstatus"}, get_webapp_button("🌐 Open Web App", "menu_webapp")]
         ]
     }
     send_tg_message(chat_id, welcome_text, reply_markup=get_main_reply_keyboard())
@@ -691,23 +780,73 @@ def process_user_message(chat_id, user_name, text, raw_msg):
     # 1. Non-owner routing
     if not is_owner(chat_id):
         if has_separate_public_bot:
+            p_user = get_public_bot_username()
+            pub_link = f"https://t.me/{p_user}" if p_user else ""
             denied_msg = (
                 f"👑 <b>3D Birthday Studio — Owner Panel</b>\n\n"
-                f"Hello <b>{user_name}</b>, this bot is private and accessible strictly to the <b>Owner</b>.\n"
-                f"To create your own 3D Birthday Surprise or view chat answers, please use our Public User Bot!"
+                f"Hello <b>{user_name}</b>! This bot is the private Owner Control Panel.\n"
+                f"To create your own 3D Birthday Surprise or view chat answers, please use our <b>Public User Bot</b> below! 👇"
             )
-            send_tg_message(chat_id, denied_msg)
+            ikb = {"inline_keyboard": []}
+            if pub_link:
+                ikb["inline_keyboard"].append([{"text": f"🤖 Open Public User Bot (@{p_user})", "url": pub_link}])
+            ikb["inline_keyboard"].append([get_webapp_button("🌐 Open Web App", "menu_webapp")])
+            send_tg_message(chat_id, denied_msg, reply_markup=ikb)
             return
         else:
             # Single Bot Mode: Seamlessly route public users to Public User Bot engine!
             try:
                 import public_user_bot
-                public_user_bot.process_user_text(chat_id, user_name, text)
+                public_user_bot.process_user_text(chat_id, user_name, text, reply_token=BOT_TOKEN)
             except Exception as _pe:
-                print(f"[Public Dispatch Error]: {_pe}")
+                print(f"[Public Dispatch Error]: {_pe}", flush=True)
             return
 
     # 2. Owner routing:
+    # Handle /setpublicbot <token>
+    if cmd.startswith("/setpublicbot") or cmd.startswith("setpublicbot"):
+        parts = text.split()
+        if len(parts) < 2:
+            send_tg_message(chat_id, "ℹ️ <b>Usage:</b> <code>/setpublicbot YOUR_BOT_TOKEN_FROM_BOTFATHER</code>\n\nIs command se aap Public User Bot ka token live configure kar sakte ho bina Render restart kiye.")
+            return
+        token_candidate = parts[1].strip()
+        try:
+            r = requests.get(f"https://api.telegram.org/bot{token_candidate}/getMe", timeout=10).json()
+            if not r.get("ok"):
+                send_tg_message(chat_id, f"❌ <b>Invalid Token!</b>\nTelegram rejected this token: {r.get('description', 'Unknown error')}")
+                return
+            new_username = r["result"].get("username", "Unknown")
+            config["public_bot_token"] = token_candidate
+            os.environ["PUBLIC_BOT_TOKEN"] = token_candidate
+            save_config(config)
+            start_public_bot_thread(token_candidate)
+            send_tg_message(chat_id, f"✅ <b>Public Bot Connected Successfully!</b>\n\n• Bot Username: @{new_username}\n• Status: 🟢 Polling Active!\n\nAb aapka Public User Bot live hai: https://t.me/{new_username}")
+        except Exception as _ex:
+            send_tg_message(chat_id, f"⚠️ Error validating token: {_ex}")
+        return
+
+    # Owner status & diagnostics
+    elif cmd in ["/botstatus", "botstatus", "/diagnostics", "diagnostics", "bot status"]:
+        o_user = get_owner_bot_username()
+        p_user = get_public_bot_username()
+        p_tok = (os.environ.get("PUBLIC_BOT_TOKEN") or config.get("public_bot_token") or "").strip()
+        has_sep = bool(p_tok and p_tok != BOT_TOKEN)
+        status_text = (
+            f"📊 <b>Bot System Status & Diagnostics:</b>\n\n"
+            f"👑 <b>Owner Bot:</b>\n"
+            f"• Username: @{o_user or 'Configured'}\n"
+            f"• Polling: 🟢 Active (Main Thread)\n\n"
+            f"🤖 <b>Public User Bot:</b>\n"
+            f"• Mode: {'Dedicated 2nd Bot' if has_sep else 'Unified Single-Bot'}\n"
+            f"• Token: {'✅ Set' if p_tok else '⚠️ Not Set (Using Single-Bot Mode)'}\n"
+            f"• Username: @{p_user or ('Same as Owner Bot' if not has_sep else 'Unknown')}\n"
+            f"• Polling: {'🟢 Active' if has_sep else 'ℹ️ Served via Unified Engine'}\n\n"
+            f"🌐 <b>Web App:</b> {get_web_app_url() or 'Not set'}\n"
+            f"☁️ <b>Cloud Sync:</b> 🟢 Active"
+        )
+        send_tg_message(chat_id, status_text)
+        return
+
     # If the owner is currently in a public wizard step (e.g. typing username/password/wish)
     # OR if the owner sent a Public Bot command:
     # Seamlessly route to public_user_bot!
@@ -715,16 +854,13 @@ def process_user_message(chat_id, user_name, text, raw_msg):
         import public_user_bot
         pub_session = public_user_bot.get_session(chat_id)
         if pub_session.get("step") or cmd in PUBLIC_COMMANDS:
-            public_user_bot.process_user_text(chat_id, user_name, text)
+            public_user_bot.process_user_text(chat_id, user_name, text, reply_token=BOT_TOKEN)
             return
     except Exception as _pe:
-        print(f"[Owner-to-Public Dispatch Error]: {_pe}")
+        print(f"[Owner-to-Public Dispatch Error]: {_pe}", flush=True)
 
     # 3. Owner Greetings (/start, hi, hello, etc.)
-    greetings = ["/start", "start", "hi", "hii", "hiii", "hello", "helo", "hlo",
-                 "hey", "heyy", "h", "hei", "hui", "ho", "hoi", "hola",
-                 "sup", "yo", "hy", "henlo", "namaste", "namaskar"]
-    if cmd in greetings:
+    if is_greeting_or_start(text):
         show_owner_welcome(chat_id, user_name)
         return
 
@@ -965,21 +1101,42 @@ def process_callback_query(chat_id, cb_data, cb_raw):
     if cb_data.startswith("flow_") or cb_data.startswith("mode_") or cb_data.startswith("theme_"):
         try:
             import public_user_bot
-            public_user_bot.process_callback(chat_id, cb_data, cb_raw)
+            public_user_bot.process_callback(chat_id, cb_data, cb_raw, reply_token=BOT_TOKEN)
             return
         except Exception as _pe:
-            print(f"[Public CB Dispatch Error]: {_pe}")
+            print(f"[Public CB Dispatch Error]: {_pe}", flush=True)
 
     # Non-owner guard for private owner admin callbacks
     if not is_owner(chat_id):
         if not has_separate_public_bot:
             try:
                 import public_user_bot
-                public_user_bot.process_callback(chat_id, cb_data, cb_raw)
+                public_user_bot.process_callback(chat_id, cb_data, cb_raw, reply_token=BOT_TOKEN)
             except Exception as _pe:
-                print(f"[Public CB Dispatch Error]: {_pe}")
+                print(f"[Public CB Dispatch Error]: {_pe}", flush=True)
         else:
             send_tg_message(chat_id, "⛔ <b>Access Denied!</b> Owner only.")
+        return
+
+    if cb_data == "menu_botstatus":
+        o_user = get_owner_bot_username()
+        p_user = get_public_bot_username()
+        p_tok = (os.environ.get("PUBLIC_BOT_TOKEN") or config.get("public_bot_token") or "").strip()
+        has_sep = bool(p_tok and p_tok != BOT_TOKEN)
+        status_text = (
+            f"📊 <b>Bot System Status & Diagnostics:</b>\n\n"
+            f"👑 <b>Owner Bot:</b>\n"
+            f"• Username: @{o_user or 'Configured'}\n"
+            f"• Polling: 🟢 Active (Main Thread)\n\n"
+            f"🤖 <b>Public User Bot:</b>\n"
+            f"• Mode: {'Dedicated 2nd Bot' if has_sep else 'Unified Single-Bot'}\n"
+            f"• Token: {'✅ Set' if p_tok else '⚠️ Not Set (Using Single-Bot Mode)'}\n"
+            f"• Username: @{p_user or ('Same as Owner Bot' if not has_sep else 'Unknown')}\n"
+            f"• Polling: {'🟢 Active' if has_sep else 'ℹ️ Served via Unified Engine'}\n\n"
+            f"🌐 <b>Web App:</b> {get_web_app_url() or 'Not set'}\n"
+            f"☁️ <b>Cloud Sync:</b> 🟢 Active"
+        )
+        send_tg_message(chat_id, status_text)
         return
 
     if cb_data == "start_create":
@@ -1964,11 +2121,23 @@ class WebhookHandler(BaseHTTPRequestHandler):
             return
 
         elif self.path == "/api/status":
+            p_tok = (os.environ.get("PUBLIC_BOT_TOKEN") or config.get("public_bot_token") or "").strip()
+            has_sep = bool(p_tok and p_tok != BOT_TOKEN)
             self._send_json(200, {
                 "status": "running",
-                "bot_configured": bool(BOT_TOKEN and "YOUR" not in BOT_TOKEN),
-                "total_answers_saved": len(config.get("saved_answers", [])),
-                "web_app_url": get_web_app_url()
+                "web_app_url": get_web_app_url(),
+                "owner_bot": {
+                    "configured": bool(BOT_TOKEN and "YOUR" not in BOT_TOKEN),
+                    "username": get_owner_bot_username(),
+                    "polling": True
+                },
+                "public_bot": {
+                    "configured": bool(p_tok and "YOUR" not in p_tok),
+                    "username": get_public_bot_username(),
+                    "has_dedicated_token": has_sep,
+                    "mode": "dedicated_bot" if has_sep else "unified_single_bot"
+                },
+                "total_answers_saved": len(config.get("saved_answers", []))
             })
             return
 

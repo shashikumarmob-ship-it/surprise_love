@@ -38,11 +38,10 @@ def run_public_bot():
     """Run the public user bot polling in a background thread."""
     try:
         import public_user_bot
-        print("✅ Public User Bot thread starting...")
-        public_user_bot.setup_user_bot_menu()
+        print("✅ Public User Bot background thread starting...", flush=True)
         public_user_bot.run_public_user_bot()
     except Exception as e:
-        print(f"[Public Bot Error]: {e}")
+        print(f"[Public Bot Error]: {e}", flush=True)
         import traceback
         traceback.print_exc()
 
@@ -50,11 +49,11 @@ def run_owner_bot():
     """Run the owner bot polling in a background thread."""
     try:
         import telegram_bot
-        print("✅ Owner Bot thread starting...")
+        print("✅ Owner Bot main thread starting...", flush=True)
         telegram_bot.setup_telegram_menu()
         telegram_bot.handle_updates()
     except Exception as e:
-        print(f"[Owner Bot Error]: {e}")
+        print(f"[Owner Bot Error]: {e}", flush=True)
         import traceback
         traceback.print_exc()
 

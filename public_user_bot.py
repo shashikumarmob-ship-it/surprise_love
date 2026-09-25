@@ -72,11 +72,19 @@ def save_config(cfg):
     except Exception as e:
         print(f"[Error saving config]: {e}")
 
-config = load_config()
+def get_user_bot_token() -> str:
+    """Dynamically returns public_bot_token if configured, falling back to bot_token."""
+    cfg = load_config()
+    tok = (os.environ.get("PUBLIC_BOT_TOKEN") or cfg.get("public_bot_token") or os.environ.get("BOT_TOKEN") or cfg.get("bot_token") or "").strip()
+    return tok
 
-# Use public_bot_token if provided, otherwise fallback to bot_token
-USER_BOT_TOKEN = config.get("public_bot_token", "").strip() or config.get("bot_token", "").strip()
-BASE_TG_URL = f"https://api.telegram.org/bot{USER_BOT_TOKEN}"
+def get_base_tg_url(token=None) -> str:
+    tok = (token or get_user_bot_token()).strip()
+    return f"https://api.telegram.org/bot{tok}"
+
+# Global alias for backwards compatibility
+USER_BOT_TOKEN = get_user_bot_token()
+BASE_TG_URL = get_base_tg_url()
 
 def get_web_app_url() -> str:
     """Always reads WEB_APP_URL strictly from environment variable or dynamic config. No hardcoded localhost."""
@@ -106,11 +114,13 @@ except Exception as _se:
 # =========================================================
 # TELEGRAM API HELPERS
 # =========================================================
-def send_tg_message(chat_id, text, reply_markup=None):
-    if not USER_BOT_TOKEN or "YOUR_TELEGRAM" in USER_BOT_TOKEN:
-        print(f"[Public Bot Simulated Msg to {chat_id}]: {text[:80]}...")
+def send_tg_message(chat_id, text, reply_markup=None, reply_token=None):
+    session = user_sessions.get(chat_id, {})
+    token = (reply_token or session.get("reply_token") or get_user_bot_token()).strip()
+    if not token or "YOUR_TELEGRAM" in token:
+        print(f"[Public Bot Simulated Msg to {chat_id}]: {text[:80]}...", flush=True)
         return None
-    url = f"{BASE_TG_URL}/sendMessage"
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
         "chat_id": chat_id,
         "text": text,
@@ -124,7 +134,7 @@ def send_tg_message(chat_id, text, reply_markup=None):
         res_data = res.json()
         if not res_data.get("ok"):
             err_desc = res_data.get("description", "Unknown TG error")
-            print(f"[Public Bot TG Error]: {err_desc}")
+            print(f"[Public Bot TG Error]: {err_desc}", flush=True)
             # If HTML parsing failed, retry as plain text without parse_mode
             if "can't parse entities" in err_desc.lower():
                 payload.pop("parse_mode", None)
@@ -137,14 +147,16 @@ def send_tg_message(chat_id, text, reply_markup=None):
                 return retry_res.json()
         return res_data
     except Exception as e:
-        print(f"[Public Bot Send Message Exception]: {e}")
+        print(f"[Public Bot Send Message Exception]: {e}", flush=True)
         return None
 
-def send_tg_photo(chat_id, photo_url_or_file_id, caption=""):
+def send_tg_photo(chat_id, photo_url_or_file_id, caption="", reply_token=None):
     """Sends a photo to a Telegram user chat (supports TG file_id or web URL)"""
-    if not USER_BOT_TOKEN or "YOUR_TELEGRAM" in USER_BOT_TOKEN:
+    session = user_sessions.get(chat_id, {})
+    token = (reply_token or session.get("reply_token") or get_user_bot_token()).strip()
+    if not token or "YOUR_TELEGRAM" in token:
         return None
-    url = f"{BASE_TG_URL}/sendPhoto"
+    url = f"https://api.telegram.org/bot{token}/sendPhoto"
     payload = {
         "chat_id": chat_id,
         "photo": photo_url_or_file_id,
@@ -155,12 +167,13 @@ def send_tg_photo(chat_id, photo_url_or_file_id, caption=""):
         res = requests.post(url, json=payload, timeout=12)
         return res.json()
     except Exception as e:
-        print(f"[Send Photo Error]: {e}")
+        print(f"[Send Photo Error]: {e}", flush=True)
         return None
 
-def setup_user_bot_menu():
+def setup_user_bot_menu(token=None):
     """Sets up the 3-line Telegram burger menu for public users"""
-    if not USER_BOT_TOKEN or "YOUR_TELEGRAM" in USER_BOT_TOKEN:
+    tok = (token or get_user_bot_token()).strip()
+    if not tok or "YOUR_TELEGRAM" in tok:
         return
     commands = [
         {"command": "mydata", "description": "📋 My Data & Surprise Details"},
@@ -174,10 +187,10 @@ def setup_user_bot_menu():
         {"command": "help", "description": "❓ Help & DM Owner"}
     ]
     try:
-        res = requests.post(f"{BASE_TG_URL}/setMyCommands", json={"commands": commands}, timeout=10)
-        print(f"📋 Public User Bot Menu configured: {res.status_code}")
+        res = requests.post(f"https://api.telegram.org/bot{tok}/setMyCommands", json={"commands": commands}, timeout=10)
+        print(f"📋 Public User Bot Menu configured: {res.status_code}", flush=True)
     except Exception as e:
-        print(f"Error configuring menu: {e}")
+        print(f"Error configuring menu: {e}", flush=True)
 
 def get_user_reply_keyboard(chat_id):
     session = user_sessions.get(chat_id, {})
@@ -213,8 +226,10 @@ def get_session(chat_id):
         user_sessions[chat_id] = {"logged_user": None, "step": None, "data": {}}
     return user_sessions[chat_id]
 
-def show_welcome(chat_id, user_first_name="Friend"):
+def show_welcome(chat_id, user_first_name="Friend", reply_token=None):
     session = get_session(chat_id)
+    if reply_token:
+        session["reply_token"] = reply_token
     logged_user = session.get("logged_user")
 
     if logged_user:
@@ -267,8 +282,8 @@ def show_welcome(chat_id, user_first_name="Friend"):
     if owner_id and str(chat_id) == owner_id:
         inline_kb["inline_keyboard"].append([{"text": "👑 Switch to Owner Control Panel", "callback_data": "switch_to_owner"}])
 
-    send_tg_message(chat_id, msg, reply_markup=get_user_reply_keyboard(chat_id))
-    send_tg_message(chat_id, "👇 Quick Actions:", reply_markup=inline_kb)
+    send_tg_message(chat_id, msg, reply_markup=get_user_reply_keyboard(chat_id), reply_token=reply_token)
+    send_tg_message(chat_id, "👇 Quick Actions:", reply_markup=inline_kb, reply_token=reply_token)
 
 # --- REGISTRATION FLOW ---
 def start_register_flow(chat_id):
@@ -1057,20 +1072,37 @@ def handle_delete_password(chat_id, text):
 # =========================================================
 # MESSAGE & CALLBACK DISPATCHER
 # =========================================================
-def process_user_text(chat_id, user_first_name, text):
+def is_greeting_or_start(text: str) -> bool:
+    if not text:
+        return False
+    t = text.strip().lower()
+    if t.startswith("/start") or t.startswith("/menu") or t.startswith("/help") or t.startswith("/intro") or t.startswith("/public") or t.startswith("/userbot"):
+        return True
+    cleaned = "".join(ch for ch in t if ch.isalnum() or ch.isspace()).strip()
+    words = cleaned.split()
+    greetings_set = {
+        "start", "hi", "hii", "hiii", "hiiii", "hello", "helo", "hlo", "hlw",
+        "hey", "heyy", "heyyy", "h", "hei", "hui", "ho", "hoi", "hola",
+        "sup", "yo", "hy", "henlo", "namaste", "namaskar", "kese ho", "kaise ho",
+        "intro", "introduction", "menu", "help", "shuru", "start bot"
+    }
+    if cleaned in greetings_set or (words and words[0] in greetings_set):
+        return True
+    return False
+
+def process_user_text(chat_id, user_first_name, text, reply_token=None):
     cmd = text.strip().lower()
     session = get_session(chat_id)
+    if reply_token:
+        session["reply_token"] = reply_token
     current_step = session.get("step")
 
     # 1. Greetings & /start & /cancel always take absolute priority
     # (Resets any stuck state and immediately shows welcome intro)
-    greetings = ["/start", "start", "hi", "hii", "hiii", "hello", "helo", "hlo",
-                 "hey", "heyy", "h", "hei", "hui", "ho", "hoi", "hola",
-                 "sup", "yo", "hy", "henlo", "namaste", "namaskar", "menu"]
-    if cmd in greetings or cmd in ["/cancel", "cancel", "stop", "/stop", "/reset", "reset"]:
+    if is_greeting_or_start(text) or cmd in ["/cancel", "cancel", "stop", "/stop", "/reset", "reset"]:
         session["step"] = None
         session["data"] = {}
-        show_welcome(chat_id, user_first_name)
+        show_welcome(chat_id, user_first_name, reply_token=reply_token)
         return
 
     # Step-by-step state machine (only if not a reset/start command)
@@ -1146,12 +1178,16 @@ def process_user_text(chat_id, user_first_name, text):
         return
 
     # Fallback
-    show_welcome(chat_id, user_first_name)
+    show_welcome(chat_id, user_first_name, reply_token=reply_token)
 
-def process_callback(chat_id, cb_data, cb_raw):
+def process_callback(chat_id, cb_data, cb_raw, reply_token=None):
+    session = get_session(chat_id)
+    if reply_token:
+        session["reply_token"] = reply_token
+    token = (reply_token or session.get("reply_token") or get_user_bot_token()).strip()
     # Acknowledge callback query
     try:
-        requests.post(f"{BASE_TG_URL}/answerCallbackQuery", json={"callback_query_id": cb_raw["id"]})
+        requests.post(f"https://api.telegram.org/bot{token}/answerCallbackQuery", json={"callback_query_id": cb_raw["id"]}, timeout=6)
     except Exception:
         pass
 
@@ -1191,33 +1227,49 @@ def process_callback(chat_id, cb_data, cb_raw):
         else:
             send_tg_message(chat_id, "🌐 <b>Web App:</b> Website URL is being initialized by admin.")
     elif cb_data == "flow_welcome":
-        show_welcome(chat_id)
+        show_welcome(chat_id, reply_token=reply_token)
     elif cb_data == "switch_to_owner":
         try:
             import telegram_bot
             telegram_bot.show_owner_welcome(chat_id)
         except Exception as _oe:
-            print(f"[switch_to_owner error]: {_oe}")
+            print(f"[switch_to_owner error]: {_oe}", flush=True)
 
 # =========================================================
 # POLLING LOOP
 # =========================================================
 def run_public_user_bot():
+    tok = get_user_bot_token()
     print("=" * 60, flush=True)
-    print("✨ 3D Birthday Celebration - Public User Telegram Bot Started", flush=True)
+    print("✨ 3D Birthday Celebration - Public User Telegram Bot Starting", flush=True)
     print("=" * 60, flush=True)
-    print(f"• Config file: {CONFIG_FILE}", flush=True)
-    print(f"• Web App URL: {get_web_app_url() or 'Not configured'}", flush=True)
-    print(f"• Bot Token: {'Configured ✅' if USER_BOT_TOKEN and 'YOUR' not in USER_BOT_TOKEN else '⚠️ Missing'}", flush=True)
+    print(f"• Config file : {CONFIG_FILE}", flush=True)
+    print(f"• Web App URL : {get_web_app_url() or 'Not configured'}", flush=True)
+    print(f"• Bot Token   : {'Configured ✅' if tok and 'YOUR' not in tok else '⚠️ Missing'}", flush=True)
+
+    if not tok or "YOUR_TELEGRAM" in tok:
+        print("⚠️ [Public Bot] No valid bot token configured. Polling thread inactive.", flush=True)
+        return
+
+    # Verify Bot Token with getMe
+    try:
+        me_res = requests.get(f"https://api.telegram.org/bot{tok}/getMe", timeout=12).json()
+        if me_res.get("ok"):
+            bot_username = me_res["result"].get("username", "Unknown")
+            print(f"🤖 [Public Bot] Authenticated successfully as @{bot_username} (ID: {me_res['result'].get('id')})", flush=True)
+        else:
+            print(f"❌ [Public Bot] Token rejected by Telegram: {me_res.get('description', 'Unknown error')}", flush=True)
+    except Exception as _me_err:
+        print(f"⚠️ [Public Bot] Could not reach Telegram /getMe: {_me_err}", flush=True)
 
     # 1. Reset any stale webhook so polling is guaranteed to receive updates
     try:
-        del_res = requests.post(f"{BASE_TG_URL}/deleteWebhook", json={"drop_pending_updates": False}, timeout=10)
+        del_res = requests.post(f"https://api.telegram.org/bot{tok}/deleteWebhook", json={"drop_pending_updates": False}, timeout=10)
         print(f"🌐 [Public Bot] Webhook reset status: {del_res.status_code}", flush=True)
     except Exception as _we:
         print(f"⚠️ [Public Bot] Webhook reset error: {_we}", flush=True)
 
-    setup_user_bot_menu()
+    setup_user_bot_menu(tok)
 
     try:
         from session_store import start_session_autosave as _start_public_autosave
@@ -1226,15 +1278,16 @@ def run_public_user_bot():
         print(f"[session_store] Public autosave not started: {_ae}", flush=True)
 
     offset = 0
-    print("🤖 Public User Bot polling service is active...", flush=True)
+    print("🤖 Public User Bot polling service is active and listening for messages...", flush=True)
 
     while True:
         try:
-            if not USER_BOT_TOKEN or "YOUR_TELEGRAM" in USER_BOT_TOKEN:
+            current_tok = get_user_bot_token()
+            if not current_tok or "YOUR_TELEGRAM" in current_tok:
                 time.sleep(5)
                 continue
 
-            res = requests.get(f"{BASE_TG_URL}/getUpdates", params={"offset": offset, "timeout": 20}, timeout=25)
+            res = requests.get(f"https://api.telegram.org/bot{current_tok}/getUpdates", params={"offset": offset, "timeout": 20}, timeout=25)
             data = res.json()
 
             if not data.get("ok"):
@@ -1244,24 +1297,29 @@ def run_public_user_bot():
                 continue
 
             for update in data.get("result", []):
-                offset = update["update_id"] + 1
+                offset = max(offset, update["update_id"] + 1)
+                try:
+                    if "message" in update:
+                        msg = update["message"]
+                        chat_id = msg["chat"]["id"]
+                        text = msg.get("text", "").strip()
+                        user_first_name = msg.get("from", {}).get("first_name", "Friend")
 
-                if "message" in update:
-                    msg = update["message"]
-                    chat_id = msg["chat"]["id"]
-                    text = msg.get("text", "").strip()
-                    user_first_name = msg.get("from", {}).get("first_name", "Friend")
+                        process_user_text(chat_id, user_first_name, text, reply_token=current_tok)
 
-                    process_user_text(chat_id, user_first_name, text)
+                    elif "callback_query" in update:
+                        cb = update["callback_query"]
+                        chat_id = cb["message"]["chat"]["id"]
+                        cb_data = cb.get("data", "")
 
-                elif "callback_query" in update:
-                    cb = update["callback_query"]
-                    chat_id = cb["message"]["chat"]["id"]
-                    cb_data = cb.get("data", "")
-
-                    process_callback(chat_id, cb_data, cb)
+                        process_callback(chat_id, cb_data, cb, reply_token=current_tok)
+                except Exception as _upd_err:
+                    print(f"⚠️ [Public Bot Error processing update {update.get('update_id')}]: {_upd_err}", flush=True)
+                    import traceback
+                    traceback.print_exc()
 
         except Exception as e:
+            print(f"⚠️ [Public Bot Polling Exception]: {e}", flush=True)
             time.sleep(3)
 
 if __name__ == "__main__":
