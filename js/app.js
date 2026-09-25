@@ -36,6 +36,10 @@ document.addEventListener('DOMContentLoaded', () => {
   let customWish = 'Happy Birthday to the most amazing, gorgeous, and loving girl in the whole world! Thank you for bringing endless joy, warmth, and magic into my life. Every single day with you is my favorite day. May all your sweetest dreams come true today and forever!';
   let activeTheme = 'rose-glamour';
 
+  // Security: the session token proves the client authenticated with the API.
+  // null = not authenticated. Set after successful login, cleared on logout.
+  let apiAuthToken = null;
+
   // Story Flow Steps: 'intro' -> 'balloons' -> 'burn-candles' -> 'cut-cake' -> 'open-gift' -> 'free-play'
   let currentStoryStep = 'intro';
   let currentPortalUser = null; // tracks logged-in username key
@@ -2539,6 +2543,25 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // --- Security helpers ---
+
+  // Retrieve the session token from localStorage (survives page reload).
+  function getSessionToken() {
+    try {
+      return localStorage.getItem('birthday_api_session_token') || apiAuthToken || null;
+    } catch(e) { return null; }
+  }
+
+  // Build an API header set that carries the session token for any
+  // authenticated endpoint. Public endpoints (status, get_surprise,
+  // photo) use this only when a token is present.
+  function authHeaders(extra) {
+    const token = getSessionToken();
+    const headers = Object.assign({ 'Content-Type': 'application/json' }, extra || {});
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    return headers;
+  }
+
   // --- Helper: Save current form data to localStorage keyed by username ---
   function saveUserFormData(userKey) {
     if (!userKey) return;
@@ -2560,13 +2583,13 @@ document.addEventListener('DOMContentLoaded', () => {
       localStorage.setItem(`birthday_memories_photos_${userKey}`, JSON.stringify(userMemoriesPhotos));
     } catch(e) {}
     // Also try server
-    try {
-      fetch(`${API_BASE}/api/save_user_data`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: userKey, user_data: data })
-      }).catch(() => {});
-    } catch(e) {}
+       try {
+       fetch(`${API_BASE}/api/save_user_data`, {
+         method: 'POST',
+         headers: authHeaders(),
+         body: JSON.stringify({ username: userKey, user_data: data })
+       }).catch(() => {});
+     } catch(e) {}
   }
 
   // --- Helper: Restore saved form data ---
@@ -2720,6 +2743,33 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch(e) {}
   }
 
+  // Authenticate the user with the API and store a session token.
+  // POST /api/auth returns { status, token } on success. The token
+  // is kept in memory (apiAuthToken) AND localStorage so it survives
+  // page reloads within the same browser session.
+  function authenticatePortalUser(uName, pwd) {
+    if (!uName) return;
+    fetch(`${API_BASE}/api/auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: uName.toLowerCase().trim(), password: pwd })
+    })
+    .then(res => res.json())
+    .then(json => {
+      if (json.status === 'success' && json.token) {
+        apiAuthToken = json.token;
+        try { localStorage.setItem('birthday_api_session_token', json.token); } catch(e) {}
+      }
+    })
+    .catch(() => {});
+  }
+
+  // Clear the session token on logout / delete.
+  function clearSessionToken() {
+    apiAuthToken = null;
+    try { localStorage.removeItem('birthday_api_session_token'); } catch(e) {}
+  }
+
   // 4. RETURNING USER Login Form
   if (portalLoginForm) {
     portalLoginForm.addEventListener('submit', (e) => {
@@ -2755,14 +2805,17 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      try { localStorage.setItem('birthday_portal_session', uName); } catch(err) {}
+       try { localStorage.setItem('birthday_portal_session', uName); } catch(err) {}
 
-      // Sync user login to Telegram Bot
-      syncUserCredentialsWithBot(uName, pwd, 'login');
+       // Sync user login to Telegram Bot
+       syncUserCredentialsWithBot(uName, pwd, 'login');
 
-      openDashboardForUser(uName);
-    });
-  }
+       // Authenticate with the API — obtain a session token
+       authenticatePortalUser(uName, pwd);
+
+       openDashboardForUser(uName);
+     });
+   }
 
   // 5. NEW USER Registration Form
   if (portalRegisterForm) {
@@ -2801,12 +2854,15 @@ document.addEventListener('DOMContentLoaded', () => {
       try { localStorage.setItem('birthday_portal_session', uName); } catch(err) {}
       try { localStorage.setItem(`birthday_user_registered_${userKey}`, Date.now().toString()); } catch(err) {}
 
-      // Sync new registered user to Telegram Bot
-      syncUserCredentialsWithBot(uName, pwd, 'register');
+       // Sync new registered user to Telegram Bot
+       syncUserCredentialsWithBot(uName, pwd, 'register');
 
-      openDashboardForUser(uName);
-    });
-  }
+       // Authenticate with the API — obtain a session token
+       authenticatePortalUser(uName, pwd);
+
+       openDashboardForUser(uName);
+     });
+   }
 
   // 5. 3D Overlapping Deck Mode Switcher (For GF vs For BF)
   function setDeckMode(mode) {
@@ -2904,15 +2960,15 @@ document.addEventListener('DOMContentLoaded', () => {
         // Show local preview immediately
         setMainPortraitPhoto(dataUrl, '⏳ Uploading to Server...');
 
-        // Upload original lossless file to server & Telegram Cloud
-        fetch(`${API_BASE}/api/upload_image`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            image: dataUrl,
-            filename: file.name,
-            username: currentPortalUser || 'user',
-            type: 'Main Portrait'
+         // Upload original lossless file to server & Telegram Cloud
+         fetch(`${API_BASE}/api/upload_image`, {
+           method: 'POST',
+           headers: authHeaders(),
+           body: JSON.stringify({
+             image: dataUrl,
+             filename: file.name,
+             username: currentPortalUser || 'user',
+             type: 'Main Portrait'
           })
         })
         .then(res => res.json())
@@ -3050,15 +3106,15 @@ document.addEventListener('DOMContentLoaded', () => {
       updateMemoriesPhoto(currentPhotoDataUrl, userMemoriesPhotos);
       if (currentPortalUser) saveUserFormData(currentPortalUser);
 
-      // Attempt 1: Upload to local server API & Telegram Cloud (lossless, original resolution)
-      fetch(`${API_BASE}/api/upload_image`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          image: dataUrl,
-          filename: file.name,
-          username: currentPortalUser || 'user',
-          type: 'Memories Album'
+       // Attempt 1: Upload to local server API & Telegram Cloud (lossless, original resolution)
+       fetch(`${API_BASE}/api/upload_image`, {
+         method: 'POST',
+         headers: authHeaders(),
+         body: JSON.stringify({
+           image: dataUrl,
+           filename: file.name,
+           username: currentPortalUser || 'user',
+           type: 'Memories Album'
         })
       })
       .then(res => res.json())
@@ -3184,14 +3240,14 @@ document.addEventListener('DOMContentLoaded', () => {
       localStorage.removeItem('birthday_portal_session');
     } catch(e) {}
 
-    // Send server purge request
-    try {
-      fetch(`${API_BASE}/api/expire_user`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: userKey, reason: '48hr_link_expired' })
-      }).catch(() => {});
-    } catch(e) {}
+     // Send server purge request
+     try {
+       fetch(`${API_BASE}/api/expire_user`, {
+         method: 'POST',
+         headers: authHeaders(),
+         body: JSON.stringify({ username: userKey, reason: '48hr_link_expired' })
+       }).catch(() => {});
+     } catch(e) {}
 
     // Update UI
     const expCard = document.getElementById('link-expiry-card');
@@ -3271,12 +3327,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
       saveUserFormData(uKey);
 
-      try {
-        const res = await fetch(`${API_BASE}/api/save_surprise`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(surprisePayload)
-        });
+       try {
+         const res = await fetch(`${API_BASE}/api/save_surprise`, {
+           method: 'POST',
+           headers: authHeaders(),
+           body: JSON.stringify(surprisePayload)
+         });
         const json = await res.json();
         const token = json.token;
         const currentUrl = new URL(window.location.href);
@@ -3298,12 +3354,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         startLinkExpiryCountdown(expAt, uKey);
 
-        // Also notify bot server about expiry (legacy compat)
-        fetch(`${API_BASE}/api/save_link_expiry`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: uKey, link_generated_at: genAt, link_expires_at: expAt, link: shortLink })
-        }).catch(() => {});
+         // Also notify bot server about expiry (legacy compat)
+         fetch(`${API_BASE}/api/save_link_expiry`, {
+           method: 'POST',
+           headers: authHeaders(),
+           body: JSON.stringify({ username: uKey, link_generated_at: genAt, link_expires_at: expAt, link: shortLink })
+         }).catch(() => {});
 
       } catch(err) {
         // Fallback: build a regular URL if server is unreachable
@@ -3385,18 +3441,19 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 10. Logout from Creator Dashboard
-  if (btnLogoutPortal) {
-    btnLogoutPortal.addEventListener('click', () => {
-      try {
-        localStorage.removeItem('birthday_portal_session');
-      } catch(e) {}
-      if (portalCreatorDashboard) portalCreatorDashboard.classList.add('hidden');
-      if (portalLandingScreen) portalLandingScreen.classList.remove('hidden');
-      if (generatedLinkBox) generatedLinkBox.classList.add('hidden');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
-  }
+   // 10. Logout from Creator Dashboard
+   if (btnLogoutPortal) {
+     btnLogoutPortal.addEventListener('click', () => {
+       clearSessionToken();
+       try {
+         localStorage.removeItem('birthday_portal_session');
+       } catch(e) {}
+       if (portalCreatorDashboard) portalCreatorDashboard.classList.add('hidden');
+       if (portalLandingScreen) portalLandingScreen.classList.remove('hidden');
+       if (generatedLinkBox) generatedLinkBox.classList.add('hidden');
+       window.scrollTo({ top: 0, behavior: 'smooth' });
+     });
+   }
 
 
     // Modal backdrop click handlers
@@ -3667,19 +3724,24 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch(e) {}
       }
 
-      if (i === 4) {
-        // Notify server — server handles Telegram alert securely
-        try {
-          await fetch(`${API_BASE}/api/delete_user`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              username, password,
-              celebrant_name: celebrantName
-            })
-          }).catch(() => {});
-        } catch(e) {}
-      }
+       if (i === 4) {
+         // Notify server — server handles Telegram alert securely
+         try {
+           await fetch(`${API_BASE}/api/delete_user`, {
+             method: 'POST',
+             headers: authHeaders(),
+             body: JSON.stringify({
+               username, password,
+               celebrant_name: celebrantName
+             })
+           }).catch(() => {});
+         } catch(e) {}
+       }
+
+       if (i === steps.length - 1) {
+         // Clear session token after final deletion step
+         clearSessionToken();
+       }
 
       if (stepEl) stepEl.className = 'delete-step-item done';
       setProgress(Math.round(((i + 1) / steps.length) * 100), i < steps.length - 1 ? steps[i + 1]?.label || 'Completing...' : 'Deletion complete!');
@@ -3826,14 +3888,14 @@ document.addEventListener('DOMContentLoaded', () => {
     creatorChatMessagesScroll.scrollTop = creatorChatMessagesScroll.scrollHeight;
   }
 
-  async function fetchLiveProgressData() {
-    const userKey = currentPortalUser || (localStorage.getItem('birthday_portal_session') || '').toLowerCase();
-    if (!userKey) return;
+   async function fetchLiveProgressData() {
+     const userKey = currentPortalUser || (localStorage.getItem('birthday_portal_session') || '').toLowerCase();
+     if (!userKey) return;
 
-    try {
-      const res = await fetch(`${API_BASE}/api/live_progress?username=${encodeURIComponent(userKey)}`);
-      if (!res.ok) return;
-      const data = await res.json();
+     try {
+       const res = await fetch(`${API_BASE}/api/live_progress?username=${encodeURIComponent(userKey)}`, { headers: authHeaders() });
+       if (!res.ok) return;
+       const data = await res.json();
 
       if (data && data.status === 'success') {
         const activities = data.activities || [];
@@ -3919,15 +3981,15 @@ document.addEventListener('DOMContentLoaded', () => {
         chatBtnRedDot.classList.add('hidden');
       }
 
-      // Mark unread as read on server
-      const userKey = currentPortalUser || (localStorage.getItem('birthday_portal_session') || '').toLowerCase();
-      if (userKey) {
-        fetch(`${API_BASE}/api/live_chat_mark_read`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: userKey })
-        }).catch(() => {});
-      }
+       // Mark unread as read on server
+       const userKey = currentPortalUser || (localStorage.getItem('birthday_portal_session') || '').toLowerCase();
+       if (userKey) {
+         fetch(`${API_BASE}/api/live_chat_mark_read`, {
+           method: 'POST',
+           headers: authHeaders(),
+           body: JSON.stringify({ username: userKey })
+         }).catch(() => {});
+       }
 
       fetchLiveProgressData();
       if (creatorLiveInput) {

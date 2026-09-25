@@ -89,12 +89,20 @@ except Exception as _me:
 # User conversation session states for /create wizard
 user_sessions = {}
 
+# Active API session tokens: {token_str: {username, expires_at}}
+# Tokens are issued by POST /api/auth and expire after 24h of inactivity.
+api_tokens = {}
+API_TOKEN_TTL = 24 * 3600  # 24 hours
+
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 import base64
 import re
 import uuid
+import secrets
+import hashlib
+import hmac
 
 TELEGRAM_FILE_URL_RE = re.compile(r"^https?://api\.telegram\.org/file/bot[^/]+/(.+)$")
 
@@ -846,6 +854,26 @@ class WebhookHandler(BaseHTTPRequestHandler):
         self.wfile.write(b)
         self.wfile.flush()
 
+    def _verify_api_auth(self):
+        """
+        Returns the authenticated username if the request carries a
+        valid Bearer token, otherwise returns None.
+        Tokens are issued by POST /api/auth and stored in api_tokens.
+        """
+        auth_header = self.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return None
+        token = auth_header[7:].strip()
+        if not token or token not in api_tokens:
+            return None
+        entry = api_tokens[token]
+        if not entry or entry.get("expires_at", 0) < time.time():
+            api_tokens.pop(token, None)
+            return None
+        # Extend TTL on use
+        entry["expires_at"] = time.time() + API_TOKEN_TTL
+        return entry.get("username")
+
     def do_OPTIONS(self):
         self.send_response(200)
         self._set_cors()
@@ -855,11 +883,49 @@ class WebhookHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         content_length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(content_length).decode("utf-8")
-        
+
         try:
             data = json.loads(body) if body else {}
         except Exception:
             data = {}
+
+        if self.path == "/api/auth":
+            # Public login endpoint — verifies credentials and returns a session token.
+            username = data.get("username", "").strip().lower()
+            password = data.get("password", "")
+            if not username or not password:
+                self._send_json(400, {"status": "error", "message": "username and password required"})
+                return
+            if not user_store.user_exists(username):
+                self._send_json(401, {"status": "error", "message": "Invalid credentials"})
+                return
+            if not user_store.verify_password(username, password):
+                self._send_json(401, {"status": "error", "message": "Invalid credentials"})
+                return
+            token = secrets.token_hex(32)
+            api_tokens[token] = {
+                "username": username,
+                "issued_at": time.time(),
+                "expires_at": time.time() + API_TOKEN_TTL,
+            }
+            self._send_json(200, {"status": "success", "token": token})
+            return
+
+        # --- Authenticated endpoints ---
+        _auth_user = self._verify_api_auth()
+        if self.path in (
+            "/api/get_user_data",
+            "/api/live_progress",
+            "/api/save_user_data",
+            "/api/upload_image",
+            "/api/save_surprise",
+            "/api/live_chat_mark_read",
+            "/api/expire_user",
+            "/api/save_link_expiry",
+            "/api/delete_user",
+        ) and not _auth_user:
+            self._send_json(401, {"status": "error", "message": "Authentication required"})
+            return
 
         if self.path == "/api/notify_answer":
             # Live Chat Answer notification from girlfriend
@@ -1483,9 +1549,18 @@ class WebhookHandler(BaseHTTPRequestHandler):
             return
 
         elif self.path.startswith("/api/get_user_data"):
+            # Auth required: only the authenticated creator can view data.
+            _auth_user = self._verify_api_auth()
+            if not _auth_user:
+                self._send_json(401, {"status": "error", "message": "Authentication required"})
+                return
             import urllib.parse as up
             qs = up.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
             username_key = qs.get("username", [""])[0].lower().strip()
+            # Creator can only access their own data
+            if username_key != _auth_user:
+                self._send_json(403, {"status": "error", "message": "Forbidden"})
+                return
             user_data = config.get("portal_user_data", {}).get(username_key, {})
             portal_users = config.get("birthday_portal_users", {})
             is_existing = username_key in portal_users
@@ -1515,9 +1590,17 @@ class WebhookHandler(BaseHTTPRequestHandler):
             return
 
         elif self.path.startswith("/api/live_progress"):
+            # Auth required: only the authenticated creator can view progress.
+            _auth_user = self._verify_api_auth()
+            if not _auth_user:
+                self._send_json(401, {"status": "error", "message": "Authentication required"})
+                return
             import urllib.parse as up
             qs = up.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
             username_key = qs.get("username", ["user"])[0].lower().strip()
+            if username_key != _auth_user:
+                self._send_json(403, {"status": "error", "message": "Forbidden"})
+                return
 
             acts = config.get("live_activities", {}).get(username_key, [])
             chat_data = config.get("live_chats", {}).get(username_key, { "messages": [], "has_unread": False })
