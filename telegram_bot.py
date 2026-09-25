@@ -579,16 +579,30 @@ def process_user_message(chat_id, user_name, text, raw_msg):
 
     cmd = text.strip().lower()
 
-    # 1. /start command
-    if cmd in ["/start", "start"]:
+    # 1. /start command + Greetings (hi, hello, hey, h, hei, etc.)
+    greetings = ["/start", "start", "hi", "hii", "hiii", "hello", "helo", "hlo",
+                 "hey", "heyy", "h", "hei", "hui", "ho", "hoi", "hola",
+                 "sup", "yo", "hy", "henlo", "namaste", "namaskar"]
+    if cmd in greetings:
         welcome_text = (
-            f"👑 <b>Owner Control Panel - 3D Birthday Studio</b> 🤖💖\n\n"
-            f"Welcome, Owner <b>{user_name}</b>!\n\n"
-            f"📋 <b>Bot Menu:</b>\n"
-            f"• 👤 <b>User:</b> View all users with passwords (1. 2. 3...)\n"
-            f"• 🟢 <b>Active User:</b> Users logged in today or with valid surprise link\n"
-            f"• 🌐 <b>Open Web App:</b> Launch 3D Birthday Web App\n\n"
-            f"<i>🔒 Access is locked exclusively to your Chat ID (<code>{chat_id}</code>).</i>"
+            f"👑 <b>3D Birthday Studio — Owner Bot</b> 🤖💖\n\n"
+            f"Hello <b>{user_name}</b>! 👋\n\n"
+            f"<b>🤖 Mai Kaun Hoon?</b>\n"
+            f"Mai <b>3D Birthday Studio</b> ka <b>Owner Control Bot</b> hoon — "
+            f"ek private Telegram bot jo sirf <b>aapke (Owner)</b> ke liye bana hai. "
+            f"Is bot ke zariye aap apne users, unki photos, surprise links, aur live "
+            f"girlfriend/boyfriend chat replies ko real-time me monitor kar sakte ho.\n\n"
+            f"<b>⚡ Kya Kya Karta Hoon:</b>\n"
+            f"• 👤 <b>User:</b> Sabhi registered users ki list (with details)\n"
+            f"• 🟢 <b>Active User:</b> Aaj login kiye ya active surprise link wale users\n"
+            f"• 🌐 <b>Web App:</b> 3D Birthday Celebration website launch karo\n"
+            f"• 📸 <b>Photo Alerts:</b> Jab koi user photo upload kare, seedha yahan aata hai\n"
+            f"• 💌 <b>Live Chat Replies:</b> Girlfriend ke har jawab ka instant alert\n"
+            f"• ☁️ <b>Cloud Backup:</b> Saara data Telegram Cloud me safe rehta hai\n\n"
+            f"<b>🔒 Security:</b>\n"
+            f"Ye bot sirf aapke Chat ID (<code>{chat_id}</code>) se control hota hai. "
+            f"Koi aur isse access nahi kar sakta.\n\n"
+            f"<i>👇 Neeche se koi option choose karo ya menu se command select karo!</i>"
         )
         inline_keyboard = {
             "inline_keyboard": [

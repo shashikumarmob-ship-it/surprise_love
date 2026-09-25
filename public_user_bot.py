@@ -193,26 +193,40 @@ def show_welcome(chat_id, user_first_name="Friend"):
 
     if logged_user:
         msg = (
-            f"✨ <b>Welcome back, {logged_user}!</b> 💖🎂\n\n"
-            f"You are currently <b>logged in</b> to 3D Birthday Studio.\n\n"
-            f"👇 <b>Select an option from the menu:</b>\n"
-            f"• 🎁 <b>Create Surprise:</b> Create a magical 3D surprise link\n"
-            f"• 💌 <b>Chat Answers:</b> See real-time questions & answers\n"
-            f"• 🔗 <b>Share Data:</b> View your generated link & details\n"
-            f"• 🌐 <b>Open Web App:</b> Launch 3D Birthday Studio\n"
-            f"• ❓ <b>Help:</b> Delete account or DM Owner\n"
+            f"✨ <b>3D Birthday Studio — Public User Bot</b> 🎂💖\n\n"
+            f"Welcome back, <b>{logged_user}</b>! 👋\n\n"
+            f"<b>🤖 Mai Kaun Hoon?</b>\n"
+            f"Mai <b>3D Birthday Studio</b> ka <b>Public User Bot</b> hoon — "
+            f"aapka personal assistant jo aapko 3D birthday surprise banane, "
+            f"girlfriend/boyfriend ke chat answers dekhne, aur apna data manage karne me madad karta hai.\n\n"
+            f"<b>⚡ Aap Kya Kya Kar Sakte Ho:</b>\n"
+            f"• 🎁 <b>Create Surprise:</b> Magical 3D surprise link banao\n"
+            f"• 💌 <b>Chat Answers:</b> Partner ke real-time Q&A jawab dekho\n"
+            f"• 📋 <b>My Data:</b> Apna poora dashboard aur shared data dekho\n"
+            f"• 📸 <b>My Photos:</b> Uploaded photos Telegram Cloud se dekho\n"
+            f"• 🔗 <b>Share Data:</b> Surprise link & countdown dekho\n"
+            f"• 🌐 <b>Web App:</b> Full 3D experience launch karo\n\n"
+            f"<i>Currently logged in as: <code>{logged_user}</code> ✅</i>\n\n"
+            f"<i>👇 Neeche se koi option choose karo!</i>"
         )
     else:
         msg = (
-            f"🎉 <b>Welcome to 3D Birthday Surprise Studio!</b> 💖✨\n\n"
-            f"Hello <b>{user_first_name}</b>! Create breathtaking 3D birthday celebration surprises for your girlfriend, boyfriend, or loved ones.\n\n"
-            f"👇 <b>Get Started (Select an option):</b>\n"
-            f"• 🆕 <b>New User Login:</b> Create a new account\n"
-            f"• 🔑 <b>Existing User Login:</b> Login to access saved data\n"
-            f"• 🎁 <b>Create Surprise:</b> Start 3D surprise creation\n"
-            f"• 💌 <b>Chat Answers:</b> View answers to surprise questions\n"
-            f"• 🌐 <b>Open Web App:</b> Launch web experience\n"
-            f"• ❓ <b>Help:</b> Support, Delete data & DM Owner\n"
+            f"🎉 <b>3D Birthday Studio — Public User Bot</b> 💖✨\n\n"
+            f"Hello <b>{user_first_name}</b>! 👋\n\n"
+            f"<b>🤖 Mai Kaun Hoon?</b>\n"
+            f"Mai <b>3D Birthday Surprise Studio</b> ka <b>Public User Bot</b> hoon! "
+            f"Is bot ke zariye aap apne <b>girlfriend, boyfriend, ya loved one</b> ke liye "
+            f"ek breathtaking <b>3D birthday celebration surprise</b> bana sakte ho — "
+            f"curtains, love albums, live chat, treats store, aur bahut kuch!\n\n"
+            f"<b>⚡ Kya Kya Kar Sakte Ho:</b>\n"
+            f"• 🆕 <b>Register:</b> Naya account banao\n"
+            f"• 🔑 <b>Login:</b> Existing account me login karo\n"
+            f"• 🎁 <b>Create Surprise:</b> 3D surprise link generate karo\n"
+            f"• 💌 <b>Chat Answers:</b> Partner ke jawab real-time dekho\n"
+            f"• 🌐 <b>Web App:</b> Full 3D experience launch karo\n"
+            f"• ❓ <b>Help:</b> Support, Delete data & DM Owner\n\n"
+            f"<b>📌 Privacy:</b> Aapka data <b>48 hours</b> ke liye safe rehta hai. Uske baad automatically delete ho jata hai.\n\n"
+            f"<i>👇 Shuru karne ke liye Register ya Login karo!</i>"
         )
 
     inline_kb = {
@@ -1044,7 +1058,10 @@ def process_user_text(chat_id, user_first_name, text):
         return
 
     # Slash Commands & Button Triggers
-    if cmd in ["/start", "start", "hi", "hello", "menu"]:
+    greetings = ["/start", "start", "hi", "hii", "hiii", "hello", "helo", "hlo",
+                 "hey", "heyy", "h", "hei", "hui", "ho", "hoi", "hola",
+                 "sup", "yo", "hy", "henlo", "namaste", "namaskar", "menu"]
+    if cmd in greetings:
         show_welcome(chat_id, user_first_name)
         return
 
