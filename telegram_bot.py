@@ -337,8 +337,20 @@ def send_tg_message(chat_id, text, reply_markup=None, parse_mode="HTML"):
     if reply_markup:
         payload["reply_markup"] = reply_markup
     try:
-        res = requests.post(url, json=payload, timeout=4)
-        return res.json()
+        res = requests.post(url, json=payload, timeout=5)
+        res_data = res.json()
+        if not res_data.get("ok"):
+            err_desc = res_data.get("description", "Unknown TG error")
+            print(f"[Owner Bot TG Error]: {err_desc}")
+            if "can't parse entities" in err_desc.lower():
+                payload.pop("parse_mode", None)
+                retry_res = requests.post(url, json=payload, timeout=5)
+                return retry_res.json()
+            if "button_url_invalid" in err_desc.lower() or "wrong http url" in err_desc.lower():
+                payload.pop("reply_markup", None)
+                retry_res = requests.post(url, json=payload, timeout=5)
+                return retry_res.json()
+        return res_data
     except Exception as e:
         print(f"[Telegram API Error]: {e}")
         return None
@@ -604,11 +616,17 @@ def process_user_message(chat_id, user_name, text, raw_msg):
             f"Koi aur isse access nahi kar sakta.\n\n"
             f"<i>👇 Neeche se koi option choose karo ya menu se command select karo!</i>"
         )
+        app_url = config.get("web_app_url", "").strip()
+        if app_url.startswith("https://") and "localhost" not in app_url:
+            webapp_btn = [{"text": "🌐 Open Birthday Web App", "url": app_url}]
+        else:
+            webapp_btn = [{"text": "🌐 Open Birthday Web App", "callback_data": "menu_webapp"}]
+
         inline_keyboard = {
             "inline_keyboard": [
                 [{"text": "👤 All Users & Passwords", "callback_data": "menu_users"}],
                 [{"text": "🟢 Active Users (Today / Valid Link)", "callback_data": "menu_active"}],
-                [{"text": "🌐 Open Birthday Web App", "url": config.get("web_app_url", "http://localhost:8000/")}]
+                webapp_btn
             ]
         }
         send_tg_message(chat_id, welcome_text, reply_markup=get_main_reply_keyboard())

@@ -97,6 +97,7 @@ except Exception as _se:
 # =========================================================
 def send_tg_message(chat_id, text, reply_markup=None):
     if not USER_BOT_TOKEN or "YOUR_TELEGRAM" in USER_BOT_TOKEN:
+        print(f"[Public Bot Simulated Msg to {chat_id}]: {text[:80]}...")
         return None
     url = f"{BASE_TG_URL}/sendMessage"
     payload = {
@@ -109,9 +110,23 @@ def send_tg_message(chat_id, text, reply_markup=None):
         payload["reply_markup"] = reply_markup
     try:
         res = requests.post(url, json=payload, timeout=10)
-        return res.json()
+        res_data = res.json()
+        if not res_data.get("ok"):
+            err_desc = res_data.get("description", "Unknown TG error")
+            print(f"[Public Bot TG Error]: {err_desc}")
+            # If HTML parsing failed, retry as plain text without parse_mode
+            if "can't parse entities" in err_desc.lower():
+                payload.pop("parse_mode", None)
+                retry_res = requests.post(url, json=payload, timeout=10)
+                return retry_res.json()
+            # If button URL was invalid, retry without inline reply_markup
+            if "button_url_invalid" in err_desc.lower() or "wrong http url" in err_desc.lower():
+                payload.pop("reply_markup", None)
+                retry_res = requests.post(url, json=payload, timeout=10)
+                return retry_res.json()
+        return res_data
     except Exception as e:
-        print(f"[Send Message Error]: {e}")
+        print(f"[Public Bot Send Message Exception]: {e}")
         return None
 
 def send_tg_photo(chat_id, photo_url_or_file_id, caption=""):
@@ -229,11 +244,17 @@ def show_welcome(chat_id, user_first_name="Friend"):
             f"<i>👇 Shuru karne ke liye Register ya Login karo!</i>"
         )
 
+    app_url = config.get("web_app_url", "").strip()
+    if app_url.startswith("https://") and "localhost" not in app_url:
+        webapp_btn = [{"text": "🌐 Open Web App", "url": app_url}]
+    else:
+        webapp_btn = [{"text": "🌐 Open Web App", "callback_data": "flow_webapp"}]
+
     inline_kb = {
         "inline_keyboard": [
             [{"text": "🆕 New User Register", "callback_data": "flow_register"}, {"text": "🔑 Existing User Login", "callback_data": "flow_login"}],
             [{"text": "🎁 Create Surprise Wizard", "callback_data": "flow_create"}, {"text": "💌 Chat Answers", "callback_data": "flow_answers"}],
-            [{"text": "🌐 Open Web App", "url": config.get("web_app_url", "http://localhost:8000/")}],
+            webapp_btn,
             [{"text": "❓ Help & Support", "callback_data": "flow_help"}]
         ]
     }
@@ -1032,7 +1053,18 @@ def process_user_text(chat_id, user_first_name, text):
     session = get_session(chat_id)
     current_step = session.get("step")
 
-    # Step-by-step state machine
+    # 1. Greetings & /start & /cancel always take absolute priority
+    # (Resets any stuck state and immediately shows welcome intro)
+    greetings = ["/start", "start", "hi", "hii", "hiii", "hello", "helo", "hlo",
+                 "hey", "heyy", "h", "hei", "hui", "ho", "hoi", "hola",
+                 "sup", "yo", "hy", "henlo", "namaste", "namaskar", "menu"]
+    if cmd in greetings or cmd in ["/cancel", "cancel", "stop", "/stop", "/reset", "reset"]:
+        session["step"] = None
+        session["data"] = {}
+        show_welcome(chat_id, user_first_name)
+        return
+
+    # Step-by-step state machine (only if not a reset/start command)
     if current_step == "awaiting_reg_username":
         handle_reg_username(chat_id, text)
         return
@@ -1056,14 +1088,6 @@ def process_user_text(chat_id, user_first_name, text):
         return
     elif current_step == "awaiting_delete_pwd":
         handle_delete_password(chat_id, text)
-        return
-
-    # Slash Commands & Button Triggers
-    greetings = ["/start", "start", "hi", "hii", "hiii", "hello", "helo", "hlo",
-                 "hey", "heyy", "h", "hei", "hui", "ho", "hoi", "hola",
-                 "sup", "yo", "hy", "henlo", "namaste", "namaskar", "menu"]
-    if cmd in greetings:
-        show_welcome(chat_id, user_first_name)
         return
 
     elif cmd in ["/register", "🆕 new user register", "🆕 new user login", "new user register", "new user login", "new user", "register"]:
@@ -1148,6 +1172,12 @@ def process_callback(chat_id, cb_data, cb_raw):
     elif cb_data.startswith("theme_"):
         theme = cb_data.replace("theme_", "")
         handle_create_theme_select(chat_id, theme)
+    elif cb_data == "flow_webapp":
+        app_url = config.get("web_app_url", "").strip()
+        if app_url:
+            send_tg_message(chat_id, f"🌐 <b>3D Birthday Studio — Web App:</b>\n{app_url}")
+        else:
+            send_tg_message(chat_id, "🌐 <b>Web App:</b> Website URL is being initialized by admin.")
 
 # =========================================================
 # POLLING LOOP
