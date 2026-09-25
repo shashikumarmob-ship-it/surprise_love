@@ -3754,18 +3754,30 @@ document.addEventListener('DOMContentLoaded', () => {
       await new Promise(r => setTimeout(r, 600 + Math.random() * 400));
 
       if (i === 0) {
-        // Verify password locally
-        let usersDB = {};
-        try { usersDB = JSON.parse(localStorage.getItem('birthday_portal_users') || '{}'); } catch(e) {}
-        if (usersDB[username] && usersDB[username] !== password) {
-          if (stepEl) { stepEl.className = 'delete-step-item'; stepEl.textContent = '❌ Wrong password — deletion cancelled!'; }
+        // 🔒 SECURITY: Verify password via SERVER (never store/compare locally)
+        try {
+          const authRes = await fetch(`${API_BASE}/api/auth`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: username.toLowerCase().trim(), password: password })
+          });
+          const authJson = await authRes.json();
+          if (!authRes.ok || authJson.status !== 'success') {
+            if (stepEl) { stepEl.className = 'delete-step-item'; stepEl.textContent = '❌ Wrong password — deletion cancelled!'; }
+            if (deleteProgressWrap) deleteProgressWrap.classList.add('hidden');
+            if (deleteConfirmSection) deleteConfirmSection.classList.remove('hidden');
+            if (deleteModalFooter) deleteModalFooter.classList.remove('hidden');
+            if (deleteFeedbackMsg) {
+              deleteFeedbackMsg.textContent = '❌ Wrong password! Enter the correct password to delete.';
+              deleteFeedbackMsg.classList.remove('hidden');
+            }
+            return;
+          }
+        } catch(authErr) {
+          if (stepEl) { stepEl.className = 'delete-step-item'; stepEl.textContent = '❌ Server connection error!'; }
           if (deleteProgressWrap) deleteProgressWrap.classList.add('hidden');
           if (deleteConfirmSection) deleteConfirmSection.classList.remove('hidden');
           if (deleteModalFooter) deleteModalFooter.classList.remove('hidden');
-          if (deleteFeedbackMsg) {
-            deleteFeedbackMsg.textContent = '❌ Wrong password! Enter the correct password to delete.';
-            deleteFeedbackMsg.classList.remove('hidden');
-          }
           return;
         }
       }
@@ -3781,13 +3793,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       if (i === 3) {
-        // Remove credentials & session
+        // Remove session & local data (no passwords stored locally anymore)
         try {
-          let usersDB = JSON.parse(localStorage.getItem('birthday_portal_users') || '{}');
-          delete usersDB[username];
-          localStorage.setItem('birthday_portal_users', JSON.stringify(usersDB));
           localStorage.removeItem('birthday_portal_session');
           localStorage.removeItem('birthday_custom_photo');
+          localStorage.removeItem('birthday_api_session_token');
           // Add to banned list
           let banned = JSON.parse(localStorage.getItem('birthday_banned_users') || '[]');
           if (!banned.includes(username)) banned.push(username);

@@ -238,6 +238,7 @@ def show_welcome(chat_id, user_first_name="Friend"):
         ]
     }
     send_tg_message(chat_id, msg, reply_markup=get_user_reply_keyboard(chat_id))
+    send_tg_message(chat_id, "👇 Quick Actions:", reply_markup=inline_kb)
 
 # --- REGISTRATION FLOW ---
 def start_register_flow(chat_id):

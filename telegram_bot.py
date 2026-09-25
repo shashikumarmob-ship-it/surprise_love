@@ -1127,6 +1127,14 @@ class WebhookHandler(BaseHTTPRequestHandler):
             return
 
         if self.path == "/api/notify_answer":
+            # 🔒 SECURITY: Require either a valid auth token OR a valid surprise token
+            # (Girlfriend uses surprise token from URL; Creator uses auth token)
+            surprise_token = data.get("token", "").strip()
+            has_valid_surprise = bool(surprise_token and surprise_token in config.get("short_surprise_links", {}))
+            if not _auth_user and not has_valid_surprise:
+                self._send_json(403, {"status": "error", "message": "Valid surprise token or authentication required"})
+                return
+
             # Live Chat Answer notification from girlfriend
             q_num  = data.get("questionNumber", 1)
             q_text = data.get("question", "")
@@ -1495,10 +1503,13 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     send_tg_message(owner_id, reg_alert)
             else:
                 if not user_store.user_exists(username_key):
+                    # First-time login from web app: auto-create (legacy compat)
                     user_store.create_user(username_key, password)
                 else:
-                    if password:
-                        user_store.set_password(username_key, password)
+                    # 🔒 SECURITY: On login, VERIFY existing password — never overwrite!
+                    if password and not user_store.verify_password(username_key, password):
+                        self._send_json(401, {"status": "error", "message": "Invalid credentials"})
+                        return
                     user_store.update_last_login(username_key)
 
             backup_database_to_telegram_cloud()
@@ -1557,6 +1568,13 @@ class WebhookHandler(BaseHTTPRequestHandler):
             return
 
         elif self.path == "/api/track_activity":
+            # 🔒 SECURITY: Require auth token or valid surprise token
+            surprise_token = data.get("token", "").strip()
+            has_valid_surprise = bool(surprise_token and surprise_token in config.get("short_surprise_links", {}))
+            if not _auth_user and not has_valid_surprise:
+                self._send_json(403, {"status": "error", "message": "Authentication required"})
+                return
+
             # Track real-time recipient activity
             username_key = data.get("username", "user").lower().strip()
             action = data.get("action", "activity")
@@ -1604,6 +1622,13 @@ class WebhookHandler(BaseHTTPRequestHandler):
             return
 
         elif self.path == "/api/live_chat_send":
+            # 🔒 SECURITY: Require auth token or valid surprise token
+            surprise_token = data.get("token", "").strip()
+            has_valid_surprise = bool(surprise_token and surprise_token in config.get("short_surprise_links", {}))
+            if not _auth_user and not has_valid_surprise:
+                self._send_json(403, {"status": "error", "message": "Authentication required"})
+                return
+
             # 2-Way Live Chat message between Creator & Celebrant
             username_key = data.get("username", "user").lower().strip()
             sender = data.get("sender", "celebrant") # 'celebrant' or 'creator'
@@ -2044,6 +2069,8 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 return
 
         # Fallback: Serve static web app files (index.html, style.css, js/app.js, media, etc.)
+        # 🔒 SECURITY: Only serve whitelisted frontend file types.
+        #    NEVER serve .py, .json (config), .env, .txt, users/, __pycache__/, .git/, etc.
         req_path = self.path.split("?")[0]
         if req_path == "/" or req_path == "":
             req_path = "/index.html"
@@ -2052,31 +2079,59 @@ class WebhookHandler(BaseHTTPRequestHandler):
         rel_path = req_path.lstrip("/").replace("/", os.sep)
         full_filepath = os.path.abspath(os.path.join(workspace_dir, rel_path))
 
+        # 🔒 BLOCKED PATHS — sensitive files & directories that must NEVER be served
+        rel_lower = rel_path.lower().replace(os.sep, "/")
+        BLOCKED_DIRS = ("users/", "__pycache__/", ".git/", ".git\\", "uploads/", ".agents/")
+        BLOCKED_FILES = (
+            "bot_config.json", ".env", ".env.example", ".gitignore",
+            "procfile", "render.yaml", "requirements.txt", "readme.md", "readme_bot.md",
+            "start.py", "telegram_bot.py", "public_user_bot.py",
+            "user_store.py", "session_store.py",
+        )
+        BLOCKED_EXTS = (".py", ".pyc", ".pyo", ".env", ".yml", ".yaml", ".toml", ".cfg", ".ini", ".log", ".jsonl")
+
+        if any(rel_lower.startswith(d) for d in BLOCKED_DIRS):
+            self._send_json(403, {"status": "forbidden", "message": "Access denied"})
+            return
+        if os.path.basename(rel_lower) in BLOCKED_FILES:
+            self._send_json(403, {"status": "forbidden", "message": "Access denied"})
+            return
+        ext = os.path.splitext(full_filepath)[1].lower()
+        if ext in BLOCKED_EXTS:
+            self._send_json(403, {"status": "forbidden", "message": "Access denied"})
+            return
+
+        # 🔒 WHITELIST: Only serve known safe frontend asset types
+        SAFE_MIME_TYPES = {
+            ".html": "text/html; charset=utf-8",
+            ".css": "text/css; charset=utf-8",
+            ".js": "application/javascript; charset=utf-8",
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".webp": "image/webp",
+            ".gif": "image/gif",
+            ".mp4": "video/mp4",
+            ".mp3": "audio/mpeg",
+            ".svg": "image/svg+xml",
+            ".ico": "image/x-icon",
+            ".woff": "font/woff",
+            ".woff2": "font/woff2",
+            ".ttf": "font/ttf",
+        }
+        if ext not in SAFE_MIME_TYPES:
+            self._send_json(403, {"status": "forbidden", "message": "File type not allowed"})
+            return
+
         if full_filepath.startswith(workspace_dir) and os.path.isfile(full_filepath):
-            mime_types = {
-                ".html": "text/html; charset=utf-8",
-                ".css": "text/css; charset=utf-8",
-                ".js": "application/javascript; charset=utf-8",
-                ".json": "application/json; charset=utf-8",
-                ".png": "image/png",
-                ".jpg": "image/jpeg",
-                ".jpeg": "image/jpeg",
-                ".webp": "image/webp",
-                ".gif": "image/gif",
-                ".mp4": "video/mp4",
-                ".mp3": "audio/mpeg",
-                ".svg": "image/svg+xml",
-                ".ico": "image/x-icon"
-            }
-            ext = os.path.splitext(full_filepath)[1].lower()
-            content_type = mime_types.get(ext, "application/octet-stream")
+            content_type = SAFE_MIME_TYPES[ext]
             try:
                 with open(full_filepath, "rb") as f:
                     file_bytes = f.read()
                 self._send_bytes(200, content_type, file_bytes)
                 return
             except Exception as e:
-                self._send_json(500, {"status": "error", "message": str(e)})
+                self._send_json(500, {"status": "error", "message": "File read error"})
                 return
 
         self._send_json(200, {
