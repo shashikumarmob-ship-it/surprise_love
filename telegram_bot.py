@@ -397,17 +397,34 @@ def process_user_message(chat_id, user_name, text, raw_msg):
     return
 
 def get_portal_users():
-    """Retrieve all portal registered users with their details and passwords"""
-    raw = config.get("birthday_portal_users", {})
+    """Retrieve all portal registered users with their details (passwords masked)."""
     users = {}
+    # 1. Load from UserStore
+    try:
+        store_users = user_store.get_all_users()
+        for u in store_users:
+            uname = u.get("username", "")
+            if not uname:
+                continue
+            users[uname] = {
+                "username": uname,
+                "password": "🔒 Protected",
+                "registered_at": u.get("registered_at", "Recorded"),
+                "last_login": u.get("last_login", "Recorded"),
+                "last_login_date": time.strftime("%Y-%m-%d", time.localtime(u.get("last_login_ts", time.time()))),
+                "last_login_ts": u.get("last_login_ts", time.time())
+            }
+    except Exception as e:
+        print(f"[Portal Users Error]: {e}")
+
+    # 2. Backward compatibility with legacy config keys
+    raw = config.get("birthday_portal_users", {})
     if isinstance(raw, dict):
         for u, val in raw.items():
-            if isinstance(val, dict):
-                users[u] = val
-            else:
+            if u not in users:
                 users[u] = {
                     "username": u,
-                    "password": str(val),
+                    "password": "🔒 Protected",
                     "registered_at": "Recorded",
                     "last_login": "Recorded",
                     "last_login_date": time.strftime("%Y-%m-%d"),
@@ -427,11 +444,10 @@ def show_all_users(chat_id):
 
     now_ms = time.time() * 1000.0
     msg = f"👥 <b>TOTAL USERS LIST ({len(users)})</b>\n"
-    msg += f"<i>All users who registered & logged into Birthday Studio:</i>\n"
+    msg += f"<i>All users registered in 3D Birthday Studio:</i>\n"
     msg += f"{'━' * 28}\n\n"
 
     for idx, (uname, udata) in enumerate(sorted(users.items()), start=1):
-        pwd = udata.get("password", "N/A")
         reg_time = udata.get("registered_at", "N/A")
         last_login = udata.get("last_login", reg_time)
 
@@ -443,7 +459,7 @@ def show_all_users(chat_id):
 
         msg += (
             f"<b>{idx}. Username:</b> <code>{uname}</code>\n"
-            f"   🔑 <b>Password:</b> <code>{pwd}</code>\n"
+            f"   🔑 <b>Password:</b> <code>•••••••• (Encrypted)</code>\n"
             f"   📅 <b>Registered:</b> {reg_time}\n"
             f"   ⏱ <b>Last Login:</b> {last_login}\n"
             f"   🏷 <b>Status:</b> {st_tag}\n\n"
@@ -460,7 +476,6 @@ def show_active_users(chat_id):
     active_list = []
 
     for uname, udata in sorted(users.items()):
-        pwd = udata.get("password", "N/A")
         last_date = udata.get("last_login_date", "")
         last_ts = udata.get("last_login_ts", 0)
         last_login_str = udata.get("last_login", "Today")
@@ -488,7 +503,6 @@ def show_active_users(chat_id):
 
             active_list.append({
                 "username": uname,
-                "password": pwd,
                 "last_login": last_login_str,
                 "reasons": reasons
             })
@@ -509,7 +523,7 @@ def show_active_users(chat_id):
         reason_txt = " | ".join(u["reasons"])
         msg += (
             f"<b>{idx}. Username:</b> <code>{u['username']}</code>\n"
-            f"   🔑 <b>Password:</b> <code>{u['password']}</code>\n"
+            f"   🔑 <b>Password:</b> <code>•••••••• (Encrypted)</code>\n"
             f"   ⏱ <b>Last Login:</b> {u['last_login']}\n"
             f"   ⚡ <b>Active Why:</b> {reason_txt}\n\n"
         )
@@ -705,9 +719,24 @@ class WebhookHandler(BaseHTTPRequestHandler):
         print(f"[API {self.command}] {self.path} - {format % args}", flush=True)
 
     def _set_cors(self):
-        self.send_header("Access-Control-Allow-Origin", "*")
+        origin = self.headers.get("Origin", "") if hasattr(self, "headers") and self.headers else ""
+        app_url = config.get("web_app_url", "").rstrip("/")
+        if origin:
+            if (
+                (app_url and origin == app_url)
+                or origin.endswith(".onrender.com")
+                or origin.endswith(".github.io")
+                or "localhost" in origin
+                or "127.0.0.1" in origin
+            ):
+                self.send_header("Access-Control-Allow-Origin", origin)
+                self.send_header("Access-Control-Allow-Credentials", "true")
+            else:
+                self.send_header("Access-Control-Allow-Origin", "*")
+        else:
+            self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
 
     def _send_json(self, status_code, data_dict):
         body = json.dumps(data_dict).encode("utf-8")
@@ -910,30 +939,28 @@ class WebhookHandler(BaseHTTPRequestHandler):
             # Permanently delete a user account
             username_key = data.get("username", "").lower().strip()
             password = data.get("password", "").strip()
-            tg_token = data.get("tg_token", "").strip() or BOT_TOKEN
-            tg_chat_id = data.get("tg_chat_id", "").strip() or config.get("owner_chat_id", "")
-
-            # Verify credentials
-            users_db = {}
-            try:
-                saved = config.get("birthday_portal_users", {})
-                users_db = saved if isinstance(saved, dict) else {}
-            except Exception:
-                users_db = {}
 
             if not username_key:
-                self.send_response(400)
-                self._set_cors()
-                self.end_headers()
-                self.wfile.write(json.dumps({"status": "error", "message": "Username required"}).encode("utf-8"))
+                self._send_json(400, {"status": "error", "message": "Username required"})
                 return
 
-            if username_key in users_db and users_db[username_key] != password:
-                self.send_response(403)
-                self._set_cors()
-                self.end_headers()
-                self.wfile.write(json.dumps({"status": "error", "message": "Wrong password"}).encode("utf-8"))
-                return
+            # Strict Password Verification via UserStore
+            if user_store.user_exists(username_key):
+                if not user_store.verify_password(username_key, password):
+                    self._send_json(403, {"status": "error", "message": "Invalid password"})
+                    return
+            else:
+                # Check legacy config fallback
+                saved = config.get("birthday_portal_users", {})
+                legacy_entry = saved.get(username_key) if isinstance(saved, dict) else None
+                if legacy_entry:
+                    legacy_pwd = legacy_entry.get("password", "") if isinstance(legacy_entry, dict) else str(legacy_entry)
+                    if legacy_pwd and legacy_pwd != password:
+                        self._send_json(403, {"status": "error", "message": "Invalid password"})
+                        return
+                else:
+                    self._send_json(404, {"status": "error", "message": "User not found"})
+                    return
 
 
             deleted_items = []
@@ -1023,50 +1050,23 @@ class WebhookHandler(BaseHTTPRequestHandler):
             return
 
         elif self.path == "/api/sync_portal_user":
-            # Syncs user registration or login with bot (saving username, password, login time)
+            # Syncs user registration or login with UserStore
             username_key = data.get("username", "").lower().strip()
             password = data.get("password", "").strip()
             action = data.get("action", "login")
 
             if not username_key:
-                self.send_response(400)
-                self._set_cors()
-                self.end_headers()
+                self._send_json(400, {"status": "error", "message": "Username required"})
                 return
 
-            if "birthday_portal_users" not in config:
-                config["birthday_portal_users"] = {}
-
-            now_str = time.strftime("%d %b %Y, %I:%M %p")
-            today_date = time.strftime("%Y-%m-%d")
-            now_ts = time.time()
-
-            existing = config["birthday_portal_users"].get(username_key)
-            if isinstance(existing, dict):
-                user_rec = existing
-                if password:
-                    user_rec["password"] = password
-                user_rec["last_login"] = now_str
-                user_rec["last_login_date"] = today_date
-                user_rec["last_login_ts"] = now_ts
+            if not user_store.user_exists(username_key):
+                user_store.create_user(username_key, password)
             else:
-                user_rec = {
-                    "username": username_key,
-                    "password": password or (str(existing) if existing else ""),
-                    "registered_at": now_str,
-                    "last_login": now_str,
-                    "last_login_date": today_date,
-                    "last_login_ts": now_ts
-                }
+                if password:
+                    user_store.set_password(username_key, password)
+                user_store.update_last_login(username_key)
 
-            config["birthday_portal_users"][username_key] = user_rec
-            save_config(config)
-
-            self.send_response(200)
-            self._set_cors()
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({"status": "success", "message": "User credentials synced with Telegram bot!"}).encode("utf-8"))
+            self._send_json(200, {"status": "success", "message": "User credentials securely synced with UserStore!"})
             return
 
         elif self.path == "/api/expire_user":
@@ -1339,10 +1339,8 @@ class WebhookHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/api/get_env":
+            # Safe public configuration (never expose raw bot tokens or chat IDs)
             self._send_json(200, {
-                "bot_token": BOT_TOKEN if "YOUR_TELEGRAM" not in BOT_TOKEN else "",
-                "public_bot_token": config.get("public_bot_token", ""),
-                "owner_chat_id": config.get("owner_chat_id", ""),
                 "web_app_url": config.get("web_app_url", "http://localhost:8000"),
                 "bot_configured": bool(BOT_TOKEN and "YOUR" not in BOT_TOKEN)
             })

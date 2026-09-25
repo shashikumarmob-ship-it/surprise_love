@@ -1888,35 +1888,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (scene) scene.updateUserPhoto(img);
             updateMemoriesPhoto(compressed);
 
-            const formData = new FormData();
-            formData.append('image', file);
-            fetch('https://freeimage.host/api/1/upload?key=6d207e02198a847aa98d0a2a901485a5', {
-              method: 'POST',
-              body: formData
-            })
-            .then(res => res.json())
-            .then(data => {
-              if (data && data.image && data.image.url) {
-                currentPhotoDataUrl = data.image.url;
-                if (inputPhotoUrl) inputPhotoUrl.value = data.image.url;
-                if (photoUploadStatus) {
-                  photoUploadStatus.textContent = '✅ Photo cloud-hosted! Link is ready to share anywhere.';
-                  photoUploadStatus.className = 'photo-upload-status show success';
-                }
-                try { localStorage.setItem('birthday_custom_photo', data.image.url); } catch(e) {}
-              } else {
-                if (photoUploadStatus) {
-                  photoUploadStatus.textContent = '✅ Photo ready for sharing.';
-                  photoUploadStatus.className = 'photo-upload-status show success';
-                }
-              }
-            })
-            .catch(() => {
-              if (photoUploadStatus) {
-                photoUploadStatus.textContent = '✅ Photo ready for sharing.';
-                photoUploadStatus.className = 'photo-upload-status show success';
-              }
-            });
+            if (photoUploadStatus) {
+              photoUploadStatus.textContent = '✅ Photo ready for 3D experience!';
+              photoUploadStatus.className = 'photo-upload-status show success';
+            }
           };
           img.src = event.target.result;
         };
@@ -2912,29 +2887,11 @@ document.addEventListener('DOMContentLoaded', () => {
           if (serverData && serverData.status === 'success' && serverData.url) {
             const finalPhotoUrl = serverData.tg_url || serverData.url;
             setMainPortraitPhoto(finalPhotoUrl, '✅ Photo Uploaded to Telegram & Saved!');
-            return;
+            setMainPortraitPhoto(dataUrl, '✅ Photo Ready!');
           }
-          throw new Error('Fallback');
         })
         .catch(() => {
-          // Fallback to freeimage.host or keep dataURL
-          const formData = new FormData();
-          formData.append('image', file);
-          fetch('https://freeimage.host/api/1/upload?key=6d207e02198a847aa98d0a2a901485a5', {
-            method: 'POST',
-            body: formData
-          })
-          .then(res => res.json())
-          .then(data => {
-            if (data && data.image && data.image.url) {
-              setMainPortraitPhoto(data.image.url, '✅ Photo Ready & Cloud Hosted!');
-            } else {
-              setMainPortraitPhoto(dataUrl, '✅ Photo Ready (Local)!');
-            }
-          })
-          .catch(() => {
-            setMainPortraitPhoto(dataUrl, '✅ Photo Ready!');
-          });
+          setMainPortraitPhoto(dataUrl, '✅ Photo Ready!');
         });
       };
       reader.readAsDataURL(file);
@@ -3080,23 +3037,6 @@ document.addEventListener('DOMContentLoaded', () => {
           updateMemoriesPhoto(currentPhotoDataUrl, userMemoriesPhotos);
           if (currentPortalUser) saveUserFormData(currentPortalUser);
           if (onDone) onDone();
-          return;
-        }
-        throw new Error('Fallback to CDN');
-      })
-      .catch(() => {
-        // Attempt 2: Fallback to freeimage.host
-        const formData = new FormData();
-        formData.append('image', file);
-        fetch('https://freeimage.host/api/1/upload?key=6d207e02198a847aa98d0a2a901485a5', {
-          method: 'POST',
-          body: formData
-        })
-        .then(res => res.json())
-        .then(data => {
-          if (data && data.image && data.image.url) {
-            photoEntry.cdnUrl = data.image.url;
-          }
           photoEntry.uploading = false;
           renderMemoriesPreviewsGrid();
           updateMemoriesPhoto(currentPhotoDataUrl, userMemoriesPhotos);
@@ -3110,7 +3050,6 @@ document.addEventListener('DOMContentLoaded', () => {
           if (currentPortalUser) saveUserFormData(currentPortalUser);
           if (onDone) onDone();
         });
-      });
     };
     reader.readAsDataURL(file);
   }

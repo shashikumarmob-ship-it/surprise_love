@@ -30,12 +30,39 @@ import os
 import json
 import time
 import threading
+import hashlib
+import secrets
 
 # Directory where all user data files are stored
 USERS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "users")
 os.makedirs(USERS_DIR, exist_ok=True)
 
 _lock = threading.Lock()
+
+
+def hash_password(password: str) -> str:
+    """Securely hashes a password using PBKDF2-HMAC-SHA256 with a unique salt."""
+    if not password:
+        return ""
+    if password.startswith("pbkdf2:"):
+        return password  # already hashed
+    salt = secrets.token_hex(16)
+    key = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 100000).hex()
+    return f"pbkdf2:{salt}:{key}"
+
+
+def verify_password_hash(stored_hash: str, password: str) -> bool:
+    """Verifies a password against the stored PBKDF2 hash (or legacy plaintext with timing attack protection)."""
+    if not stored_hash or not password:
+        return False
+    if stored_hash.startswith("pbkdf2:"):
+        parts = stored_hash.split(":")
+        if len(parts) == 3:
+            _, salt, key = parts
+            check = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 100000).hex()
+            return secrets.compare_digest(check, key)
+    # Legacy plaintext backward compatibility
+    return secrets.compare_digest(stored_hash, password)
 
 
 def _user_path(username: str) -> str:
@@ -50,7 +77,7 @@ def _default_user(username: str, password: str) -> dict:
     now_ts  = time.time()
     return {
         "username":        username,
-        "password":        password,
+        "password":        hash_password(password) if password else "",
         "registered_at":   now_str,
         "registered_ts":   now_ts,
         "last_login":      now_str,
@@ -185,7 +212,21 @@ class UserStore:
         user = self.load_user(username)
         if not user:
             return False
-        return user.get("password", "") == password
+        stored = user.get("password", "")
+        if not verify_password_hash(stored, password):
+            return False
+        # Auto-upgrade plain passwords to secure pbkdf2 hash on successful login
+        if stored and not stored.startswith("pbkdf2:"):
+            user["password"] = hash_password(password)
+            self.save_user(user)
+        return True
+
+    def set_password(self, username: str, new_password: str) -> bool:
+        user = self.load_user(username)
+        if not user:
+            return False
+        user["password"] = hash_password(new_password)
+        return self.save_user(user)
 
     def update_last_login(self, username: str):
         user = self.load_user(username)
