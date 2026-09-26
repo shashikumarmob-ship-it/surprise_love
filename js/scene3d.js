@@ -689,32 +689,43 @@ class BirthdayScene {
       }
     });
 
-    // 3. Top Left & Top Right: 3 Pairs of Balloons (Golden, Green, Blue)
-    const sideBalloonColors = [0xffd700, 0x00e676, 0x0088ff]; // Golden, Green, Blue
+    // 3. Top Left & Top Right: 3 Pairs of Heart Balloons (Romantic Pink & Ruby Red with Glitter Powder)
+    const sideBalloonColors = [
+      0xff0054, // Vivid Crimson Pink
+      0xd90429, // Deep Passion Ruby Red
+      0xff4d6d, // Romantic Hot Pink
+      0xff0a54, // Ruby Rose Red
+      0xff758c  // Glamorous Velvet Pink
+    ];
     const leftBase = { x: -8.5, y: 7.5, z: -3.5 };
     const rightBase = { x: 8.5, y: 7.5, z: -3.5 };
 
-    const balloonGeo = new THREE.SphereGeometry(0.85, 32, 32);
-    balloonGeo.scale(1, 1.25, 1);
+    const heartGeo = this.createHeartGeometry(1.25);
+    const glitterBumpTex = this.createGlitterBumpTexture();
+    const glitterSparkleTex = this.createGlitterSparkleTexture();
 
     // Build 3 pairs on Left and 3 pairs on Right
     [leftBase, rightBase].forEach((base, sideIdx) => {
       const dir = sideIdx === 0 ? 1 : -1;
 
-      sideBalloonColors.forEach((col, pairIdx) => {
+      for (let pairIdx = 0; pairIdx < 3; pairIdx++) {
+        const col = sideBalloonColors[(pairIdx + (sideIdx * 2)) % sideBalloonColors.length];
         const mat = new THREE.MeshPhysicalMaterial({
           color: col,
-          metalness: 0.4,
-          roughness: 0.12,
-          clearcoat: 0.95,
-          clearcoatRoughness: 0.1
+          metalness: 0.52,
+          roughness: 0.22,
+          clearcoat: 1.0,
+          clearcoatRoughness: 0.08,
+          bumpMap: glitterBumpTex,
+          bumpScale: 0.038,
+          reflectivity: 0.9
         });
 
-        // Two balloons per pair
+        // Two heart balloons per pair
         for (let b = 0; b < 2; b++) {
-          const balloonMesh = new THREE.Mesh(balloonGeo, mat);
-          const offsetX = (pairIdx * 0.8 * dir) + (b === 0 ? -0.3 : 0.3);
-          const offsetY = (pairIdx * 1.1) + (b === 0 ? 0.3 : -0.3);
+          const balloonMesh = new THREE.Mesh(heartGeo, mat);
+          const offsetX = (pairIdx * 0.85 * dir) + (b === 0 ? -0.35 : 0.35);
+          const offsetY = (pairIdx * 1.1) + (b === 0 ? 0.35 : -0.35);
 
           balloonMesh.position.set(base.x + offsetX, base.y + offsetY, base.z + b * 0.4);
 
@@ -727,20 +738,64 @@ class BirthdayScene {
           const stringPoints = [new THREE.Vector3(0, -1.1, 0), new THREE.Vector3(0.05, -3.5, 0)];
           const stringLine = new THREE.Line(
             new THREE.BufferGeometry().setFromPoints(stringPoints),
-            new THREE.LineBasicMaterial({ color: 0xcccccc, opacity: 0.6, transparent: true })
+            new THREE.LineBasicMaterial({ color: 0xffcad4, opacity: 0.7, transparent: true })
           );
           balloonMesh.add(stringLine);
 
+          // Sparkling Glitter Powder Halo Points Cloud on each heart balloon
+          const gCount = 60;
+          const gGeo = new THREE.BufferGeometry();
+          const gPos = new Float32Array(gCount * 3);
+          const gCols = new Float32Array(gCount * 3);
+          const gPal = [new THREE.Color(0xffffff), new THREE.Color(0xffd700), new THREE.Color(0xffe6a7), new THREE.Color(0xff85a1)];
+
+          for (let g = 0; g < gCount; g++) {
+            const ga = Math.random() * Math.PI * 2;
+            const gr = 0.5 + Math.random() * 0.65;
+            gPos[g * 3] = Math.cos(ga) * gr;
+            gPos[g * 3 + 1] = (Math.random() - 0.4) * 1.4;
+            gPos[g * 3 + 2] = (Math.random() - 0.5) * 0.6;
+            const c = gPal[Math.floor(Math.random() * gPal.length)];
+            gCols[g * 3] = c.r; gCols[g * 3 + 1] = c.g; gCols[g * 3 + 2] = c.b;
+          }
+
+          gGeo.setAttribute('position', new THREE.BufferAttribute(gPos, 3));
+          gGeo.setAttribute('color', new THREE.BufferAttribute(gCols, 3));
+
+          const gMat = new THREE.PointsMaterial({
+            size: 0.16,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.95,
+            map: glitterSparkleTex,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+          });
+
+          const gPoints = new THREE.Points(gGeo, gMat);
+          balloonMesh.add(gPoints);
+
+          // Generous invisible hitbox
+          const decorHitbox = new THREE.Mesh(
+            new THREE.SphereGeometry(1.6, 8, 8),
+            new THREE.MeshBasicMaterial({ visible: false, transparent: true, opacity: 0 })
+          );
+          decorHitbox.userData = { type: 'decor-balloon-hitbox', parentBalloon: balloonMesh };
+          balloonMesh.add(decorHitbox);
+
           balloonMesh.userData = {
+            type: 'decor-balloon',
             basePos: balloonMesh.position.clone(),
             floatSpeed: 1.2 + Math.random() * 0.5,
-            wobbleOffset: Math.random() * 5
+            wobbleOffset: Math.random() * 5,
+            glitterPoints: gPoints,
+            color: col
           };
 
           this.decorGroup.add(balloonMesh);
           this.generalBalloons.push(balloonMesh);
         }
-      });
+      }
     });
 
     this.scene.add(this.decorGroup);
@@ -2907,6 +2962,97 @@ class BirthdayScene {
     return false;
   }
 
+  popDecorBalloon(balloonMesh) {
+    if (!balloonMesh || balloonMesh.userData.isPopped) return;
+    balloonMesh.userData.isPopped = true;
+
+    if (window.birthdayAudio) window.birthdayAudio.playBalloonPop();
+    const popPos = new THREE.Vector3();
+    balloonMesh.getWorldPosition(popPos);
+    const balloonColor = balloonMesh.userData.color || 0xff0054;
+
+    // Fragment Burst
+    const fragmentGeo = new THREE.PlaneGeometry(0.18, 0.18);
+    const fragments = [];
+    for (let i = 0; i < 30; i++) {
+      const fragMat = new THREE.MeshBasicMaterial({ color: balloonColor, side: THREE.DoubleSide });
+      const frag = new THREE.Mesh(fragmentGeo, fragMat);
+      frag.position.copy(popPos);
+      const dir = new THREE.Vector3(
+        (Math.random() - 0.5) * 2,
+        (Math.random() - 0.5) * 2,
+        (Math.random() - 0.5) * 2
+      ).normalize().multiplyScalar(1.8 + Math.random() * 2.2);
+      frag.userData = { vel: dir, rotVel: new THREE.Vector3(Math.random() * 10, Math.random() * 10, Math.random() * 10) };
+      this.scene.add(frag);
+      fragments.push(frag);
+    }
+
+    const startTime = performance.now();
+    const animateFragments = () => {
+      const elapsed = (performance.now() - startTime) / 1000;
+      if (elapsed > 1.0) {
+        fragments.forEach(f => this.scene.remove(f));
+        return;
+      }
+      fragments.forEach(f => {
+        f.position.addScaledVector(f.userData.vel, 0.03);
+        f.userData.vel.y -= 0.05;
+        f.rotation.x += f.userData.rotVel.x * 0.02;
+        f.material.opacity = Math.max(0, 1 - elapsed);
+      });
+      requestAnimationFrame(animateFragments);
+    };
+    animateFragments();
+
+    // Glitter powder burst
+    const glitterSparkleTex = this.createGlitterSparkleTexture();
+    const gbBurstCount = 35;
+    const gbGeo = new THREE.BufferGeometry();
+    const gbPos = new Float32Array(gbBurstCount * 3);
+    const gbVel = [];
+    for (let i = 0; i < gbBurstCount; i++) {
+      gbPos[i * 3] = popPos.x;
+      gbPos[i * 3 + 1] = popPos.y;
+      gbPos[i * 3 + 2] = popPos.z;
+      gbVel.push(new THREE.Vector3((Math.random() - 0.5) * 3, (Math.random() - 0.2) * 3, (Math.random() - 0.5) * 3));
+    }
+    gbGeo.setAttribute('position', new THREE.BufferAttribute(gbPos, 3));
+    const gbMat = new THREE.PointsMaterial({
+      size: 0.22,
+      color: 0xffd700,
+      map: glitterSparkleTex,
+      transparent: true,
+      opacity: 1,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const gbPoints = new THREE.Points(gbGeo, gbMat);
+    this.scene.add(gbPoints);
+    const gbStart = performance.now();
+    const animGb = () => {
+      const el = (performance.now() - gbStart) / 1000;
+      if (el > 1.0) {
+        this.scene.remove(gbPoints);
+        return;
+      }
+      const pAttr = gbGeo.attributes.position;
+      for (let i = 0; i < gbBurstCount; i++) {
+        pAttr.array[i * 3] += gbVel[i].x * 0.035;
+        pAttr.array[i * 3 + 1] += gbVel[i].y * 0.035;
+        pAttr.array[i * 3 + 2] += gbVel[i].z * 0.035;
+        gbVel[i].y -= 0.03;
+      }
+      pAttr.needsUpdate = true;
+      gbMat.opacity = Math.max(0, 1 - el);
+      requestAnimationFrame(animGb);
+    };
+    animGb();
+
+    if (balloonMesh.parent) balloonMesh.parent.remove(balloonMesh);
+    if (window.confetti) window.confetti({ particleCount: 25, spread: 50, origin: { y: 0.5 } });
+  }
+
   clearHoldTimer() {
     if (this.holdTimer) {
       clearTimeout(this.holdTimer);
@@ -2927,7 +3073,7 @@ class BirthdayScene {
       return;
     }
 
-    // 2. Second priority: Check other interactive objects (gift box, photo frame)
+    // 2. Second priority: Check other interactive objects (gift box, photo frame, decor heart balloons)
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -2938,13 +3084,18 @@ class BirthdayScene {
     if (intersects.length > 0) {
       let hitObj = intersects[0].object;
       while (hitObj.parent && hitObj.parent !== this.scene) {
-        if (hitObj.userData && (hitObj.userData.type === 'gift' || hitObj.userData.type === 'photo-frame')) {
+        if (hitObj.userData && (hitObj.userData.type === 'gift' || hitObj.userData.type === 'photo-frame' || hitObj.userData.type === 'decor-balloon' || hitObj.userData.type === 'decor-balloon-hitbox')) {
           break;
         }
         hitObj = hitObj.parent;
       }
 
-      if (hitObj.userData && hitObj.userData.type === 'gift') {
+      if (hitObj.userData && (hitObj.userData.type === 'decor-balloon' || hitObj.userData.type === 'decor-balloon-hitbox')) {
+        const balloonTarget = hitObj.userData.parentBalloon || hitObj;
+        this.popDecorBalloon(balloonTarget);
+        this.clearHoldTimer();
+        return;
+      } else if (hitObj.userData && hitObj.userData.type === 'gift') {
         this.openGift();
         this.clearHoldTimer();
         return;
@@ -3879,11 +4030,15 @@ class BirthdayScene {
       this.photoBadge.scale.set(pulse, pulse, pulse);
     }
 
-    // 7. Background side balloons wobble
+    // 7. Background side balloons wobble & glitter shimmer
     this.generalBalloons.forEach(b => {
       const u = b.userData;
       b.position.y = u.basePos.y + Math.sin(time * u.floatSpeed + u.wobbleOffset) * 0.25;
       b.rotation.z = Math.sin(time * 1.5 + u.wobbleOffset) * 0.05;
+      if (u.glitterPoints) {
+        u.glitterPoints.rotation.y = time * 0.4;
+        u.glitterPoints.material.opacity = 0.8 + Math.sin(time * 5 + u.wobbleOffset) * 0.2;
+      }
     });
 
     // 8. Table Balloons Orbit & Rotate Around the Cake with Glitter Shimmer
