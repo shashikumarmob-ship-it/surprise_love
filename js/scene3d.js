@@ -144,7 +144,8 @@ class BirthdayScene {
   init() {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x060210);
-    this.scene.fog = new THREE.FogExp2(0x060210, 0.0065);
+    // Linear fog: starts at distance 50 so the celebration area is 100% bright, zero dimming
+    this.scene.fog = new THREE.Fog(0x060210, 50, 160);
 
     const aspect = window.innerWidth / window.innerHeight;
     this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
@@ -158,7 +159,7 @@ class BirthdayScene {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
+    this.renderer.toneMappingExposure = 1.55;
     this.container.appendChild(this.renderer.domElement);
 
     this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
@@ -496,23 +497,49 @@ class BirthdayScene {
   }
 
   setupLighting() {
-    this.ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
+    // 1. Ambient Light - Bright warm ambient so shadows are luminous & soft
+    this.ambientLight = new THREE.AmbientLight(0xfff6ee, 1.45);
     this.scene.add(this.ambientLight);
 
-    this.dirLight = new THREE.DirectionalLight(0xfffaed, 1.5);
-    this.dirLight.position.set(12, 22, 15);
+    // 2. Hemisphere Studio Light - Soft sky & ground contrast
+    this.hemiLight = new THREE.HemisphereLight(0xffeedd, 0x331845, 1.3);
+    this.hemiLight.position.set(0, 30, 0);
+    this.scene.add(this.hemiLight);
+
+    // 3. Main Key Directional Light (Sun / Grand Chandelier)
+    this.dirLight = new THREE.DirectionalLight(0xfffaee, 2.4);
+    this.dirLight.position.set(12, 24, 16);
     this.dirLight.castShadow = true;
     this.dirLight.shadow.mapSize.width = 2048;
     this.dirLight.shadow.mapSize.height = 2048;
+    this.dirLight.shadow.camera.near = 0.5;
+    this.dirLight.shadow.camera.far = 80;
+    this.dirLight.shadow.bias = -0.0005;
     this.scene.add(this.dirLight);
 
-    this.fillLight = new THREE.DirectionalLight(0x7b68ee, 0.9);
-    this.fillLight.position.set(-15, 14, -10);
+    // 4. Warm Fill Light from Left (Vibrant Rose-Gold tone)
+    this.fillLight = new THREE.DirectionalLight(0xff8fb1, 1.4);
+    this.fillLight.position.set(-16, 16, 8);
     this.scene.add(this.fillLight);
 
-    this.cakeGlowLight = new THREE.PointLight(0xffd700, 1.8, 16);
-    this.cakeGlowLight.position.set(0, 4.5, 0);
+    // 5. Front Center Stage Spotlight - Direct illumination onto Cake & Stage
+    this.stageFrontLight = new THREE.DirectionalLight(0xfff2e6, 1.8);
+    this.stageFrontLight.position.set(0, 18, 22);
+    this.scene.add(this.stageFrontLight);
+
+    // 6. Warm Golden Cake Table Point Light (Illuminates the Cake, Cloth & Table)
+    this.cakeGlowLight = new THREE.PointLight(0xffd700, 3.2, 28);
+    this.cakeGlowLight.position.set(0, 5.0, 0);
     this.scene.add(this.cakeGlowLight);
+
+    // 7. Left & Right Stage Accent Lights (Illuminates Board & Photo Frame)
+    this.leftStageLight = new THREE.PointLight(0xff758c, 2.2, 22);
+    this.leftStageLight.position.set(-12, 6, 2);
+    this.scene.add(this.leftStageLight);
+
+    this.rightStageLight = new THREE.PointLight(0xffd700, 2.2, 22);
+    this.rightStageLight.position.set(12, 6, 2);
+    this.scene.add(this.rightStageLight);
   }
 
   /* =========================================================
@@ -691,25 +718,33 @@ class BirthdayScene {
   }
 
   createFloorAndStage() {
-    // Large polished party hall floor
+    // Large polished party hall floor - lighter, luxurious velvet stage
     const stageGeo = new THREE.CylinderGeometry(15, 16, 0.4, 64);
     const stageMat = new THREE.MeshStandardMaterial({
-      color: 0x120a24,
-      roughness: 0.2,
-      metalness: 0.7,
+      color: 0x1d1238,
+      roughness: 0.18,
+      metalness: 0.55,
     });
     this.stage = new THREE.Mesh(stageGeo, stageMat);
     this.stage.position.y = -0.2;
     this.stage.receiveShadow = true;
     this.scene.add(this.stage);
 
-    // Glowing stage ring
-    const ringGeo = new THREE.TorusGeometry(15.05, 0.08, 16, 100);
+    // Glowing outer gold stage ring
+    const ringGeo = new THREE.TorusGeometry(15.05, 0.12, 16, 100);
     this.stageRingMat = new THREE.MeshBasicMaterial({ color: 0xffd700 });
     const ring = new THREE.Mesh(ringGeo, this.stageRingMat);
     ring.rotation.x = Math.PI / 2;
     ring.position.y = -0.01;
     this.scene.add(ring);
+
+    // Glowing inner stage circle (illuminates center table area)
+    const innerRingGeo = new THREE.TorusGeometry(7.5, 0.08, 16, 80);
+    const innerRingMat = new THREE.MeshBasicMaterial({ color: 0xff758c });
+    const innerRing = new THREE.Mesh(innerRingGeo, innerRingMat);
+    innerRing.rotation.x = Math.PI / 2;
+    innerRing.position.y = -0.01;
+    this.scene.add(innerRing);
   }
 
   /* =========================================================
@@ -4657,7 +4692,7 @@ class BirthdayScene {
     if (this.diwaliBulbs) {
       this.diwaliBulbs.forEach(bulb => {
         const twinkle = Math.sin(time * bulb.speed + bulb.phase);
-        bulb.mat.emissiveIntensity = 0.5 + Math.max(0, twinkle) * 0.9;
+        bulb.mat.emissiveIntensity = 1.0 + Math.max(0, twinkle) * 1.5;
       });
     }
 
