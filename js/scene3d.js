@@ -59,8 +59,6 @@ class BirthdayScene {
     this.vfxStarTrails = [];
     this.vfxLastStarSpawn = 0;
     this.vfxActiveFireworks = [];
-    this.vfxRockets = [];
-    this.vfxFountains = [];
     this.vfxSmokeParticles = [];
     this.vfxSliceSparks = [];
 
@@ -207,33 +205,177 @@ class BirthdayScene {
      REAL-TIME FIRECRACKERS VIDEO & CHROMA-KEY (GREEN REMOVAL)
      ========================================================= */
   initFirecrackersVideoPlayer() {
-    // Video file is preserved intact, but video playback wiring is disconnected as requested
     this.fcVideo = document.getElementById('firecrackers-video');
     this.fcCanvas = document.getElementById('firecrackers-canvas');
-    if (this.fcVideo) {
-      try {
-        this.fcVideo.pause();
-        this.fcVideo.currentTime = 0;
-      } catch(e) {}
-    }
-    if (this.fcCanvas) {
-      this.fcCanvas.style.display = 'none';
-    }
+    if (!this.fcVideo || !this.fcCanvas) return;
+
+    this.fcCtx = this.fcCanvas.getContext('2d', { willReadFrequently: true });
+    this.isFcPlaying = false;
+
+    // Buffer canvas for GPU-speed native 1280x720 HD chroma-key processing (4K crisp edges)
+    this.fcBufferCanvas = document.createElement('canvas');
+    this.fcBufferCanvas.width = 1280;
+    this.fcBufferCanvas.height = 720;
+    this.fcBufferCtx = this.fcBufferCanvas.getContext('2d', { willReadFrequently: true });
+    this.fcAudioBoosted = false;
+  }
+
+  initFirecrackerAudioBoost() {
+    if (this.fcAudioBoosted || !this.fcVideo) return;
+    try {
+      if (window.birthdayAudio) {
+        window.birthdayAudio.init();
+        if (window.birthdayAudio.ctx) {
+          const source = window.birthdayAudio.ctx.createMediaElementSource(this.fcVideo);
+          const boostGain = window.birthdayAudio.ctx.createGain();
+          boostGain.gain.setValueAtTime(2.2, window.birthdayAudio.ctx.currentTime); // 2.2x Volume Boost
+          source.connect(boostGain);
+          boostGain.connect(window.birthdayAudio.ctx.destination);
+          this.fcAudioBoosted = true;
+        }
+      }
+    } catch(e) {}
   }
 
   playGreenScreenFirecrackers(duration = null, onVideoComplete = null) {
-    // Video wiring cut as requested by user; native 4K WebGL procedural fireworks engine is executed!
-    this.play4KProceduralFireworksSpectacle(duration || 6.5, onVideoComplete);
+    if (!this.fcVideo || !this.fcCanvas) {
+      if (onVideoComplete) onVideoComplete();
+      return;
+    }
+
+    this.initFirecrackerAudioBoost();
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const clientW = this.fcCanvas.clientWidth || Math.min(window.innerWidth * 0.9, 960);
+    const clientH = this.fcCanvas.clientHeight || Math.min(window.innerHeight * 0.68, 620);
+    this.fcCanvas.width = clientW * dpr;
+    this.fcCanvas.height = clientH * dpr;
+    this.fcCanvas.style.display = 'block';
+    this.fcCanvas.style.opacity = '1';
+    this.fcCanvas.classList.add('active');
+
+    this.onFcComplete = onVideoComplete;
+    this.fcVideo.volume = 1.0;
+    this.fcVideo.muted = false;
+
+    // Start video playback from 0s for instant firecracker burst
+    try {
+      this.fcVideo.currentTime = 0;
+    } catch(e) {}
+
+    const startProcessing = () => {
+      this.isFcPlaying = true;
+      const startTime = Date.now();
+
+      const processChromaFrame = () => {
+        if (!this.isFcPlaying) return;
+
+        const isEnded = this.fcVideo.ended || (this.fcVideo.duration > 0 && this.fcVideo.currentTime >= this.fcVideo.duration - 0.25 && (Date.now() - startTime > 2000));
+        const isTimeUp = duration && (Date.now() - startTime > duration * 1000);
+
+        if (isEnded || isTimeUp) {
+          this.stopGreenScreenFirecrackers();
+          return;
+        }
+
+        if (this.fcVideo.readyState >= 2 && !this.fcVideo.paused) {
+          const bw = this.fcBufferCanvas.width;
+          const bh = this.fcBufferCanvas.height;
+
+          try {
+            this.fcBufferCtx.drawImage(this.fcVideo, 0, 0, bw, bh);
+            const frame = this.fcBufferCtx.getImageData(0, 0, bw, bh);
+            const l = frame.data.length;
+            const timeNow = (Date.now() - startTime) * 0.003;
+
+            // Precision 4K Chroma-Key & Sub-pixel Edge Anti-Aliasing (Zero Green Fringe)
+            for (let i = 0; i < l; i += 4) {
+              const r = frame.data[i];
+              const g = frame.data[i + 1];
+              const b = frame.data[i + 2];
+
+              // Green Dominance Delta
+              const maxRB = (r > b) ? r : b;
+              const greenDiff = g - maxRB;
+
+              // Pure green background removal & edge despill
+              if (g > 45 && greenDiff > 8) {
+                if (greenDiff > 22) {
+                  frame.data[i + 3] = 0; // 100% Transparent
+                  continue;
+                } else {
+                  // Smooth sub-pixel alpha feather on edges
+                  frame.data[i + 3] = Math.round((1 - (greenDiff - 8) / 14) * 255);
+                  frame.data[i + 1] = maxRB; // Remove green fringing on sparks
+                }
+              }
+
+              // Dynamic Multi-Color Festival Grading for Firecracker Sparks & Bursts
+              if (frame.data[i + 3] > 20) {
+                const pixelIdx = i >> 2;
+                const px = pixelIdx % bw;
+                const py = (pixelIdx / bw) | 0;
+                const lum = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
+
+                // Chromatic waves for Gold, Crimson Red, Royal Blue, Emerald, Violet, Cyan
+                const phase = (px / bw) * 4.0 + (py / bh) * 3.0 + timeNow;
+                const cr = 0.5 + 0.5 * Math.sin(phase);
+                const cg = 0.5 + 0.5 * Math.sin(phase + 2.094);
+                const cb = 0.5 + 0.5 * Math.sin(phase + 4.188);
+
+                if (lum > 0.82) {
+                  // Crisp incandescent sparkling diamond-gold/white core
+                  frame.data[i] = Math.min(255, r * 1.08 + cr * 35);
+                  frame.data[i + 1] = Math.min(255, g * 1.05 + cg * 30);
+                  frame.data[i + 2] = Math.min(255, b * 1.08 + cb * 35);
+                } else {
+                  // Firecracker sparks, tails and trails get rich brilliant rainbow colors
+                  frame.data[i] = Math.min(255, Math.floor(lum * cr * 340 + 35));
+                  frame.data[i + 1] = Math.min(255, Math.floor(lum * cg * 320 + 25));
+                  frame.data[i + 2] = Math.min(255, Math.floor(lum * cb * 360 + 45));
+                }
+              }
+            }
+
+            this.fcBufferCtx.putImageData(frame, 0, 0);
+
+            // Render transparent sparks directly over the 3D scene
+            this.fcCtx.clearRect(0, 0, this.fcCanvas.width, this.fcCanvas.height);
+            this.fcCtx.drawImage(this.fcBufferCanvas, 0, 0, this.fcCanvas.width, this.fcCanvas.height);
+          } catch(err) {
+            // Direct draw fallback in case of CORS or canvas security restrictions
+            this.fcCtx.clearRect(0, 0, this.fcCanvas.width, this.fcCanvas.height);
+            this.fcCtx.drawImage(this.fcVideo, 0, 0, this.fcCanvas.width, this.fcCanvas.height);
+          }
+        }
+
+        this.fcAnimFrame = requestAnimationFrame(processChromaFrame);
+      };
+
+      this.fcAnimFrame = requestAnimationFrame(processChromaFrame);
+    };
+
+    const playPromise = this.fcVideo.play();
+    if (playPromise !== undefined) {
+      playPromise.then(() => {
+        startProcessing();
+      }).catch(() => {
+        this.fcVideo.muted = true;
+        this.fcVideo.play().then(() => {
+          startProcessing();
+        });
+      });
+    } else {
+      startProcessing();
+    }
   }
 
   stopGreenScreenFirecrackers() {
     this.isFcPlaying = false;
     if (this.fcAnimFrame) cancelAnimationFrame(this.fcAnimFrame);
     if (this.fcVideo) {
-      try {
-        this.fcVideo.pause();
-        this.fcVideo.currentTime = 0;
-      } catch(e) {}
+      this.fcVideo.pause();
+      try { this.fcVideo.currentTime = 0; } catch(e) {}
     }
     if (this.fcCanvas) {
       this.fcCanvas.classList.remove('active');
@@ -353,11 +495,6 @@ class BirthdayScene {
     this.cakeGlowLight = new THREE.PointLight(0xffd700, 1.8, 16);
     this.cakeGlowLight.position.set(0, 4.5, 0);
     this.scene.add(this.cakeGlowLight);
-
-    // Dynamic 4K Sky Fireworks Flash Light
-    this.fireworkFlashLight = new THREE.PointLight(0xffffff, 0, 55);
-    this.fireworkFlashLight.position.set(0, 18, 0);
-    this.scene.add(this.fireworkFlashLight);
   }
 
   createFloorAndStage() {
@@ -2152,10 +2289,57 @@ class BirthdayScene {
   }
 
   /* =========================================================
-     4K PROCEDURAL FIREWORKS & PYROTECHNIC SPECTACLE (NATIVE WEBGL)
+     REAL FIRECRACKERS VIDEO & AUDIO CELEBRATION (EXCLUSIVELY VIDEO)
      ========================================================= */
   start3SecondFirecrackers(onComplete = null) {
-    this.play4KProceduralFireworksSpectacle(6.5, onComplete);
+    // 1. Tilt Camera upwards towards the Sky for Fireworks view
+    gsap.to(this.camera.position, {
+      x: 0.00,
+      y: 15.5,
+      z: 34.0,
+      duration: 1.5,
+      ease: 'power2.inOut'
+    });
+    gsap.to(this.controls.target, {
+      x: 0.00,
+      y: 13.5,
+      z: 0.00,
+      duration: 1.5,
+      ease: 'power2.inOut'
+    });
+
+    // 2. Play 3D Multi-Color Fireworks Show & Real Firecrackers Video
+    this.launchCelebrationFireworkShow(8);
+    this.playGreenScreenFirecrackers(null, () => {
+      // 3. Firecrackers finished -> Smoothly return camera to celebration angle
+      const grandCam = this.getCelebrationCameraCoords();
+      gsap.to(this.camera.position, {
+        x: grandCam.pos.x,
+        y: grandCam.pos.y,
+        z: grandCam.pos.z,
+        duration: 1.6,
+        ease: 'power2.inOut'
+      });
+      gsap.to(this.controls.target, {
+        x: grandCam.target.x,
+        y: grandCam.target.y,
+        z: grandCam.target.z,
+        duration: 1.6,
+        ease: 'power2.inOut',
+        onComplete: () => {
+          if (onComplete) onComplete();
+        }
+      });
+    });
+
+    // 4. Celebratory Confetti Rain
+    if (window.confetti) {
+      window.confetti({
+        particleCount: 60,
+        spread: 100,
+        origin: { x: 0.5, y: 0.5 }
+      });
+    }
   }
 
   launchFirework(onComplete = null) {
@@ -2933,101 +3117,41 @@ class BirthdayScene {
     }
   }
 
-  /* =========================================================
-     4K PROCEDURAL FIREWORKS & PYROTECHNIC SPECTACLE (NATIVE WEBGL)
-     ========================================================= */
-  launch3DFireworkBurst(x, y, z, colorHex = 0xffd700, particleCount = 100, burstType = 'chrysanthemum') {
+  /* --- VFX 2: 3D PARTICLES FIREWORKS & KNIFE CUT SPARK FOUNTAIN --- */
+  launch3DFireworkBurst(x, y, z, colorHex = 0xffd700, particleCount = 75) {
     const geo = new THREE.BufferGeometry();
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
     const pData = [];
     const baseCol = new THREE.Color(colorHex);
-    const whiteCol = new THREE.Color(0xffffff);
-    const goldCol = new THREE.Color(0xffd700);
 
     for (let i = 0; i < particleCount; i++) {
       positions[i * 3] = x;
       positions[i * 3 + 1] = y;
       positions[i * 3 + 2] = z;
 
-      if (burstType === 'peony') {
-        // Two concentric layers: outer colored shell and inner diamond core
-        const isCore = Math.random() < 0.35;
-        const c = isCore ? whiteCol : baseCol;
-        colors[i * 3] = c.r;
-        colors[i * 3 + 1] = c.g;
-        colors[i * 3 + 2] = c.b;
+      colors[i * 3] = baseCol.r;
+      colors[i * 3 + 1] = baseCol.g;
+      colors[i * 3 + 2] = baseCol.b;
 
-        const theta = Math.random() * Math.PI * 2;
-        const phi = Math.acos((Math.random() * 2) - 1);
-        const speed = isCore ? (0.15 + Math.random() * 0.25) : (0.4 + Math.random() * 0.45);
-        pData.push({
-          vx: Math.sin(phi) * Math.cos(theta) * speed,
-          vy: Math.sin(phi) * Math.sin(theta) * speed + 0.05,
-          vz: Math.cos(phi) * speed,
-          drag: 0.965,
-          gravity: -0.011
-        });
-      } else if (burstType === 'heart') {
-        // Parametric 3D Heart Cardioid Equation
-        const t = (i / particleCount) * Math.PI * 2;
-        const hx = 16 * Math.pow(Math.sin(t), 3);
-        const hy = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
-        const scale = 0.038 + (Math.random() - 0.5) * 0.008;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos((Math.random() * 2) - 1);
+      const speed = 0.25 + Math.random() * 0.55;
 
-        const c = Math.random() < 0.65 ? new THREE.Color(0xff0055) : new THREE.Color(0xff758c);
-        colors[i * 3] = c.r;
-        colors[i * 3 + 1] = c.g;
-        colors[i * 3 + 2] = c.b;
-
-        pData.push({
-          vx: hx * scale + (Math.random() - 0.5) * 0.04,
-          vy: hy * scale + 0.06 + (Math.random() - 0.5) * 0.04,
-          vz: (Math.random() - 0.5) * 0.12,
-          drag: 0.955,
-          gravity: -0.007
-        });
-      } else if (burstType === 'willow') {
-        // Slow Cascading Golden Kamuro Willow
-        const c = Math.random() < 0.7 ? goldCol : new THREE.Color(0xffba08);
-        colors[i * 3] = c.r;
-        colors[i * 3 + 1] = c.g;
-        colors[i * 3 + 2] = c.b;
-
-        const theta = Math.random() * Math.PI * 2;
-        const phi = Math.acos((Math.random() * 2) - 1);
-        const speed = 0.2 + Math.random() * 0.35;
-        pData.push({
-          vx: Math.sin(phi) * Math.cos(theta) * speed * 0.75,
-          vy: Math.sin(phi) * Math.sin(theta) * speed * 0.6 + 0.12,
-          vz: Math.cos(phi) * speed * 0.75,
-          drag: 0.982,
-          gravity: -0.006
-        });
-      } else {
-        // Grand Chrysanthemum Spherical Starburst
-        colors[i * 3] = baseCol.r;
-        colors[i * 3 + 1] = baseCol.g;
-        colors[i * 3 + 2] = baseCol.b;
-
-        const theta = Math.random() * Math.PI * 2;
-        const phi = Math.acos((Math.random() * 2) - 1);
-        const speed = 0.35 + Math.random() * 0.6;
-        pData.push({
-          vx: Math.sin(phi) * Math.cos(theta) * speed,
-          vy: Math.sin(phi) * Math.sin(theta) * speed + 0.08,
-          vz: Math.cos(phi) * speed,
-          drag: 0.962,
-          gravity: -0.012
-        });
-      }
+      pData.push({
+        vx: Math.sin(phi) * Math.cos(theta) * speed,
+        vy: Math.sin(phi) * Math.sin(theta) * speed + 0.08,
+        vz: Math.cos(phi) * speed,
+        drag: 0.965,
+        gravity: -0.012
+      });
     }
 
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
     const mat = new THREE.PointsMaterial({
-      size: burstType === 'willow' ? 0.65 : 0.55,
+      size: 0.55,
       map: this.sparkTexture,
       transparent: true,
       opacity: 1.0,
@@ -3039,20 +3163,6 @@ class BirthdayScene {
     const mesh = new THREE.Points(geo, mat);
     this.scene.add(mesh);
 
-    // Dynamic 3D lighting flash across the party hall
-    if (this.fireworkFlashLight) {
-      this.fireworkFlashLight.color.setHex(colorHex);
-      this.fireworkFlashLight.position.set(x, y, z);
-      this.fireworkFlashLight.intensity = 5.4;
-      gsap.killTweensOf(this.fireworkFlashLight);
-      gsap.to(this.fireworkFlashLight, { intensity: 0, duration: 0.85, ease: 'power2.out' });
-    }
-
-    // High fidelity sub-bass acoustic boom + crackle
-    if (window.birthdayAudio) {
-      try { window.birthdayAudio.playFirework(); } catch(e) {}
-    }
-
     this.vfxActiveFireworks.push({
       mesh,
       geo,
@@ -3060,276 +3170,77 @@ class BirthdayScene {
       pData,
       positions,
       life: 1.0,
-      decay: burstType === 'willow' ? 0.009 : 0.015
+      decay: 0.016 + Math.random() * 0.008
     });
   }
 
   launchCelebrationFireworkShow(burstCount = 9) {
     const colors = [0xffd700, 0xff1493, 0x00f2fe, 0x39ff14, 0xff6b6b, 0xbf5af2, 0xffb703];
-    const types = ['chrysanthemum', 'peony', 'willow'];
     for (let i = 0; i < burstCount; i++) {
       setTimeout(() => {
         const x = (Math.random() - 0.5) * 34;
         const y = 14 + Math.random() * 12;
         const z = -4 + (Math.random() - 0.5) * 16;
         const col = colors[Math.floor(Math.random() * colors.length)];
-        const typ = types[Math.floor(Math.random() * types.length)];
-        this.launch3DFireworkBurst(x, y, z, col, 85, typ);
-      }, i * 320);
+        this.launch3DFireworkBurst(x, y, z, col, 70);
+
+        if (window.birthdayAudio) {
+          try { window.birthdayAudio.playBalloonPop(); } catch(e) {}
+        }
+      }, i * 350);
     }
   }
 
-  launchRocketWithTrail(startX, startY, startZ, targetX, targetY, targetZ, burstType = 'chrysanthemum', colorHex = 0xffd700, flightDuration = 0.85) {
-    const headGeo = new THREE.BufferGeometry();
-    headGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([startX, startY, startZ]), 3));
-    const headMat = new THREE.PointsMaterial({
-      size: 0.75,
-      map: this.starTexture,
+  createKnifeSliceSparkFountain(pos) {
+    const count = 70;
+    const geo = new THREE.BufferGeometry();
+    const positions = new Float32Array(count * 3);
+    const colors = new Float32Array(count * 3);
+    const pData = [];
+    const goldCol = new THREE.Color(0xffd700);
+    const orangeCol = new THREE.Color(0xff7b00);
+
+    for (let i = 0; i < count; i++) {
+      positions[i * 3] = pos.x;
+      positions[i * 3 + 1] = pos.y;
+      positions[i * 3 + 2] = pos.z;
+
+      const c = Math.random() < 0.6 ? goldCol : orangeCol;
+      colors[i * 3] = c.r;
+      colors[i * 3 + 1] = c.g;
+      colors[i * 3 + 2] = c.b;
+
+      const angle = (Math.PI / 4) + (Math.random() - 0.5) * (Math.PI * 0.8);
+      const speed = 0.15 + Math.random() * 0.35;
+      pData.push({
+        vx: Math.cos(angle) * speed,
+        vy: 0.1 + Math.random() * 0.25,
+        vz: Math.sin(angle) * speed + 0.12,
+        gravity: -0.015,
+        drag: 0.94
+      });
+    }
+
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+    const mat = new THREE.PointsMaterial({
+      size: 0.45,
+      map: this.sparkTexture,
       transparent: true,
       opacity: 1.0,
-      color: 0xffffff,
+      vertexColors: true,
       blending: THREE.AdditiveBlending,
       depthWrite: false
     });
-    const headMesh = new THREE.Points(headGeo, headMat);
-    this.scene.add(headMesh);
 
-    if (window.birthdayAudio) {
-      try { window.birthdayAudio.playRocketLaunch(); } catch(e) {}
-    }
-
-    this.vfxRockets.push({
-      headMesh,
-      headGeo,
-      headMat,
-      startPos: new THREE.Vector3(startX, startY, startZ),
-      targetPos: new THREE.Vector3(targetX, targetY, targetZ),
-      curPos: new THREE.Vector3(startX, startY, startZ),
-      burstType,
-      colorHex,
-      progress: 0,
-      speed: 1 / Math.max(0.35, flightDuration),
-      wobbleSeed: Math.random() * 20
-    });
-  }
-
-  startTableSparklerFountains(durationSeconds = 6.0) {
-    this.vfxFountainEndTime = Date.now() + durationSeconds * 1000;
-    this.vfxFountainLastCrackle = 0;
-  }
-
-  play4KProceduralFireworksSpectacle(durationSeconds = 6.5, onComplete = null) {
-    // 1. Tilt Camera up smoothly to Sky celebration fireworks angle
-    gsap.to(this.camera.position, {
-      x: 0.00,
-      y: 15.5,
-      z: 34.0,
-      duration: 1.4,
-      ease: 'power2.inOut'
-    });
-    gsap.to(this.controls.target, {
-      x: 0.00,
-      y: 13.5,
-      z: 0.00,
-      duration: 1.4,
-      ease: 'power2.inOut'
-    });
-
-    // 2. Start Stage Table Cold-Fire Sparkler Fountains
-    this.startTableSparklerFountains(durationSeconds);
-
-    // 3. Confetti rain
-    if (window.confetti) {
-      window.confetti({ particleCount: 75, spread: 120, origin: { x: 0.5, y: 0.45 } });
-    }
-
-    // 4. Choreographed Multi-Phase Rocket Launches & Bursts
-    // Phase 1 (0.1s): Left Rocket (Golden Chrysanthemum)
-    setTimeout(() => {
-      this.launchRocketWithTrail(-8, 0.2, -2, -6, 21, -3, 'chrysanthemum', 0xffd700, 0.8);
-    }, 100);
-
-    // Phase 2 (0.5s): Right Rocket (Emerald Green Willow)
-    setTimeout(() => {
-      this.launchRocketWithTrail(8, 0.2, -2, 6, 22, -3, 'willow', 0x39ff14, 0.85);
-    }, 500);
-
-    // Phase 3 (1.3s): Center Rocket -> Giant 3D Glowing Heart right above the cake!
-    setTimeout(() => {
-      this.launchRocketWithTrail(0, 1.4, -1, 0, 24, -2, 'heart', 0xff2d75, 0.95);
-    }, 1300);
-
-    // Phase 4 (2.3s): Twin Cross-Firing Rockets (Cyan & Magenta Peony)
-    setTimeout(() => {
-      this.launchRocketWithTrail(-11, 0.2, -3, -7, 20, -5, 'peony', 0x00f2fe, 0.8);
-      this.launchRocketWithTrail(11, 0.2, -3, 7, 20, -5, 'peony', 0xff1493, 0.8);
-    }, 2300);
-
-    // Phase 5 (3.3s): High Altitude Golden Willow Cascade (Kamuro)
-    setTimeout(() => {
-      this.launchRocketWithTrail(2.5, 0.2, -3, 3.5, 26, -4, 'willow', 0xffb703, 0.9);
-      this.launchRocketWithTrail(-2.5, 0.2, -3, -3.5, 25, -4, 'willow', 0xffe066, 0.9);
-    }, 3300);
-
-    // Phase 6 (4.3s): Grand Finale 5-Shell Panoramic Barrage across skyline
-    setTimeout(() => {
-      const finaleColors = [0xffd700, 0xff0055, 0x00f2fe, 0xff758c, 0xbf5af2];
-      const xs = [-14, -7, 0, 7, 14];
-      for (let i = 0; i < 5; i++) {
-        setTimeout(() => {
-          this.launchRocketWithTrail(xs[i] * 0.7, 0.2, -4, xs[i], 22 + (i % 2) * 3, -5, 'chrysanthemum', finaleColors[i], 0.65);
-        }, i * 95);
-      }
-    }, 4300);
-
-    // 5. Grand Finale Completion & Smooth Camera Return
-    setTimeout(() => {
-      const grandCam = this.getCelebrationCameraCoords();
-      gsap.to(this.camera.position, {
-        x: grandCam.pos.x,
-        y: grandCam.pos.y,
-        z: grandCam.pos.z,
-        duration: 1.6,
-        ease: 'power2.inOut'
-      });
-      gsap.to(this.controls.target, {
-        x: grandCam.target.x,
-        y: grandCam.target.y,
-        z: grandCam.target.z,
-        duration: 1.6,
-        ease: 'power2.inOut',
-        onComplete: () => {
-          if (onComplete) onComplete();
-        }
-      });
-    }, durationSeconds * 1000);
-  }
-
-  updateVfxRockets(time) {
-    for (let i = this.vfxRockets.length - 1; i >= 0; i--) {
-      const r = this.vfxRockets[i];
-      r.progress += 0.016 * r.speed;
-
-      if (r.progress >= 1.0) {
-        // Rocket has reached target zenith -> Detonate!
-        this.scene.remove(r.headMesh);
-        r.headGeo.dispose();
-        r.headMat.dispose();
-        this.launch3DFireworkBurst(r.targetPos.x, r.targetPos.y, r.targetPos.z, r.colorHex, 110, r.burstType);
-        this.vfxRockets.splice(i, 1);
-        continue;
-      }
-
-      // Interpolate position along ascent curve
-      r.curPos.lerpVectors(r.startPos, r.targetPos, r.progress);
-      r.curPos.x += Math.sin(r.progress * 14 + r.wobbleSeed) * 0.15;
-      r.curPos.z += Math.cos(r.progress * 12 + r.wobbleSeed) * 0.12;
-
-      const posArray = r.headGeo.attributes.position.array;
-      posArray[0] = r.curPos.x;
-      posArray[1] = r.curPos.y;
-      posArray[2] = r.curPos.z;
-      r.headGeo.attributes.position.needsUpdate = true;
-
-      // Rocket tail incandescent spark trail
-      if (Math.random() < 0.85) {
-        this.createRocketTailSpark(r.curPos);
-      }
-    }
-  }
-
-  createRocketTailSpark(pos) {
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
-      pos.x + (Math.random() - 0.5) * 0.1,
-      pos.y - 0.15,
-      pos.z + (Math.random() - 0.5) * 0.1
-    ]), 3));
-    const mat = new THREE.PointsMaterial({
-      size: 0.38,
-      map: this.sparkTexture,
-      transparent: true,
-      opacity: 0.85,
-      color: 0xffd700,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false
-    });
     const mesh = new THREE.Points(geo, mat);
     this.scene.add(mesh);
 
-    this.vfxActiveFireworks.push({
-      mesh,
-      geo,
-      mat,
-      pData: [{
-        vx: (Math.random() - 0.5) * 0.03,
-        vy: -0.06 - Math.random() * 0.04,
-        vz: (Math.random() - 0.5) * 0.03,
-        drag: 0.94,
-        gravity: -0.008
-      }],
-      positions: geo.attributes.position.array,
-      life: 0.6,
-      decay: 0.05
-    });
-  }
-
-  updateVfxFountains(time) {
-    // If fountain is active, generate twin golden stage geysers
-    if (this.vfxFountainEndTime && Date.now() < this.vfxFountainEndTime) {
-      const emitterLeft = new THREE.Vector3(-4.6, 1.28, 0.2);
-      const emitterRight = new THREE.Vector3(4.6, 1.28, 0.2);
-
-      for (let s = 0; s < 4; s++) {
-        this.createFountainSpark(emitterLeft);
-        this.createFountainSpark(emitterRight);
-      }
-
-      if (Date.now() - (this.vfxFountainLastCrackle || 0) > 1100) {
-        this.vfxFountainLastCrackle = Date.now();
-        if (window.birthdayAudio) {
-          try { window.birthdayAudio.playSparklerCrackle(); } catch(e) {}
-        }
-      }
-    }
-  }
-
-  createFountainSpark(emitter) {
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
-      emitter.x + (Math.random() - 0.5) * 0.2,
-      emitter.y,
-      emitter.z + (Math.random() - 0.5) * 0.2
-    ]), 3));
-
-    const isSilver = Math.random() < 0.35;
-    const mat = new THREE.PointsMaterial({
-      size: 0.42,
-      map: this.sparkTexture,
-      transparent: true,
-      opacity: 0.95,
-      color: isSilver ? 0xffffff : 0xffd700,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false
-    });
-    const mesh = new THREE.Points(geo, mat);
-    this.scene.add(mesh);
-
-    const speed = 0.24 + Math.random() * 0.28;
-    this.vfxActiveFireworks.push({
-      mesh,
-      geo,
-      mat,
-      pData: [{
-        vx: (Math.random() - 0.5) * 0.07,
-        vy: speed,
-        vz: (Math.random() - 0.5) * 0.07,
-        drag: 0.965,
-        gravity: -0.014
-      }],
-      positions: geo.attributes.position.array,
+    this.vfxSliceSparks.push({
+      mesh, geo, mat, pData, positions,
       life: 1.0,
-      decay: 0.032 + Math.random() * 0.015
+      decay: 0.025
     });
   }
 
@@ -3701,16 +3612,6 @@ class BirthdayScene {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
     }
-
-    // 8. 4K Procedural VFX Engine Dynamic Updates
-    this.updateVfxAura(time);
-    this.updateVfxBokeh(time);
-    this.updateVfxStarTrails(time);
-    this.updateVfxFireworks();
-    this.updateVfxRockets(time);
-    this.updateVfxFountains(time);
-    this.updateVfxSliceSparks();
-    this.updateVfxSmoke();
 
     if (this.controls) this.controls.update();
 
