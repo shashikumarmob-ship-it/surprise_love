@@ -512,27 +512,104 @@
           <!-- Celebrant Name Font Style Selector (12 Styles) -->
           <div class="form-field full-width">
             <label><i class="fa-solid fa-font"></i> Celebrant Name Font Style <span class="font-badge-count">12 Styles</span></label>
-            <!-- Side-by-side: Select + Live "Aa" Preview -->
-            <div class="font-select-row">
-              <select id="creator-input-font" class="font-select-input">
-                <option value="outfit" selected>💎 Outfit (Modern Bold Luxury)</option>
-                <option value="dancing-script">💖 Dancing Script (Romantic Calligraphy)</option>
-                <option value="great-vibes">👑 Great Vibes (Royal Signature)</option>
-                <option value="cinzel">🏛️ Cinzel (Imperial Palace Gold)</option>
-                <option value="playfair">✨ Playfair Display (Vintage Serif)</option>
-                <option value="pacifico">🌸 Pacifico (Sweet Heart Brush)</option>
-                <option value="parisienne">🌹 Parisienne (French Romance)</option>
-                <option value="alex-brush">👸 Alex Brush (Princess Script)</option>
-                <option value="sacramento">💌 Sacramento (Delicate Love Letter)</option>
-                <option value="marcellus">🏺 Marcellus (Heritage Roman)</option>
-                <option value="montserrat">💫 Montserrat (Ultra Bold Elegant)</option>
-                <option value="press-start">🕹️ Press Start 2P (Retro 8-Bit)</option>
-              </select>
-              <!-- Compact inline font preview -->
-              <div class="font-inline-preview">
-                <span id="font-live-preview-sample" class="font-inline-sample">Aa</span>
-                <span id="font-live-preview-desc" class="font-inline-desc">Outfit</span>
+
+            <!-- Hidden native select (value holder for JS / Telegram sync) -->
+            <select id="creator-input-font" style="display:none;" aria-hidden="true">
+              <option value="outfit" selected>Outfit</option>
+              <option value="dancing-script">Dancing Script</option>
+              <option value="great-vibes">Great Vibes</option>
+              <option value="cinzel">Cinzel</option>
+              <option value="playfair">Playfair Display</option>
+              <option value="pacifico">Pacifico</option>
+              <option value="parisienne">Parisienne</option>
+              <option value="alex-brush">Alex Brush</option>
+              <option value="sacramento">Sacramento</option>
+              <option value="marcellus">Marcellus</option>
+              <option value="montserrat">Montserrat</option>
+              <option value="press-start">Press Start 2P</option>
+            </select>
+
+            <!-- Custom Font Dropdown -->
+            <div class="font-custom-select" id="font-custom-select">
+              <!-- Trigger Button -->
+              <div class="font-custom-trigger" id="font-custom-trigger" tabindex="0" role="button" aria-haspopup="listbox" aria-expanded="false">
+                <span class="font-trigger-emoji" id="font-trigger-emoji">💎</span>
+                <span class="font-trigger-text" id="font-trigger-text">
+                  Outfit (<span class="font-trigger-sample" id="font-trigger-sample" style="font-family:'Outfit',sans-serif;">Outfit</span>)
+                </span>
+                <i class="fa-solid fa-chevron-down font-trigger-arrow"></i>
               </div>
+
+              <!-- Dropdown List with Example in ( ) rendered in each font -->
+              <div class="font-custom-dropdown" id="font-custom-dropdown" role="listbox">
+                <div class="font-option selected" data-value="outfit" data-name="Outfit" data-emoji="💎" data-sample="Outfit" data-family="'Outfit', sans-serif" role="option">
+                  <span class="fo-emoji">💎</span>
+                  <span class="fo-name">Outfit (<span class="fo-sample" style="font-family:'Outfit',sans-serif;">Outfit</span>)</span>
+                  <span class="fo-desc">Modern Bold</span>
+                </div>
+                <div class="font-option" data-value="dancing-script" data-name="Dancing Script" data-emoji="💖" data-sample="Dancing Script" data-family="'Dancing Script', cursive" role="option">
+                  <span class="fo-emoji">💖</span>
+                  <span class="fo-name">Dancing Script (<span class="fo-sample" style="font-family:'Dancing Script',cursive;">Dancing Script</span>)</span>
+                  <span class="fo-desc">Romantic</span>
+                </div>
+                <div class="font-option" data-value="great-vibes" data-name="Great Vibes" data-emoji="👑" data-sample="Great Vibes" data-family="'Great Vibes', cursive" role="option">
+                  <span class="fo-emoji">👑</span>
+                  <span class="fo-name">Great Vibes (<span class="fo-sample" style="font-family:'Great Vibes',cursive;">Great Vibes</span>)</span>
+                  <span class="fo-desc">Royal Signature</span>
+                </div>
+                <div class="font-option" data-value="cinzel" data-name="Cinzel" data-emoji="🏛️" data-sample="Cinzel" data-family="'Cinzel', serif" role="option">
+                  <span class="fo-emoji">🏛️</span>
+                  <span class="fo-name">Cinzel (<span class="fo-sample" style="font-family:'Cinzel',serif;">Cinzel</span>)</span>
+                  <span class="fo-desc">Palace Gold</span>
+                </div>
+                <div class="font-option" data-value="playfair" data-name="Playfair Display" data-emoji="✨" data-sample="Playfair" data-family="'Playfair Display', serif" role="option">
+                  <span class="fo-emoji">✨</span>
+                  <span class="fo-name">Playfair Display (<span class="fo-sample" style="font-family:'Playfair Display',serif;">Playfair</span>)</span>
+                  <span class="fo-desc">Vintage Serif</span>
+                </div>
+                <div class="font-option" data-value="pacifico" data-name="Pacifico" data-emoji="🌸" data-sample="Pacifico" data-family="'Pacifico', cursive" role="option">
+                  <span class="fo-emoji">🌸</span>
+                  <span class="fo-name">Pacifico (<span class="fo-sample" style="font-family:'Pacifico',cursive;">Pacifico</span>)</span>
+                  <span class="fo-desc">Sweet Brush</span>
+                </div>
+                <div class="font-option" data-value="parisienne" data-name="Parisienne" data-emoji="🌹" data-sample="Parisienne" data-family="'Parisienne', cursive" role="option">
+                  <span class="fo-emoji">🌹</span>
+                  <span class="fo-name">Parisienne (<span class="fo-sample" style="font-family:'Parisienne',cursive;">Parisienne</span>)</span>
+                  <span class="fo-desc">French Romance</span>
+                </div>
+                <div class="font-option" data-value="alex-brush" data-name="Alex Brush" data-emoji="👸" data-sample="Alex Brush" data-family="'Alex Brush', cursive" role="option">
+                  <span class="fo-emoji">👸</span>
+                  <span class="fo-name">Alex Brush (<span class="fo-sample" style="font-family:'Alex Brush',cursive;">Alex Brush</span>)</span>
+                  <span class="fo-desc">Princess Script</span>
+                </div>
+                <div class="font-option" data-value="sacramento" data-name="Sacramento" data-emoji="💌" data-sample="Sacramento" data-family="'Sacramento', cursive" role="option">
+                  <span class="fo-emoji">💌</span>
+                  <span class="fo-name">Sacramento (<span class="fo-sample" style="font-family:'Sacramento',cursive;">Sacramento</span>)</span>
+                  <span class="fo-desc">Love Letter</span>
+                </div>
+                <div class="font-option" data-value="marcellus" data-name="Marcellus" data-emoji="🏺" data-sample="Marcellus" data-family="'Marcellus', serif" role="option">
+                  <span class="fo-emoji">🏺</span>
+                  <span class="fo-name">Marcellus (<span class="fo-sample" style="font-family:'Marcellus',serif;">Marcellus</span>)</span>
+                  <span class="fo-desc">Heritage Roman</span>
+                </div>
+                <div class="font-option" data-value="montserrat" data-name="Montserrat" data-emoji="💫" data-sample="Montserrat" data-family="'Montserrat', sans-serif" role="option">
+                  <span class="fo-emoji">💫</span>
+                  <span class="fo-name">Montserrat (<span class="fo-sample" style="font-family:'Montserrat',sans-serif;font-weight:700;">Montserrat</span>)</span>
+                  <span class="fo-desc">Ultra Bold</span>
+                </div>
+                <div class="font-option" data-value="press-start" data-name="Press Start 2P" data-emoji="🕹️" data-sample="Press Start" data-family="'Press Start 2P', monospace" role="option">
+                  <span class="fo-emoji">🕹️</span>
+                  <span class="fo-name">Press Start 2P (<span class="fo-sample" style="font-family:'Press Start 2P',monospace;font-size:0.75rem;">Press Start</span>)</span>
+                  <span class="fo-desc">Retro 8-Bit</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Live Name Preview Card (restored below) -->
+            <div class="font-live-preview-card">
+              <div class="font-preview-label"><i class="fa-solid fa-eye"></i> Live Name Font Preview:</div>
+              <div id="font-live-preview-sample" class="font-live-preview-sample">MY LOVE</div>
+              <div id="font-live-preview-desc" class="font-live-preview-desc">Outfit — Modern Bold Luxury</div>
             </div>
           </div>
 

@@ -2768,34 +2768,88 @@ document.addEventListener('DOMContentLoaded', () => {
     return desc[fontId] || 'Outfit — Modern Bold Luxury';
   }
 
-  // Update inline compact "Aa" font preview when font changes
+  // Update live preview card when font or name changes (restored original behavior)
   function updateFontLivePreview() {
     const sample = document.getElementById('font-live-preview-sample');
     const descEl = document.getElementById('font-live-preview-desc');
     if (!sample) return;
-    // Always show "Aa" in the selected font — not the name text
-    sample.textContent = 'Aa';
+    const nameText = (creatorInputName && creatorInputName.value.trim()) || 'MY LOVE';
+    sample.textContent = nameText.toUpperCase();
     sample.style.fontFamily = getFontFamilyCss(celebrantFont);
-    // Short name only (first word before " —" or "—")
-    if (descEl) {
-      const fullDesc = getFontDesc(celebrantFont);
-      const shortName = fullDesc.split(' \u2014')[0].trim();
-      descEl.textContent = shortName;
+    if (descEl) descEl.textContent = getFontDesc(celebrantFont);
+  }
+
+  // Update preview live as celebrant name is typed
+  if (creatorInputName) {
+    creatorInputName.addEventListener('input', () => {
+      updateFontLivePreview();
+    });
+  }
+
+  // Custom Font Dropdown logic
+  const fontCustomSelect = document.getElementById('font-custom-select');
+  const fontCustomTrigger = document.getElementById('font-custom-trigger');
+  const fontTriggerEmoji = document.getElementById('font-trigger-emoji');
+  const fontTriggerText = document.getElementById('font-trigger-text');
+
+  function setCustomFontSelection(fontId) {
+    if (!fontId) return;
+    celebrantFont = fontId;
+    if (creatorInputFont) creatorInputFont.value = fontId;
+    
+    // Find matching option in custom dropdown
+    const option = document.querySelector(`.font-option[data-value="${fontId}"]`);
+    if (option) {
+      document.querySelectorAll('.font-option').forEach(el => el.classList.remove('selected'));
+      option.classList.add('selected');
+      const emoji = option.getAttribute('data-emoji') || '💎';
+      const name = option.getAttribute('data-name') || 'Outfit';
+      const sample = option.getAttribute('data-sample') || name;
+      const family = option.getAttribute('data-family') || "'Outfit', sans-serif";
+      if (fontTriggerEmoji) fontTriggerEmoji.textContent = emoji;
+      if (fontTriggerText) {
+        fontTriggerText.innerHTML = `${name} (<span class="font-trigger-sample" style="font-family:${family};">${sample}</span>)`;
+      }
     }
+    updateFontLivePreview();
+    // Live update 3D scene
+    if (scene && scene.updateCelebrantInfo3D) {
+      scene.updateCelebrantInfo3D(
+        creatorInputName ? creatorInputName.value.trim() || 'My Love' : 'My Love',
+        creatorInputAge ? creatorInputAge.value : '',
+        celebrantFont
+      );
+    }
+  }
+
+  if (fontCustomTrigger && fontCustomSelect) {
+    fontCustomTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = fontCustomSelect.classList.toggle('open');
+      fontCustomTrigger.setAttribute('aria-expanded', isOpen);
+    });
+
+    document.querySelectorAll('.font-option').forEach(opt => {
+      opt.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const val = opt.getAttribute('data-value');
+        setCustomFontSelection(val);
+        fontCustomSelect.classList.remove('open');
+        fontCustomTrigger.setAttribute('aria-expanded', 'false');
+      });
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!fontCustomSelect.contains(e.target)) {
+        fontCustomSelect.classList.remove('open');
+        fontCustomTrigger.setAttribute('aria-expanded', 'false');
+      }
+    });
   }
 
   if (creatorInputFont) {
     creatorInputFont.addEventListener('change', () => {
-      celebrantFont = creatorInputFont.value || 'outfit';
-      updateFontLivePreview();
-      // Live update 3D scene
-      if (scene && scene.updateCelebrantInfo3D) {
-        scene.updateCelebrantInfo3D(
-          creatorInputName ? creatorInputName.value.trim() || 'My Love' : 'My Love',
-          creatorInputAge ? creatorInputAge.value : '',
-          celebrantFont
-        );
-      }
+      setCustomFontSelection(creatorInputFont.value || 'outfit');
     });
   }
 
@@ -2946,9 +3000,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (creatorInputAge && data.age) creatorInputAge.value = data.age;
     if (creatorInputTheme && data.theme) creatorInputTheme.value = data.theme;
     if (data.font) {
-      celebrantFont = data.font;
-      if (creatorInputFont) creatorInputFont.value = data.font;
-      updateFontLivePreview();
+      if (typeof setCustomFontSelection === 'function') {
+        setCustomFontSelection(data.font);
+      } else {
+        celebrantFont = data.font;
+        if (creatorInputFont) creatorInputFont.value = data.font;
+        updateFontLivePreview();
+      }
     }
     if (creatorInputWish && data.wish) creatorInputWish.value = data.wish;
     if (creatorInputPhotoUrl && data.photoUrl) {
