@@ -66,6 +66,13 @@ class BirthdayScene {
     this.raycaster = new THREE.Raycaster();
     this.mouse = new THREE.Vector2();
 
+    // Tap-and-Hold Camera Gesture State
+    this.isPointerDown = false;
+    this.pointerStartPos = { x: 0, y: 0 };
+    this.pointerLastPos = { x: 0, y: 0 };
+    this.holdTimer = null;
+    this.isHoldGestureActive = false;
+
     // Color theme - Default to romantic Rose Gold & Velvet Pink
     this.currentTheme = 'rose-glamour';
     this.themeColors = {
@@ -155,6 +162,8 @@ class BirthdayScene {
     this.controls.minDistance = 5;
     this.controls.maxDistance = 65;
     this.controls.target.set(initCam.target.x, initCam.target.y, initCam.target.z);
+    this.controls.enableRotate = false; // Screen rotate na ho by default - tap & hold required
+    this.controls.enableZoom = true;
 
     this.setupLighting();
     this.createFloorAndStage();
@@ -179,6 +188,8 @@ class BirthdayScene {
     });
     this.renderer.domElement.addEventListener('pointerdown', this.onPointerDown.bind(this));
     window.addEventListener('pointermove', this.onPointerMove.bind(this));
+    window.addEventListener('pointerup', this.onPointerUp.bind(this));
+    window.addEventListener('pointercancel', this.onPointerUp.bind(this));
 
     // Reset controls state on window blur/focus (prevents spinning on file dialog open/close)
     window.addEventListener('blur', () => {
@@ -1729,35 +1740,115 @@ class BirthdayScene {
     shape.bezierCurveTo(x + 0.35, y + 0.9, x, y + 0.35, x, y + 0.35);
 
     const extrudeSettings = {
-      depth: 0.35,
+      depth: 0.42,
       bevelEnabled: true,
-      bevelSegments: 6,
+      bevelSegments: 8,
       steps: 2,
-      bevelSize: 0.15,
-      bevelThickness: 0.15
+      bevelSize: 0.18,
+      bevelThickness: 0.18
     };
 
     const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
     geometry.center();
-    geometry.scale(scale * 0.8, scale * 0.8, scale * 0.8);
+    geometry.scale(scale * 0.85, scale * 0.85, scale * 0.85);
     return geometry;
   }
 
+  createGlitterSparkleTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    const cx = 32, cy = 32;
+
+    const radGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 30);
+    radGrad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    radGrad.addColorStop(0.2, 'rgba(255, 235, 190, 0.95)');
+    radGrad.addColorStop(0.5, 'rgba(255, 180, 205, 0.4)');
+    radGrad.addColorStop(1, 'rgba(255, 110, 160, 0)');
+    ctx.fillStyle = radGrad;
+    ctx.fillRect(0, 0, 64, 64);
+
+    // 4-point sparkle diamond rays
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.moveTo(cx, 4); ctx.lineTo(cx, 60);
+    ctx.moveTo(4, cy); ctx.lineTo(60, cy);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(255, 215, 0, 0.75)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(12, 12); ctx.lineTo(52, 52);
+    ctx.moveTo(12, 52); ctx.lineTo(52, 12);
+    ctx.stroke();
+
+    return new THREE.CanvasTexture(canvas);
+  }
+
+  createGlitterBumpTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#808080';
+    ctx.fillRect(0, 0, 128, 128);
+
+    // Scatter 450 micro glitter speckles for sparkling physical powder shimmer
+    for (let i = 0; i < 450; i++) {
+      const x = Math.random() * 128;
+      const y = Math.random() * 128;
+      const r = Math.random() * 1.5 + 0.4;
+      const bright = Math.floor(180 + Math.random() * 75);
+      ctx.fillStyle = `rgb(${bright},${bright},${bright})`;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(3, 3);
+    return tex;
+  }
+
   createTableBalloons(count = 5) {
+    if (this.tableBalloons && this.tableBalloons.length > 0) {
+      this.tableBalloons.forEach(b => {
+        if (b && b.parent) b.parent.remove(b);
+      });
+    }
     this.tableBalloons = [];
     this.tableBalloonsRemaining = count;
 
-    const heartColors = [0xff4d6d, 0xff758c, 0xffb3c1, 0xffd700, 0xc471ed];
-    const heartGeo = this.createHeartGeometry(1.1);
+    // Pure Romantic Pink & Ruby Red Palette
+    const heartColors = [
+      0xff0054, // Vivid Pink-Red
+      0xd90429, // Deep Passion Ruby Red
+      0xff4d6d, // Romantic Hot Pink
+      0xff0a54, // Crimson Rose Red
+      0xff758c  // Glamorous Velvet Pink
+    ];
+
+    const heartGeo = this.createHeartGeometry(1.15);
+    const glitterBumpTex = this.createGlitterBumpTexture();
+    const glitterSparkleTex = this.createGlitterSparkleTexture();
 
     for (let i = 0; i < count; i++) {
       const col = heartColors[i % heartColors.length];
+
+      // Physical metallic balloon material with physical glitter powder bump texture
       const mat = new THREE.MeshPhysicalMaterial({
         color: col,
-        metalness: 0.45,
-        roughness: 0.15,
-        clearcoat: 0.95,
-        clearcoatRoughness: 0.1
+        metalness: 0.52,
+        roughness: 0.22,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.08,
+        bumpMap: glitterBumpTex,
+        bumpScale: 0.038,
+        reflectivity: 0.9
       });
 
       const balloonMesh = new THREE.Mesh(heartGeo, mat);
@@ -1776,12 +1867,66 @@ class BirthdayScene {
       );
       balloonMesh.add(stringLine);
 
-      // Placement circling closely around the cake table
+      // Placement circling around the cake table
       const angle = (i / count) * Math.PI * 2;
       const radius = 3.6 + (i % 2) * 0.4;
       const height = 3.2 + (i % 2) * 0.8;
-
       balloonMesh.position.set(Math.cos(angle) * radius, height, Math.sin(angle) * radius);
+
+      // Sparkling Glitter Powder Halo Points Cloud around the heart balloon
+      const glitterCount = 95;
+      const glitterGeo = new THREE.BufferGeometry();
+      const glitterPos = new Float32Array(glitterCount * 3);
+      const glitterCols = new Float32Array(glitterCount * 3);
+      const glitterPalette = [
+        new THREE.Color(0xffffff),
+        new THREE.Color(0xffd700),
+        new THREE.Color(0xffe6a7),
+        new THREE.Color(0xff85a1),
+        new THREE.Color(0xffc2d1)
+      ];
+
+      for (let g = 0; g < glitterCount; g++) {
+        const ga = Math.random() * Math.PI * 2;
+        const gr = 0.5 + Math.random() * 0.65;
+        const gy = (Math.random() - 0.4) * 1.5;
+        const gz = (Math.random() - 0.5) * 0.65;
+
+        glitterPos[g * 3] = Math.cos(ga) * gr;
+        glitterPos[g * 3 + 1] = gy;
+        glitterPos[g * 3 + 2] = gz;
+
+        const gCol = glitterPalette[Math.floor(Math.random() * glitterPalette.length)];
+        glitterCols[g * 3] = gCol.r;
+        glitterCols[g * 3 + 1] = gCol.g;
+        glitterCols[g * 3 + 2] = gCol.b;
+      }
+
+      glitterGeo.setAttribute('position', new THREE.BufferAttribute(glitterPos, 3));
+      glitterGeo.setAttribute('color', new THREE.BufferAttribute(glitterCols, 3));
+
+      const glitterMat = new THREE.PointsMaterial({
+        size: 0.16,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.95,
+        map: glitterSparkleTex,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+
+      const glitterPoints = new THREE.Points(glitterGeo, glitterMat);
+      balloonMesh.add(glitterPoints);
+
+      // Generous invisible spherical hitbox so tap/click never misses the balloon
+      const hitboxGeo = new THREE.SphereGeometry(1.65, 10, 10);
+      const hitboxMat = new THREE.MeshBasicMaterial({ visible: false, transparent: true, opacity: 0 });
+      const hitbox = new THREE.Mesh(hitboxGeo, hitboxMat);
+      hitbox.userData = {
+        type: 'table-balloon-hitbox',
+        parentBalloon: balloonMesh
+      };
+      balloonMesh.add(hitbox);
 
       balloonMesh.userData = {
         type: 'table-balloon',
@@ -1792,7 +1937,8 @@ class BirthdayScene {
         floatSpeed: 1.4 + Math.random() * 0.4,
         wobbleOffset: Math.random() * 5,
         color: col,
-        isPopped: false
+        isPopped: false,
+        glitterPoints: glitterPoints
       };
 
       this.scene.add(balloonMesh);
@@ -1884,6 +2030,58 @@ class BirthdayScene {
       requestAnimationFrame(animateFragments);
     };
     animateFragments();
+
+    // Sparkling Glitter Powder Burst
+    const glitterSparkleTex = this.createGlitterSparkleTexture();
+    const glitterBurstCount = 45;
+    const gbGeo = new THREE.BufferGeometry();
+    const gbPos = new Float32Array(glitterBurstCount * 3);
+    const gbVel = [];
+
+    for (let i = 0; i < glitterBurstCount; i++) {
+      gbPos[i * 3] = popPos.x;
+      gbPos[i * 3 + 1] = popPos.y;
+      gbPos[i * 3 + 2] = popPos.z;
+
+      gbVel.push(new THREE.Vector3(
+        (Math.random() - 0.5) * 3.5,
+        (Math.random() - 0.2) * 3.5,
+        (Math.random() - 0.5) * 3.5
+      ));
+    }
+
+    gbGeo.setAttribute('position', new THREE.BufferAttribute(gbPos, 3));
+    const gbMat = new THREE.PointsMaterial({
+      size: 0.24,
+      color: 0xffd700,
+      map: glitterSparkleTex,
+      transparent: true,
+      opacity: 1,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const gbPoints = new THREE.Points(gbGeo, gbMat);
+    this.scene.add(gbPoints);
+
+    const gbStartTime = performance.now();
+    const animateGlitterBurst = () => {
+      const elapsed = (performance.now() - gbStartTime) / 1000;
+      if (elapsed > 1.2) {
+        this.scene.remove(gbPoints);
+        return;
+      }
+      const posAttr = gbGeo.attributes.position;
+      for (let i = 0; i < glitterBurstCount; i++) {
+        posAttr.array[i * 3] += gbVel[i].x * 0.035;
+        posAttr.array[i * 3 + 1] += gbVel[i].y * 0.035;
+        posAttr.array[i * 3 + 2] += gbVel[i].z * 0.035;
+        gbVel[i].y -= 0.03;
+      }
+      posAttr.needsUpdate = true;
+      gbMat.opacity = Math.max(0, 1 - elapsed / 1.2);
+      requestAnimationFrame(animateGlitterBurst);
+    };
+    animateGlitterBurst();
 
     this.scene.remove(balloonMesh);
     this.tableBalloonsRemaining = Math.max(0, this.tableBalloonsRemaining - 1);
@@ -2625,52 +2823,111 @@ class BirthdayScene {
   }
 
   /* =========================================================
-     3D CONFETTI
+     3D CONFETTI (Continuous square rain removed per user request)
      ========================================================= */
   createConfettiStorm() {
-    const count = 300;
-    const geo = new THREE.PlaneGeometry(0.18, 0.18);
-    const colors = [0xffd700, 0x00e676, 0x0088ff, 0xff0055, 0xffffff, 0xb721ff];
-
     this.confettiList = [];
-    for (let i = 0; i < count; i++) {
-      const mat = new THREE.MeshBasicMaterial({ color: colors[i % colors.length], side: THREE.DoubleSide });
-      const conf = new THREE.Mesh(geo, mat);
-      conf.position.set((Math.random() - 0.5) * 35, Math.random() * 25, (Math.random() - 0.5) * 35);
-      conf.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-      conf.userData = {
-        fallSpeed: 0.02 + Math.random() * 0.04,
-        rotSpeedX: (Math.random() - 0.5) * 0.05,
-        rotSpeedY: (Math.random() - 0.5) * 0.05
-      };
-      this.scene.add(conf);
-      this.confettiList.push(conf);
-    }
+    // Continuous square falling confetti completely disabled per user request
   }
 
   /* =========================================================
-     RAYCASTING & INTERACTION
+     RAYCASTING & INTERACTION (BALLOON POPPING & TAP-AND-HOLD GESTURE)
      ========================================================= */
-  onPointerMove(event) {
-    if (!this.sparklerActive) return;
 
-    if (window.birthdayAudio && Math.random() < 0.2) window.birthdayAudio.playSparklerCrackle();
+  /**
+   * 100% Reliable Table Balloon Popper:
+   * 1. 3D Raycasting against unpopped balloons and their generous hitboxes
+   * 2. High-precision 2D Screen-space Proximity Fallback for touch & click
+   */
+  findAndPopTappedBalloon(clientX, clientY) {
+    if (!this.tableBalloons || this.tableBalloons.length === 0) return false;
+    const activeBalloons = this.tableBalloons.filter(b => b && b.userData && !b.userData.isPopped);
+    if (activeBalloons.length === 0) return false;
 
-    const canvas = document.getElementById('sparkler-canvas');
-    if (canvas) {
-      const ctx = canvas.getContext('2d');
-      for (let i = 0; i < 6; i++) {
-        const radius = Math.random() * 25;
-        const angle = Math.random() * Math.PI * 2;
-        ctx.fillStyle = Math.random() > 0.3 ? '#ffd700' : '#ffffff';
-        ctx.shadowColor = '#ffd700';
-        ctx.shadowBlur = 10;
-        ctx.fillRect(event.clientX + Math.cos(angle) * radius, event.clientY + Math.sin(angle) * radius, 3, 3);
+    const rect = this.renderer.domElement.getBoundingClientRect();
+
+    // 1. Raycast specifically against active balloons and their hitboxes
+    const mouseNDC = new THREE.Vector2(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1
+    );
+
+    const balloonRaycaster = new THREE.Raycaster();
+    balloonRaycaster.setFromCamera(mouseNDC, this.camera);
+    const intersects = balloonRaycaster.intersectObjects(activeBalloons, true);
+
+    if (intersects.length > 0) {
+      let target = intersects[0].object;
+      if (target.userData && target.userData.parentBalloon) {
+        target = target.userData.parentBalloon;
+      } else {
+        while (target && target.parent && target.parent !== this.scene) {
+          if (target.userData && target.userData.type === 'table-balloon') break;
+          target = target.parent;
+        }
       }
+      if (target && target.userData && target.userData.type === 'table-balloon' && !target.userData.isPopped) {
+        this.popTableBalloon(target);
+        return true;
+      }
+    }
+
+    // 2. High-reliability 2D Screen-space Proximity Fallback
+    // Computes projected screen positions of unpopped balloons and checks proximity to tap/click point
+    let closestBalloon = null;
+    let minDistance = Infinity;
+    const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    const maxThreshold = isTouch ? 72 : 52; // Generous tap radius in pixels
+
+    for (const b of activeBalloons) {
+      const worldPos = new THREE.Vector3();
+      b.getWorldPosition(worldPos);
+
+      // Project 3D position to 2D NDC and convert to viewport pixels
+      const projected = worldPos.clone().project(this.camera);
+
+      // Only check balloons in front of the camera
+      if (projected.z < 1) {
+        const screenX = ((projected.x + 1) / 2) * rect.width + rect.left;
+        const screenY = ((-projected.y + 1) / 2) * rect.height + rect.top;
+        const dist = Math.hypot(clientX - screenX, clientY - screenY);
+
+        if (dist < minDistance) {
+          minDistance = dist;
+          closestBalloon = b;
+        }
+      }
+    }
+
+    if (closestBalloon && minDistance <= maxThreshold) {
+      this.popTableBalloon(closestBalloon);
+      return true;
+    }
+
+    return false;
+  }
+
+  clearHoldTimer() {
+    if (this.holdTimer) {
+      clearTimeout(this.holdTimer);
+      this.holdTimer = null;
     }
   }
 
   onPointerDown(event) {
+    this.isPointerDown = true;
+    this.pointerStartPos = { x: event.clientX, y: event.clientY };
+    this.pointerLastPos = { x: event.clientX, y: event.clientY };
+    this.isHoldGestureActive = false;
+
+    // 1. First priority: Check if user tapped any table balloon
+    const popped = this.findAndPopTappedBalloon(event.clientX, event.clientY);
+    if (popped) {
+      this.clearHoldTimer();
+      return;
+    }
+
+    // 2. Second priority: Check other interactive objects (gift box, photo frame)
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -2680,29 +2937,106 @@ class BirthdayScene {
 
     if (intersects.length > 0) {
       let hitObj = intersects[0].object;
-
       while (hitObj.parent && hitObj.parent !== this.scene) {
-        if (hitObj.userData && (hitObj.userData.type === 'table-balloon' || hitObj.userData.type === 'gift' || hitObj.userData.type === 'photo-frame')) {
+        if (hitObj.userData && (hitObj.userData.type === 'gift' || hitObj.userData.type === 'photo-frame')) {
           break;
         }
         hitObj = hitObj.parent;
       }
 
-      if (hitObj.userData && hitObj.userData.type === 'table-balloon') {
-        this.popTableBalloon(hitObj);
-      } else if (hitObj.userData && hitObj.userData.type === 'gift') {
+      if (hitObj.userData && hitObj.userData.type === 'gift') {
         this.openGift();
+        this.clearHoldTimer();
+        return;
       } else if (hitObj.userData && hitObj.userData.type === 'photo-frame') {
-        // Prevent OrbitControls from capturing mouse drag when file picker dialog opens
-        if (this.controls) {
-          this.controls.enabled = false;
-          setTimeout(() => { if (this.controls) this.controls.enabled = true; }, 500);
-        }
         const inputPhoto = document.getElementById('input-photo');
         if (inputPhoto) {
           setTimeout(() => { inputPhoto.click(); }, 50);
         }
+        this.clearHoldTimer();
+        return;
       }
+    }
+
+    // 3. Neither balloon nor interactive object hit:
+    // Start tap-and-hold timer. Screen will ONLY rotate if user holds for > 220ms and then drags
+    this.clearHoldTimer();
+    this.holdTimer = setTimeout(() => {
+      if (this.isPointerDown) {
+        this.isHoldGestureActive = true;
+        if (this.renderer && this.renderer.domElement) {
+          this.renderer.domElement.style.cursor = 'grabbing';
+        }
+      }
+    }, 220);
+  }
+
+  onPointerMove(event) {
+    if (this.sparklerActive) {
+      if (window.birthdayAudio && Math.random() < 0.2) window.birthdayAudio.playSparklerCrackle();
+
+      const canvas = document.getElementById('sparkler-canvas');
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        for (let i = 0; i < 6; i++) {
+          const radius = Math.random() * 25;
+          const angle = Math.random() * Math.PI * 2;
+          ctx.fillStyle = Math.random() > 0.3 ? '#ffd700' : '#ffffff';
+          ctx.shadowColor = '#ffd700';
+          ctx.shadowBlur = 10;
+          ctx.fillRect(event.clientX + Math.cos(angle) * radius, event.clientY + Math.sin(angle) * radius, 3, 3);
+        }
+      }
+    }
+
+    if (!this.isPointerDown) return;
+
+    const deltaX = event.clientX - this.pointerLastPos.x;
+    const deltaY = event.clientY - this.pointerLastPos.y;
+    const totalDist = Math.hypot(event.clientX - this.pointerStartPos.x, event.clientY - this.pointerStartPos.y);
+
+    // If moved significantly before the hold timer finished, cancel hold (it's a swipe, not tap-and-hold)
+    if (!this.isHoldGestureActive && totalDist > 16) {
+      this.clearHoldTimer();
+    }
+
+    // ONLY rotate the screen if the user has performed the intentional Tap-and-Hold gesture
+    if (this.isHoldGestureActive && this.controls) {
+      const offset = new THREE.Vector3().subVectors(this.camera.position, this.controls.target);
+      const spherical = new THREE.Spherical().setFromVector3(offset);
+
+      spherical.theta -= deltaX * 0.0055;
+      spherical.phi -= deltaY * 0.0055;
+
+      // Keep camera within safe polar angle bounds (above floor and not flipping over top)
+      const minPolar = 0.15;
+      const maxPolar = Math.PI / 2 + 0.05;
+      spherical.phi = Math.max(minPolar, Math.min(maxPolar, spherical.phi));
+
+      offset.setFromSpherical(spherical);
+      this.camera.position.addVectors(this.controls.target, offset);
+      this.camera.lookAt(this.controls.target);
+    }
+
+    this.pointerLastPos = { x: event.clientX, y: event.clientY };
+  }
+
+  onPointerUp(event) {
+    this.clearHoldTimer();
+
+    // If hold gesture was not active, this was a clean tap or click
+    if (!this.isHoldGestureActive && this.isPointerDown) {
+      const dist = Math.hypot(event.clientX - this.pointerStartPos.x, event.clientY - this.pointerStartPos.y);
+      // Clean tap failsafe check to pop balloon
+      if (dist < 20) {
+        this.findAndPopTappedBalloon(event.clientX, event.clientY);
+      }
+    }
+
+    this.isPointerDown = false;
+    this.isHoldGestureActive = false;
+    if (this.renderer && this.renderer.domElement) {
+      this.renderer.domElement.style.cursor = 'default';
     }
   }
 
@@ -3552,7 +3886,7 @@ class BirthdayScene {
       b.rotation.z = Math.sin(time * 1.5 + u.wobbleOffset) * 0.05;
     });
 
-    // 8. Table Balloons Orbit & Rotate Around the Cake
+    // 8. Table Balloons Orbit & Rotate Around the Cake with Glitter Shimmer
     this.tableBalloons.forEach(b => {
       const u = b.userData;
       if (!u.isPopped && !this.isOrbitPaused) {
@@ -3561,6 +3895,12 @@ class BirthdayScene {
         b.position.z = Math.sin(curAngle) * u.orbitRadius;
         b.position.y = u.baseHeight + Math.sin(time * u.floatSpeed + u.wobbleOffset) * 0.35;
         b.rotation.z = Math.sin(time * 1.5 + u.wobbleOffset) * 0.08;
+
+        // Twinkle and gentle swirl for glittering powder particles
+        if (u.glitterPoints) {
+          u.glitterPoints.rotation.y = time * 0.45;
+          u.glitterPoints.material.opacity = 0.8 + Math.sin(time * 5 + u.wobbleOffset) * 0.2;
+        }
       }
     });
 
@@ -3570,8 +3910,8 @@ class BirthdayScene {
       this.giftGroup.rotation.y = 0.4 + Math.sin(time * 1.5) * 0.12;
     }
 
-    // 6. Confetti
-    if (this.confettiList) {
+    // 6. Confetti (square rain disabled)
+    if (this.confettiList && this.confettiList.length > 0) {
       this.confettiList.forEach(c => {
         c.position.y -= c.userData.fallSpeed;
         c.position.x += Math.sin(time * 2 + c.position.y) * 0.015;
