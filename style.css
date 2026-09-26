@@ -4580,14 +4580,8 @@ body.sparkler-active #canvas-container {
   height: 100%;
   z-index: 2;
   pointer-events: none;
-  background-image: 
-    radial-gradient(2px 2px at 20px 30px, #ffffff, rgba(0,0,0,0)),
-    radial-gradient(2px 2px at 40px 70px, rgba(255,255,255,0.7), rgba(0,0,0,0)),
-    radial-gradient(1px 1px at 90px 40px, #fff, rgba(0,0,0,0)),
-    radial-gradient(2px 2px at 160px 120px, rgba(255,215,0,0.8), rgba(0,0,0,0));
-  background-repeat: repeat;
-  background-size: 200px 200px;
-  opacity: 0.35;
+  background: radial-gradient(ellipse at 50% 30%, rgba(30, 12, 54, 0.4) 0%, rgba(14, 6, 28, 0.65) 50%, rgba(5, 2, 12, 0.9) 100%);
+  opacity: 0.85;
 }
 
 .disco-overlay {

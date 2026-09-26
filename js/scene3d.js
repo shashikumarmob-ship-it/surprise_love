@@ -73,6 +73,11 @@ class BirthdayScene {
     this.holdTimer = null;
     this.isHoldGestureActive = false;
 
+    // Universe & Cosmic Starfield
+    this.universeStars = null;
+    this.universeTwinkleData = [];
+    this.universeNebulaDome = null;
+
     // Color theme - Default to romantic Rose Gold & Velvet Pink
     this.currentTheme = 'rose-glamour';
     this.themeColors = {
@@ -138,7 +143,8 @@ class BirthdayScene {
 
   init() {
     this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.FogExp2(0x0c071e, 0.012);
+    this.scene.background = new THREE.Color(0x060210);
+    this.scene.fog = new THREE.FogExp2(0x060210, 0.0065);
 
     const aspect = window.innerWidth / window.innerHeight;
     this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
@@ -166,6 +172,7 @@ class BirthdayScene {
     this.controls.enableZoom = true;
 
     this.setupLighting();
+    this.createUniverseBackground();
     this.createFloorAndStage();
     this.createBackgroundDecor();
     this.createPartyTable();
@@ -506,6 +513,181 @@ class BirthdayScene {
     this.cakeGlowLight = new THREE.PointLight(0xffd700, 1.8, 16);
     this.cakeGlowLight.position.set(0, 4.5, 0);
     this.scene.add(this.cakeGlowLight);
+  }
+
+  /* =========================================================
+     COSMIC UNIVERSE & DEEP SPACE STARFIELD SYSTEM
+     ========================================================= */
+  createUniverseStarTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    const cx = 32, cy = 32;
+
+    // Glowing cosmic star sprite with soft falloff
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 30);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    grad.addColorStop(0.18, 'rgba(240, 245, 255, 0.95)');
+    grad.addColorStop(0.45, 'rgba(180, 210, 255, 0.4)');
+    grad.addColorStop(0.75, 'rgba(140, 170, 255, 0.12)');
+    grad.addColorStop(1, 'rgba(100, 140, 255, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 64, 64);
+
+    // Subtle 4-pointed celestial diffraction spike
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(cx, 6); ctx.lineTo(cx, 58);
+    ctx.moveTo(6, cy); ctx.lineTo(58, cy);
+    ctx.stroke();
+
+    return new THREE.CanvasTexture(canvas);
+  }
+
+  createCosmicNebulaTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+
+    // Deep void space background
+    ctx.fillStyle = '#060210';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Cosmic Nebula Cloud 1: Deep Indigo & Violet
+    const neb1 = ctx.createRadialGradient(160, 180, 20, 160, 180, 220);
+    neb1.addColorStop(0, 'rgba(88, 28, 135, 0.45)');
+    neb1.addColorStop(0.5, 'rgba(49, 15, 88, 0.25)');
+    neb1.addColorStop(1, 'rgba(6, 2, 16, 0)');
+    ctx.fillStyle = neb1;
+    ctx.beginPath();
+    ctx.arc(160, 180, 220, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Cosmic Nebula Cloud 2: Starlight Magenta & Rose Nebula
+    const neb2 = ctx.createRadialGradient(360, 240, 30, 360, 240, 200);
+    neb2.addColorStop(0, 'rgba(162, 28, 97, 0.38)');
+    neb2.addColorStop(0.55, 'rgba(92, 18, 60, 0.18)');
+    neb2.addColorStop(1, 'rgba(6, 2, 16, 0)');
+    ctx.fillStyle = neb2;
+    ctx.beginPath();
+    ctx.arc(360, 240, 200, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Cosmic Nebula Cloud 3: Celestial Cyan & Sapphire Gas
+    const neb3 = ctx.createRadialGradient(256, 380, 20, 256, 380, 180);
+    neb3.addColorStop(0, 'rgba(14, 116, 144, 0.32)');
+    neb3.addColorStop(0.5, 'rgba(12, 60, 95, 0.14)');
+    neb3.addColorStop(1, 'rgba(6, 2, 16, 0)');
+    ctx.fillStyle = neb3;
+    ctx.beginPath();
+    ctx.arc(256, 380, 180, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Soft celestial stardust specks in the nebula
+    for (let i = 0; i < 350; i++) {
+      const sx = Math.random() * 512;
+      const sy = Math.random() * 512;
+      const sr = Math.random() * 1.5;
+      const a = Math.random() * 0.7 + 0.2;
+      ctx.fillStyle = Math.random() > 0.3 ? `rgba(255, 255, 255, ${a})` : `rgba(255, 215, 120, ${a})`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    return tex;
+  }
+
+  createUniverseBackground() {
+    // 1. Cosmic Nebula Sky Dome
+    const domeGeo = new THREE.SphereGeometry(150, 32, 24);
+    const nebulaTex = this.createCosmicNebulaTexture();
+    const domeMat = new THREE.MeshBasicMaterial({
+      map: nebulaTex,
+      side: THREE.BackSide,
+      depthWrite: false
+    });
+    this.universeNebulaDome = new THREE.Mesh(domeGeo, domeMat);
+    this.scene.add(this.universeNebulaDome);
+
+    // 2. Primary 3D Universe Starfield (2400+ Stars)
+    const starCount = 2400;
+    const starGeo = new THREE.BufferGeometry();
+    const starPositions = new Float32Array(starCount * 3);
+    const starColors = new Float32Array(starCount * 3);
+
+    const starPalette = [
+      new THREE.Color(0xffffff), // Diamond Pure White
+      new THREE.Color(0xdce7ff), // Brilliant Sirius Blue
+      new THREE.Color(0xfff0db), // Vega Warm Starlight
+      new THREE.Color(0xffd166), // Golden Amber Sun
+      new THREE.Color(0xa0c4ff), // Cyan Nebula Pulsar
+      new THREE.Color(0xffcbf2)  // Soft Cosmic Pink
+    ];
+
+    this.universeTwinkleData = [];
+
+    for (let i = 0; i < starCount; i++) {
+      // Celestial sphere radius between 95 and 145
+      const rad = 95 + Math.random() * 50;
+      const u = Math.random();
+      const v = Math.random();
+      const theta = u * 2.0 * Math.PI;
+      const phi = Math.acos(2.0 * v - 1.0);
+
+      const x = rad * Math.sin(phi) * Math.cos(theta);
+      let y = rad * Math.cos(phi);
+      const z = rad * Math.sin(phi) * Math.sin(theta);
+
+      // Lift stars mostly above ground level for magnificent sky
+      if (y < 2.0) {
+        y = 2.0 + Math.random() * 45;
+      }
+
+      starPositions[i * 3] = x;
+      starPositions[i * 3 + 1] = y;
+      starPositions[i * 3 + 2] = z;
+
+      const baseColor = starPalette[Math.floor(Math.random() * starPalette.length)];
+      starColors[i * 3] = baseColor.r;
+      starColors[i * 3 + 1] = baseColor.g;
+      starColors[i * 3 + 2] = baseColor.b;
+
+      // Twinkle data for prominent stars
+      if (i < 280) {
+        this.universeTwinkleData.push({
+          index: i,
+          baseR: baseColor.r,
+          baseG: baseColor.g,
+          baseB: baseColor.b,
+          speed: 1.8 + Math.random() * 3.5,
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+    }
+
+    starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+    starGeo.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
+
+    const starTex = this.createUniverseStarTexture();
+    const starMat = new THREE.PointsMaterial({
+      size: 1.35,
+      vertexColors: true,
+      map: starTex,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+
+    this.universeStars = new THREE.Points(starGeo, starMat);
+    this.scene.add(this.universeStars);
   }
 
   createFloorAndStage() {
@@ -3963,6 +4145,27 @@ class BirthdayScene {
         const a = time * 2.0 + (idx * Math.PI) / 2;
         spot.target.position.set(Math.cos(a) * 9, 0.5, Math.sin(a) * 9);
       });
+    }
+
+    // 0. Cosmic Universe Starfield & Nebula Animation
+    if (this.universeNebulaDome) {
+      this.universeNebulaDome.rotation.y = time * 0.005;
+    }
+    if (this.universeStars) {
+      this.universeStars.rotation.y = time * 0.007;
+      if (this.universeTwinkleData && this.universeTwinkleData.length > 0) {
+        const colAttr = this.universeStars.geometry.attributes.color;
+        if (colAttr) {
+          for (let i = 0; i < this.universeTwinkleData.length; i++) {
+            const td = this.universeTwinkleData[i];
+            const tw = 0.45 + Math.sin(time * td.speed + td.phase) * 0.55;
+            colAttr.array[td.index * 3] = td.baseR * (0.35 + tw * 0.9);
+            colAttr.array[td.index * 3 + 1] = td.baseG * (0.35 + tw * 0.9);
+            colAttr.array[td.index * 3 + 2] = td.baseB * (0.35 + tw * 0.9);
+          }
+          colAttr.needsUpdate = true;
+        }
+      }
     }
 
     // 4. Multi-Colored Diwali Fairy Light Bulbs Twinkle
