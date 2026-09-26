@@ -1368,7 +1368,7 @@ class BirthdayScene {
   }
 
   /* =========================================================
-     3D BIRTHDAY CAKE & NUMERIC "22" CANDLES
+     3D BIRTHDAY CAKE (cake.glb) & CANDLES
      ========================================================= */
   createBirthdayCake() {
     const theme = this.themeColors[this.currentTheme];
@@ -1383,71 +1383,124 @@ class BirthdayScene {
     const cakePlate = new THREE.Mesh(new THREE.CylinderGeometry(3.6, 3.6, 0.18, 48), this.standMat);
     cakePlate.position.y = 1.2;
     cakePlate.castShadow = true;
+    cakePlate.receiveShadow = true;
+    this.cakePlateMesh = cakePlate;
     this.cakeGroup.add(cakePlate);
 
-    // Cake Tier 1 (Bottom)
+    // Initial placeholder materials for theme updates and slice wedge
     this.cakeBaseMat = new THREE.MeshStandardMaterial({
       color: theme.cakeBase,
       roughness: 0.45,
       metalness: 0.05
     });
-    const tier1 = new THREE.Mesh(new THREE.CylinderGeometry(2.8, 2.8, 1.3, 48), this.cakeBaseMat);
-    tier1.position.y = 1.95;
-    tier1.castShadow = true;
-    this.tier1Mesh = tier1;
-    this.cakeGroup.add(tier1);
-
+    this.cakeTopMat = new THREE.MeshStandardMaterial({
+      color: theme.cakeTop,
+      roughness: 0.4,
+      metalness: 0.1
+    });
     this.frostingMat = new THREE.MeshStandardMaterial({
       color: theme.frosting,
       roughness: 0.3,
       metalness: 0.15
     });
 
-    // Frosting Beads
-    for (let i = 0; i < 32; i++) {
-      const angle = (i / 32) * Math.PI * 2;
-      const bead = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), this.frostingMat);
-      bead.position.set(Math.cos(angle) * 2.8, 1.35, Math.sin(angle) * 2.8);
-      this.cakeGroup.add(bead);
-    }
+    this.proceduralCakeElements = [];
+    this.cakeGlbModel = null;
+    this.isCakeGlbLoaded = false;
+    this.cakeGlbTopY = 5.37;
 
-    // Cake Tier 2 (Top)
-    this.cakeTopMat = new THREE.MeshStandardMaterial({
-      color: theme.cakeTop,
-      roughness: 0.4,
-      metalness: 0.1
-    });
+    // Load custom cake.glb model from workspace root
+    const loadGlbCake = () => {
+      if (typeof THREE.GLTFLoader === 'undefined') {
+        console.warn('[Cake] THREE.GLTFLoader not available, using fallback cake');
+        this.buildProceduralCakeFallback(theme);
+        return;
+      }
+
+      const loader = new THREE.GLTFLoader();
+      loader.load(
+        'cake.glb',
+        (gltf) => {
+          const model = gltf.scene;
+          this.cakeGlbModel = model;
+          this.isCakeGlbLoaded = true;
+
+          // Enable shadow casting and receiving on all meshes + enhance material
+          model.traverse((child) => {
+            if (child.isMesh) {
+              child.castShadow = true;
+              child.receiveShadow = true;
+              if (child.material) {
+                child.material.side = THREE.DoubleSide;
+                if (child.material.roughness !== undefined) {
+                  child.material.roughness = Math.min(child.material.roughness, 0.6);
+                }
+              }
+            }
+          });
+
+          // Scale & position model precisely on the cake stand:
+          // Model bounds: X [-0.752, 0.748], Y [-0.9515, 0.9480], Z [-0.752, 0.748]
+          // Height = 1.8995, Diameter = 1.50
+          // Scaling by 2.15: Height = 4.08, Diameter = 3.22 (fits on plate of radius 3.6)
+          const cakeScale = 2.15;
+          model.scale.set(cakeScale, cakeScale, cakeScale);
+
+          // Plate is at y = 1.2, top surface is at y = 1.29
+          const plateSurfaceY = 1.29;
+          const posY = plateSurfaceY + 0.9515 * cakeScale;
+          model.position.set(0, posY, 0);
+
+          // Remove any temporary procedural fallback elements
+          if (this.proceduralCakeElements && this.proceduralCakeElements.length > 0) {
+            this.proceduralCakeElements.forEach((el) => {
+              if (el.parent) el.parent.remove(el);
+            });
+            this.proceduralCakeElements = [];
+          }
+
+          this.cakeGroup.add(model);
+
+          // Position candles right on top of the GLB cake
+          const glbTopY = plateSurfaceY + 1.8995 * cakeScale;
+          this.repositionCandles(glbTopY);
+
+          if (this.cakeGlowLight) {
+            this.cakeGlowLight.position.set(0, glbTopY + 1.0, 0);
+          }
+
+          console.log('✅ cake.glb loaded & mounted onto 3D scene successfully!');
+        },
+        undefined,
+        (err) => {
+          console.warn('[Cake GLB Loader Error]: Falling back to procedural cake', err);
+          this.buildProceduralCakeFallback(theme);
+        }
+      );
+    };
+
+    loadGlbCake();
+
+    // Numeric Candles "22"
+    this.createNumericCandles(22);
+    this.scene.add(this.cakeGroup);
+  }
+
+  buildProceduralCakeFallback(theme) {
+    if (this.proceduralCakeElements && this.proceduralCakeElements.length > 0) return;
+    const tier1 = new THREE.Mesh(new THREE.CylinderGeometry(2.8, 2.8, 1.3, 48), this.cakeBaseMat);
+    tier1.position.y = 1.95;
+    tier1.castShadow = true;
+    this.tier1Mesh = tier1;
+    this.cakeGroup.add(tier1);
+    this.proceduralCakeElements.push(tier1);
+
     const tier2 = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 1.8, 1.1, 48), this.cakeTopMat);
     tier2.position.y = 3.15;
     tier2.castShadow = true;
     this.tier2Mesh = tier2;
     this.cakeGroup.add(tier2);
-
-    // Drips
-    for (let i = 0; i < 24; i++) {
-      const angle = (i / 24) * Math.PI * 2;
-      const dripLength = 0.2 + (i % 2 === 0 ? 0.3 : 0.15);
-      const drip = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), this.frostingMat);
-      drip.scale.set(1, dripLength / 0.12, 1);
-      drip.position.set(Math.cos(angle) * 1.82, 3.65 - dripLength / 2, Math.sin(angle) * 1.82);
-      this.cakeGroup.add(drip);
-    }
-
-    // Strawberries
-    for (let i = 0; i < 6; i++) {
-      const angle = (i / 6) * Math.PI * 2;
-      const berry = new THREE.Mesh(
-        new THREE.ConeGeometry(0.16, 0.32, 16),
-        new THREE.MeshStandardMaterial({ color: 0xd90429, roughness: 0.35 })
-      );
-      berry.position.set(Math.cos(angle) * 1.35, 3.8, Math.sin(angle) * 1.35);
-      berry.rotation.x = Math.PI;
-      this.cakeGroup.add(berry);
-    }
-
-    // Numeric Candles "22"
-    this.createNumericCandles(22);
-    this.scene.add(this.cakeGroup);
+    this.proceduralCakeElements.push(tier2);
   }
 
   createNumericCandles(age = 22) {
@@ -1527,7 +1580,7 @@ class BirthdayScene {
       candleLight.position.y = 1.55;
       digitGroup.add(candleLight);
 
-      digitGroup.position.set(startX + i * spacing, 3.75, 0);
+      digitGroup.position.set(startX + i * spacing, this.cakeGlbTopY || 5.37, 0);
       this.cakeGroup.add(digitGroup);
 
       this.candles.push(digitGroup);
@@ -1536,12 +1589,21 @@ class BirthdayScene {
     }
   }
 
+  repositionCandles(topY) {
+    this.cakeGlbTopY = topY;
+    if (this.candles && this.candles.length > 0) {
+      this.candles.forEach(c => {
+        c.position.y = topY;
+      });
+    }
+  }
+
   /* =========================================================
      SATIN CLOTH DRAPE COVER ON CAKE
      ========================================================= */
   createClothCover() {
-    // Royal Burgundy / Red Silk Satin Dome Drape
-    const clothGeo = new THREE.CylinderGeometry(0.5, 3.4, 3.2, 48, 1, true);
+    // Royal Burgundy / Red Silk Satin Dome Drape (Sized for multi-tier cake.glb)
+    const clothGeo = new THREE.CylinderGeometry(0.8, 3.6, 5.6, 48, 1, true);
     const clothMat = new THREE.MeshStandardMaterial({
       color: 0x800020, // Burgundy Satin
       roughness: 0.35,
@@ -1549,20 +1611,20 @@ class BirthdayScene {
       side: THREE.DoubleSide
     });
     this.clothCover = new THREE.Mesh(clothGeo, clothMat);
-    this.clothCover.position.set(0, 2.8, 0);
+    this.clothCover.position.set(0, 4.0, 0);
     this.clothCover.castShadow = true;
 
     // Gold Top Knob / Ribbon Knot on Cloth
     const knobMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.9, roughness: 0.1 });
-    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.32, 16, 16), knobMat);
-    knob.position.y = 1.7;
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.35, 16, 16), knobMat);
+    knob.position.y = 2.85;
     this.clothCover.add(knob);
 
     // Gold Fringe Rim around bottom of Cloth
     const rimMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.8, roughness: 0.2 });
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(3.42, 0.08, 16, 48), rimMat);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(3.62, 0.08, 16, 48), rimMat);
     rim.rotation.x = Math.PI / 2;
-    rim.position.y = -1.55;
+    rim.position.y = -2.75;
     this.clothCover.add(rim);
 
     this.scene.add(this.clothCover);
@@ -1575,17 +1637,17 @@ class BirthdayScene {
 
     if (window.birthdayAudio) window.birthdayAudio.playGiftOpen();
 
-    // Zoom Camera into the Cake Table (User's chosen post-balloon angle)
+    // Zoom Camera into the Cake Table (Focusing nicely on cake.glb)
     gsap.to(this.camera.position, {
       x: 0.00,
-      y: 7.31,
-      z: 18.45,
+      y: 8.20,
+      z: 19.50,
       duration: 1.6,
       ease: 'power2.inOut'
     });
     gsap.to(this.controls.target, {
       x: 0.00,
-      y: 2.80,
+      y: 3.50,
       z: 0.00,
       duration: 1.6,
       ease: 'power2.inOut'
@@ -1596,7 +1658,7 @@ class BirthdayScene {
 
     // Lift cloth upwards and fade away
     gsap.to(this.clothCover.position, {
-      y: 9.0,
+      y: 13.5,
       duration: 1.8,
       ease: 'power2.out'
     });
@@ -1888,12 +1950,12 @@ class BirthdayScene {
     }
 
     // Knife starts right in dead center front
-    this.cakeKnife.position.set(0.0, 7.5, 2.0);
+    this.cakeKnife.position.set(0.0, 9.5, 2.0);
     this.cakeKnife.visible = true;
 
     gsap.timeline()
-      .to(this.cakeKnife.position, { y: 2.3, duration: 0.6, ease: 'power2.in' })
-      .to(this.cakeKnife.position, { y: 6.5, duration: 0.5, ease: 'power2.out', onComplete: () => {
+      .to(this.cakeKnife.position, { y: 1.8, duration: 0.6, ease: 'power2.in' })
+      .to(this.cakeKnife.position, { y: 9.0, duration: 0.5, ease: 'power2.out', onComplete: () => {
         this.cakeKnife.visible = false;
       }})
       .add(() => {
@@ -1904,16 +1966,20 @@ class BirthdayScene {
         const cutEnd = centerAngle + gapHalf;   // 5π/8 (112.5 deg)
         const remLen = Math.PI * 2 - (cutEnd - cutStart); // 7π/4 (315 deg)
 
-        // Cut Bottom Tier (leaving center gap)
-        if (this.tier1Mesh) {
-          this.tier1Mesh.geometry.dispose();
-          this.tier1Mesh.geometry = new THREE.CylinderGeometry(2.8, 2.8, 1.3, 48, 1, false, cutEnd, remLen);
+        // Cut Bottom Tier (leaving center gap if procedural cake is active)
+        if (!this.isCakeGlbLoaded && this.tier1Mesh && this.tier1Mesh.geometry) {
+          try {
+            this.tier1Mesh.geometry.dispose();
+            this.tier1Mesh.geometry = new THREE.CylinderGeometry(2.8, 2.8, 1.3, 48, 1, false, cutEnd, remLen);
+          } catch(e) {}
         }
 
-        // Cut Top Tier (leaving center gap)
-        if (this.tier2Mesh) {
-          this.tier2Mesh.geometry.dispose();
-          this.tier2Mesh.geometry = new THREE.CylinderGeometry(1.8, 1.8, 1.1, 48, 1, false, cutEnd, remLen);
+        // Cut Top Tier (leaving center gap if procedural cake is active)
+        if (!this.isCakeGlbLoaded && this.tier2Mesh && this.tier2Mesh.geometry) {
+          try {
+            this.tier2Mesh.geometry.dispose();
+            this.tier2Mesh.geometry = new THREE.CylinderGeometry(1.8, 1.8, 1.1, 48, 1, false, cutEnd, remLen);
+          } catch(e) {}
         }
 
         // --- FULLY COVER AND SEAL MAIN CAKE GAP WALLS WITH RICH CAKE LAYERS ---
@@ -1952,8 +2018,6 @@ class BirthdayScene {
         leftT2Fudge.position.set(0.9, 3.15, 0);
         leftWallGroup.add(leftT2Fudge);
 
-        this.cakeGroup.add(leftWallGroup);
-
         // B. Right Cut Wall (Tier 1 + Tier 2)
         // Spans from (0, y, 0) to (R * cos(cutStart), y, R * sin(cutStart))
         const rightWallGroup = new THREE.Group();
@@ -1985,12 +2049,15 @@ class BirthdayScene {
         rightT2Fudge.position.set(0.9, 3.15, 0);
         rightWallGroup.add(rightT2Fudge);
 
-        this.cakeGroup.add(rightWallGroup);
-
         // Center Apex Column (Sealing the inside corner)
         const centerPillar = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2.4, 16), spongeMat);
         centerPillar.position.set(0, 2.5, 0);
-        this.cakeGroup.add(centerPillar);
+
+        if (!this.isCakeGlbLoaded) {
+          this.cakeGroup.add(leftWallGroup);
+          this.cakeGroup.add(rightWallGroup);
+          this.cakeGroup.add(centerPillar);
+        }
 
         // --- 2. CREATE FULLY ENCLOSED & PACKED 3D CAKE SLICE WEDGE ---
         if (!this.cakeSliceGroup) {

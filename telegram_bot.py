@@ -2429,6 +2429,9 @@ class WebhookHandler(BaseHTTPRequestHandler):
             ".woff": "font/woff",
             ".woff2": "font/woff2",
             ".ttf": "font/ttf",
+            ".glb": "model/gltf-binary",
+            ".gltf": "model/gltf+json",
+            ".bin": "application/octet-stream",
         }
         if ext not in SAFE_MIME_TYPES:
             self._send_json(403, {"status": "forbidden", "message": "File type not allowed"})
