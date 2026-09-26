@@ -176,6 +176,7 @@ def setup_user_bot_menu(token=None):
     if not tok or "YOUR_TELEGRAM" in tok:
         return
     commands = [
+        {"command": "tracker", "description": "📡 Live Recipient Tracker & Activity"},
         {"command": "mydata", "description": "📋 My Data & Surprise Details"},
         {"command": "register", "description": "🆕 New User Registration"},
         {"command": "login", "description": "🔑 Existing User Login"},
@@ -199,10 +200,10 @@ def get_user_reply_keyboard(chat_id):
     if logged_user:
         return {
             "keyboard": [
-                [{"text": "📋 My Data & Share"}, {"text": "🎁 Create Surprise"}],
-                [{"text": "💌 Chat Answers"}, {"text": "📸 My Photos"}],
-                [{"text": "🌐 Open Web App"}, {"text": f"👤 Profile ({logged_user})"}],
-                [{"text": "🗑️ Delete Data"}, {"text": "❓ Help & DM Owner"}]
+                [{"text": "📡 Live Tracker"}, {"text": "📋 My Data & Share"}],
+                [{"text": "🎁 Create Surprise"}, {"text": "💌 Chat Answers"}],
+                [{"text": "📸 My Photos"}, {"text": "🌐 Open Web App"}],
+                [{"text": f"👤 Profile ({logged_user})"}, {"text": "❓ Help & DM Owner"}]
             ],
             "resize_keyboard": True,
             "is_persistent": True
@@ -889,6 +890,73 @@ def show_user_photos(chat_id):
             full_url = url if url.startswith("http") else f"{web_base}{url}"
             send_tg_photo(chat_id, full_url, caption=cap)
 
+# --- LIVE RECIPIENT TRACKER FLOW ---
+def show_live_tracker(chat_id):
+    session = get_session(chat_id)
+    logged_user = session.get("logged_user")
+    if not logged_user:
+        send_tg_message(
+            chat_id,
+            "🔒 <b>LOGIN REQUIRED!</b>\n\nRecipient Live Tracking dekhne ke liye pehle login ya register karein!",
+            reply_markup={"inline_keyboard": [[{"text": "🔑 Login", "callback_data": "flow_login"}]]}
+        )
+        return
+
+    acts = config.get("live_activities", {}).get(logged_user, [])
+    chat_info = config.get("live_chats", {}).get(logged_user, {"messages": [], "has_unread": False})
+    msgs = chat_info.get("messages", [])
+
+    is_recent = False
+    last_seen = "⏳ No activity recorded yet"
+    if acts:
+        last_act = acts[-1]
+        last_time = last_act.get("time", "")
+        now_ts = time.time()
+        act_ts = last_act.get("timestamp", now_ts)
+        is_recent = (now_ts - act_ts) < 300
+        last_seen = f"🟢 Active Now ({last_time})" if is_recent else f"Last active at {last_time}"
+
+    act_lines = []
+    if acts:
+        # Show last 8 activities (most recent first)
+        for a in reversed(acts[-8:]):
+            icon = a.get("icon", "✨")
+            details = a.get("details", a.get("action", ""))
+            t = a.get("time", "")
+            act_lines.append(f"• {icon} <b>{details}</b> <i>({t})</i>")
+    else:
+        act_lines.append("<i>⏳ Abhi tak recipient ne link open nahi kiya hai. Jaise hi wo link kholegi, candles jalayegi, ya cake kategi, live updates yahan aayenge!</i>")
+
+    chat_summary = ""
+    if msgs:
+        unread_tag = "🔴 <b>UNREAD!</b> " if chat_info.get("has_unread") else ""
+        last_m = msgs[-1]
+        sender_lbl = "👸 Girlfriend" if last_m.get("sender") == "celebrant" else "👦 You"
+        chat_summary = (
+            f"\n\n💬 <b>2-WAY LIVE CHAT ({len(msgs)} msgs):</b>\n"
+            f"{unread_tag}• Last from {sender_lbl}: <i>\"{last_m.get('text', '')[:40]}...\"</i>"
+        )
+
+    msg = (
+        f"📡 <b>LIVE RECIPIENT TRACKER & ACTIVITY HUB</b> 🛰️✨\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 <b>Creator:</b> <code>{logged_user}</code>\n"
+        f"📶 <b>Live Status:</b> {last_seen}\n\n"
+        f"📜 <b>RECENT LIVE ACTIVITY FEED:</b>\n"
+        + "\n".join(act_lines)
+        + chat_summary
+        + f"\n━━━━━━━━━━━━━━━━━━━━\n"
+        f"<i>💡 Creator Dashboard me full real-time interactive tracker aur 2-way chat dock uplabdh hai!</i>"
+    )
+
+    inline_kb = {
+        "inline_keyboard": [
+            [{"text": "🔄 Refresh Tracker", "callback_data": "flow_tracker"}, get_webapp_button("🌐 Open Live Dashboard", "flow_webapp")],
+            [{"text": "💌 View All Answers", "callback_data": "flow_answers"}, {"text": "📋 Dashboard", "callback_data": "flow_mydata"}]
+        ]
+    }
+    send_tg_message(chat_id, msg, reply_markup=inline_kb)
+
 # --- SHARE DATA FLOW ---
 def show_share_data(chat_id):
     session = get_session(chat_id)
@@ -1143,6 +1211,10 @@ def process_user_text(chat_id, user_first_name, text, reply_token=None):
         start_create_wizard(chat_id)
         return
 
+    elif cmd in ["/tracker", "📡 live tracker", "live tracker", "tracker", "live activity", "tracking"]:
+        show_live_tracker(chat_id)
+        return
+
     elif cmd in ["/answers", "💌 chat answers", "chat answers", "answers", "chat answer"]:
         show_chat_answers(chat_id)
         return
@@ -1203,6 +1275,8 @@ def process_callback(chat_id, cb_data, cb_raw, reply_token=None):
         start_create_wizard(chat_id)
     elif cb_data == "flow_answers":
         show_chat_answers(chat_id)
+    elif cb_data == "flow_tracker":
+        show_live_tracker(chat_id)
     elif cb_data == "flow_share":
         show_share_data(chat_id)
     elif cb_data == "flow_help":

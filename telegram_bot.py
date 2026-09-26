@@ -1839,15 +1839,28 @@ class WebhookHandler(BaseHTTPRequestHandler):
             return
 
         elif self.path == "/api/track_activity":
-            # 🔒 SECURITY: Require auth token or valid surprise token
             surprise_token = data.get("token", "").strip()
             has_valid_surprise = bool(surprise_token and surprise_token in config.get("short_surprise_links", {}))
-            if not _auth_user and not has_valid_surprise:
-                self._send_json(403, {"status": "error", "message": "Authentication required"})
+            username_key = data.get("username", "user").lower().strip()
+
+            if has_valid_surprise and (not username_key or username_key == "user"):
+                token_uname = config["short_surprise_links"][surprise_token].get("username", "").strip().lower()
+                if token_uname:
+                    username_key = token_uname
+
+            is_loopback = self._is_loopback_request()
+            is_known_user = bool(
+                user_store.user_exists(username_key) or
+                username_key in config.get("portal_user_data", {}) or
+                username_key in config.get("users", {}) or
+                username_key in config.get("live_activities", {}) or
+                any(sl.get("username", "").lower() == username_key for sl in config.get("short_surprise_links", {}).values())
+            )
+
+            if not _auth_user and not has_valid_surprise and not is_loopback and not is_known_user:
+                self._send_json(403, {"status": "error", "message": "Valid surprise token or authentication required"})
                 return
 
-            # Track real-time recipient activity
-            username_key = data.get("username", "user").lower().strip()
             action = data.get("action", "activity")
             details = data.get("details", "")
             icon = data.get("icon", "✨")
@@ -1872,10 +1885,11 @@ class WebhookHandler(BaseHTTPRequestHandler):
 
             save_config(config)
 
-            # Send Telegram alert for critical milestones
-            owner_id = config.get("owner_chat_id", "")
-            if BOT_TOKEN and "YOUR_TELEGRAM" not in BOT_TOKEN and owner_id:
-                if action in ["link_opened", "safarnama_opened", "follow_chat_clicked", "gift_opened"]:
+            # Send Telegram alert for critical milestones directly to creator!
+            creator_user = user_store.load_user(username_key) if username_key != "user" else None
+            creator_chat_id = (creator_user.get("chat_id") if creator_user else None) or config.get("owner_chat_id", "")
+            if BOT_TOKEN and "YOUR_TELEGRAM" not in BOT_TOKEN and creator_chat_id:
+                if action in ["link_opened", "curtains_opened", "safarnama_opened", "follow_chat_clicked", "gift_opened", "cake_cut", "all_balloons_popped"]:
                     notif = (
                         f"📡 <b>LIVE RECIPIENT ACTIVITY DETECTED!</b> {icon}\n\n"
                         f"• <b>User:</b> <code>{username_key}</code>\n"
@@ -1883,34 +1897,41 @@ class WebhookHandler(BaseHTTPRequestHandler):
                         f"• <b>Time:</b> {time_str}\n\n"
                         f"<i>Check your Creator Dashboard live tracking panel!</i> 💖"
                     )
-                    send_tg_async(owner_id, notif)
+                    send_tg_async(creator_chat_id, notif)
 
-            self.send_response(200)
-            self._set_cors()
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({"status": "success", "message": "Activity tracked!"}).encode("utf-8"))
+            self._send_json(200, {"status": "success", "message": "Activity tracked!"})
             return
 
         elif self.path == "/api/live_chat_send":
-            # 🔒 SECURITY: Require auth token or valid surprise token
             surprise_token = data.get("token", "").strip()
             has_valid_surprise = bool(surprise_token and surprise_token in config.get("short_surprise_links", {}))
-            if not _auth_user and not has_valid_surprise:
+            username_key = data.get("username", "user").lower().strip()
+
+            if has_valid_surprise and (not username_key or username_key == "user"):
+                token_uname = config["short_surprise_links"][surprise_token].get("username", "").strip().lower()
+                if token_uname:
+                    username_key = token_uname
+
+            is_loopback = self._is_loopback_request()
+            is_known_user = bool(
+                user_store.user_exists(username_key) or
+                username_key in config.get("portal_user_data", {}) or
+                username_key in config.get("users", {}) or
+                any(sl.get("username", "").lower() == username_key for sl in config.get("short_surprise_links", {}).values())
+            )
+
+            if not _auth_user and not has_valid_surprise and not is_loopback and not is_known_user:
                 self._send_json(403, {"status": "error", "message": "Authentication required"})
                 return
 
             # 2-Way Live Chat message between Creator & Celebrant
-            username_key = data.get("username", "user").lower().strip()
             sender = data.get("sender", "celebrant") # 'celebrant' or 'creator'
             text = data.get("text", "").strip()
             quote = data.get("quote", None) # { chapter_num, heading, snippet }
             time_str = data.get("time", time.strftime("%I:%M %p"))
 
             if not text:
-                self.send_response(400)
-                self._set_cors()
-                self.end_headers()
+                self._send_json(400, {"status": "error", "message": "Text required"})
                 return
 
             if "live_chats" not in config:
@@ -1945,9 +1966,10 @@ class WebhookHandler(BaseHTTPRequestHandler):
 
             save_config(config)
 
-            # Send Telegram alert if Celebrant sent message
-            owner_id = config.get("owner_chat_id", "")
-            if sender == "celebrant" and BOT_TOKEN and "YOUR_TELEGRAM" not in BOT_TOKEN and owner_id:
+            # Send Telegram alert directly to creator if Celebrant sent message
+            creator_user = user_store.load_user(username_key) if username_key != "user" else None
+            creator_chat_id = (creator_user.get("chat_id") if creator_user else None) or config.get("owner_chat_id", "")
+            if sender == "celebrant" and BOT_TOKEN and "YOUR_TELEGRAM" not in BOT_TOKEN and creator_chat_id:
                 quote_info = f"\n📌 <b>Quoted:</b> <i>{quote.get('heading', '')}</i>" if quote else ""
                 tg_msg = (
                     f"💬 <b>NEW LIVE FOLLOW-UP MESSAGE!</b> 👸💖\n\n"
@@ -1957,13 +1979,9 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     f"• <b>Time:</b> {time_str}\n\n"
                     f"👉 <i>Open Creator Dashboard Live Chat to reply in real time!</i>"
                 )
-                send_tg_async(owner_id, tg_msg)
+                send_tg_async(creator_chat_id, tg_msg)
 
-            self.send_response(200)
-            self._set_cors()
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({"status": "success", "message": "Message dispatched!", "data": msg_item}).encode("utf-8"))
+            self._send_json(200, {"status": "success", "message": "Message sent!", "data": msg_item})
             return
 
         elif self.path == "/api/live_chat_mark_read":
@@ -2184,7 +2202,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
             qs = up.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
             username_key = qs.get("username", [""])[0].lower().strip()
             # Creator can only access their own data
-            if username_key != _auth_user:
+            if username_key.lower() != (_auth_user or "").lower():
                 self._send_json(403, {"status": "error", "message": "Forbidden"})
                 return
             user_data = config.get("portal_user_data", {}).get(username_key, {})
@@ -2234,15 +2252,25 @@ class WebhookHandler(BaseHTTPRequestHandler):
             return
 
         elif self.path.startswith("/api/live_progress"):
-            # Auth required: only the authenticated creator can view progress.
-            _auth_user = self._verify_api_auth()
-            if not _auth_user:
-                self._send_json(401, {"status": "error", "message": "Authentication required"})
-                return
             import urllib.parse as up
             qs = up.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
+            surprise_token = qs.get("token", [""])[0].strip()
             username_key = qs.get("username", ["user"])[0].lower().strip()
-            if username_key != _auth_user:
+            has_valid_surprise = bool(surprise_token and surprise_token in config.get("short_surprise_links", {}))
+
+            if has_valid_surprise and (not username_key or username_key == "user"):
+                token_uname = config["short_surprise_links"][surprise_token].get("username", "").strip().lower()
+                if token_uname:
+                    username_key = token_uname
+
+            _auth_user = self._verify_api_auth()
+            is_loopback = self._is_loopback_request()
+
+            # Allowed if: valid surprise token, OR authenticated creator matching username, OR loopback dev
+            if not has_valid_surprise and not _auth_user and not is_loopback:
+                self._send_json(401, {"status": "error", "message": "Authentication required"})
+                return
+            if _auth_user and username_key.lower() != _auth_user.lower() and not is_loopback and not has_valid_surprise:
                 self._send_json(403, {"status": "error", "message": "Forbidden"})
                 return
 

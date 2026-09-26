@@ -16,6 +16,7 @@
   
   <!-- App Stylesheet -->
   <link rel="stylesheet" href="style.css?v=25">
+  <link rel="stylesheet" href="responsive.css?v=1">
 
   <!-- External Libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -277,76 +278,150 @@
   </div>
 
   <!-- =========================================================
-       POST-LOGIN CREATOR DASHBOARD WITH 3D STACKED DECK SELECTOR
+       POST-LOGIN CREATOR DASHBOARD — 4-STEP WIZARD
        ========================================================= -->
   <section class="portal-creator-dashboard hidden" id="portal-creator-dashboard">
     <div class="creator-dashboard-backdrop"></div>
-    
-    <div class="creator-dashboard-container">
-      
-      <!-- Top Welcome Banner -->
-      <div class="creator-welcome-banner">
-        <div class="creator-user-pill">
-          <span class="online-indicator"></span> Logged in as: <strong id="logged-user-name">Boyfriend</strong>
-        </div>
-        <h1 class="creator-welcome-title">Welcome to Birthday Studio! ✨</h1>
-        <p class="creator-welcome-sub">Choose who this magical surprise is for and fill in the sweet details:</p>
-        <!-- Delete Account Button (Top Right) -->
-        <button class="btn-delete-account-corner" id="btn-open-delete-modal" title="Delete My Account">
-          <i class="fa-solid fa-trash-can"></i> Delete Account
+
+    <!-- ===== FIXED TOP BAR ===== -->
+    <div class="wizard-top-bar">
+      <div class="wizard-top-left">
+        <span class="wizard-user-pill">
+          <span class="online-indicator"></span>
+          <i class="fa-solid fa-user"></i>
+          <strong id="logged-user-name">User</strong>
+        </span>
+      </div>
+      <div class="wizard-top-right">
+        <button class="wizard-btn-delete" id="btn-open-delete-modal" title="Delete My Account">
+          <i class="fa-solid fa-trash-can"></i> <span class="delete-label-text">Delete Account</span>
         </button>
       </div>
+    </div>
 
-      <!-- 3D Overlapping / Stacked Cards Selector: "For BF" vs "For GF" -->
-      <div class="deck-selector-section">
-        <div class="deck-selector-heading">
-          <span>✨ SELECT SURPRISE MODE ✨</span>
-        </div>
-
-        <div class="deck-cards-stage" id="deck-cards-stage">
-          
-          <!-- Card 1: For Girlfriend (Default active or switchable) -->
-          <div class="deck-card active-focus" id="deck-card-gf" data-mode="gf">
-            <div class="deck-card-glow"></div>
-            <div class="deck-card-content">
-              <div class="deck-avatar-badge">👸💖</div>
-              <h3 class="deck-card-title">For My Girlfriend</h3>
-              <p class="deck-card-tagline">Rose petals, romantic love albums, heart balloons, sweet live chat & chocolate treats.</p>
-              <div class="deck-active-status">
-                <i class="fa-solid fa-circle-check"></i> SELECTED (FRONT)
-              </div>
-            </div>
-          </div>
-
-          <!-- Card 2: For Boyfriend (Layered behind with blur/tilt, click to bring front) -->
-          <div class="deck-card stacked-behind" id="deck-card-bf" data-mode="bf">
-            <div class="deck-card-glow"></div>
-            <div class="deck-card-content">
-              <div class="deck-avatar-badge">👦🔥</div>
-              <h3 class="deck-card-title">For My Boyfriend</h3>
-              <p class="deck-card-tagline">Midnight gold / neon theme, cute questions, gaming arcade, biryani treats & memory gallery.</p>
-              <div class="deck-active-status">
-                <i class="fa-solid fa-hand-pointer"></i> Click to Select (Bring to Front)
-              </div>
-            </div>
-          </div>
-
-        </div>
-        <p class="deck-switch-hint"><i class="fa-solid fa-arrows-rotate"></i> Tap the blurred back card anytime to switch mode!</p>
+    <!-- ===== WIZARD STEP PROGRESS BAR ===== -->
+    <div class="wizard-progress-bar" id="wizard-progress-bar">
+      <div class="wizard-progress-step active" data-step="1">
+        <div class="step-circle">1</div>
+        <span class="step-label">Details</span>
       </div>
+      <div class="wizard-progress-line" data-after="1"></div>
+      <div class="wizard-progress-step" data-step="2">
+        <div class="step-circle">2</div>
+        <span class="step-label">Safarnama</span>
+      </div>
+      <div class="wizard-progress-line" data-after="2"></div>
+      <div class="wizard-progress-step" data-step="3">
+        <div class="step-circle">3</div>
+        <span class="step-label">Questions</span>
+      </div>
+      <div class="wizard-progress-line" data-after="3"></div>
+      <div class="wizard-progress-step" data-step="4">
+        <div class="step-circle">4</div>
+        <span class="step-label">Generate</span>
+      </div>
+    </div>
 
-      <!-- Dynamic Data Collection Form Below -->
-      <div class="creator-form-card">
-        <div class="creator-form-header">
-          <h3 id="creator-form-heading">💖 Fill Her Surprise Details</h3>
-          <p id="creator-form-subheading">Personalize name, romantic wish, and upload photo:</p>
+    <!-- ===== WIZARD TOAST NOTIFICATION ===== -->
+    <div class="wizard-toast hidden" id="wizard-toast">
+      <i class="fa-solid fa-circle-exclamation"></i>
+      <span id="wizard-toast-msg">Please fill all required fields</span>
+    </div>
+
+    <!-- ===== STEP 1: DETAILS & PHOTOS ===== -->
+    <div class="wizard-step wizard-step-active" id="wizard-step-1" data-step="1">
+      <div class="creator-dashboard-container">
+
+        <!-- Welcome Title -->
+        <div class="wizard-step-header">
+          <h1 class="creator-welcome-title">Welcome to Birthday Studio! ✨</h1>
+          <p class="creator-welcome-sub">Choose who this magical surprise is for & fill in the sweet details</p>
         </div>
 
-        <form id="creator-surprise-form">
+        <!-- ===== MODE CARD CAROUSEL ===== -->
+        <div class="mode-carousel-section">
+          <div class="mode-carousel-heading">
+            <span>✨ SELECT SURPRISE MODE ✨</span>
+          </div>
+          <div class="mode-carousel-wrapper">
+            <button type="button" class="mode-carousel-arrow mode-arrow-left" id="mode-arrow-left" title="Previous Mode">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <div class="mode-carousel-viewport" id="mode-carousel-viewport">
+              <!-- Card 1: Girlfriend -->
+              <div class="mode-card mode-card-active" id="mode-card-gf" data-mode="gf">
+                <div class="mode-card-glow mode-glow-gf"></div>
+                <div class="mode-card-content">
+                  <div class="mode-card-emoji">👸💖</div>
+                  <h3>For My Girlfriend</h3>
+                  <p>Rose petals, romantic love albums, heart balloons & chocolate treats</p>
+                  <div class="mode-card-badge"><i class="fa-solid fa-circle-check"></i> SELECTED</div>
+                </div>
+              </div>
+              <!-- Card 2: Boyfriend -->
+              <div class="mode-card" id="mode-card-bf" data-mode="bf">
+                <div class="mode-card-glow mode-glow-bf"></div>
+                <div class="mode-card-content">
+                  <div class="mode-card-emoji">👦🔥</div>
+                  <h3>For My Boyfriend</h3>
+                  <p>Midnight gold, gaming arcade, biryani treats & memory gallery</p>
+                  <div class="mode-card-badge"><i class="fa-solid fa-hand-pointer"></i> Tap to Select</div>
+                </div>
+              </div>
+              <!-- Card 3: Friend -->
+              <div class="mode-card" id="mode-card-friend" data-mode="friend">
+                <div class="mode-card-glow mode-glow-friend"></div>
+                <div class="mode-card-content">
+                  <div class="mode-card-emoji">🤝✨</div>
+                  <h3>For My Friend</h3>
+                  <p>Vibrant balloons, fun party vibes, memes & cake celebration</p>
+                  <div class="mode-card-badge"><i class="fa-solid fa-hand-pointer"></i> Tap to Select</div>
+                </div>
+              </div>
+              <!-- Card 4: Husband/Wife -->
+              <div class="mode-card" id="mode-card-spouse" data-mode="spouse">
+                <div class="mode-card-glow mode-glow-spouse"></div>
+                <div class="mode-card-content">
+                  <div class="mode-card-emoji">💍❤️</div>
+                  <h3>For Husband / Wife</h3>
+                  <p>Royal elegance, crimson velvet, golden love letters & diamond sparkle</p>
+                  <div class="mode-card-badge"><i class="fa-solid fa-hand-pointer"></i> Tap to Select</div>
+                </div>
+              </div>
+              <!-- Card 5: Boss -->
+              <div class="mode-card" id="mode-card-boss" data-mode="boss">
+                <div class="mode-card-glow mode-glow-boss"></div>
+                <div class="mode-card-content">
+                  <div class="mode-card-emoji">👔⭐</div>
+                  <h3>For My Boss</h3>
+                  <p>Corporate premium, navy & silver theme, professional celebration</p>
+                  <div class="mode-card-badge"><i class="fa-solid fa-hand-pointer"></i> Tap to Select</div>
+                </div>
+              </div>
+            </div>
+            <button type="button" class="mode-carousel-arrow mode-arrow-right" id="mode-arrow-right" title="Next Mode">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+          <div class="mode-carousel-dots" id="mode-carousel-dots">
+            <span class="carousel-dot active" data-idx="0"></span>
+            <span class="carousel-dot" data-idx="1"></span>
+            <span class="carousel-dot" data-idx="2"></span>
+            <span class="carousel-dot" data-idx="3"></span>
+            <span class="carousel-dot" data-idx="4"></span>
+          </div>
+        </div>
+
+        <!-- ===== DETAILS FORM ===== -->
+        <div class="creator-form-card">
+          <div class="creator-form-header">
+            <h3 id="creator-form-heading">💖 Fill Her Surprise Details</h3>
+            <p id="creator-form-subheading">Personalize name, romantic wish, and upload photo:</p>
+          </div>
+
           <div class="creator-form-grid">
-            
             <div class="form-field">
-              <label><i class="fa-solid fa-signature"></i> Celebrant's Real Name</label>
+              <label><i class="fa-solid fa-signature"></i> Celebrant's Real Name <span class="required-star">*</span></label>
               <input type="text" id="creator-input-name" placeholder="e.g. Ananya / Priya" required>
             </div>
 
@@ -369,29 +444,36 @@
                 <option value="cosmic-purple">💜 Cosmic Nebula Violet</option>
               </select>
             </div>
-
           </div>
 
           <div class="form-field full-width">
-            <label><i class="fa-solid fa-heart"></i> Heartfelt Birthday Message / Love Letter</label>
+            <label><i class="fa-solid fa-heart"></i> Heartfelt Birthday Message <span class="required-star">*</span></label>
             <textarea id="creator-input-wish" rows="3" placeholder="Write your sweetest birthday message here...">Happy Birthday to the most amazing, gorgeous, and loving person in the whole universe! Thank you for bringing endless joy, warmth, and magic into my life. Every single day with you is my favorite day!</textarea>
           </div>
 
-          <!-- Photo Upload (Telegram Bot Cloud Sync Ready) -->
+          <!-- Main Photo Upload -->
           <div class="form-field full-width">
-            <label><i class="fa-solid fa-image"></i> Main Portrait Photo (Used for 3D Birthday Frame & Album)</label>
+            <label><i class="fa-solid fa-image"></i> Main Portrait Photo <span class="required-star">*</span></label>
             <div class="creator-photo-upload-box">
               <input type="file" id="creator-input-photo" accept="image/*" class="file-input-hidden">
               <label for="creator-input-photo" class="btn-creator-upload">
                 <i class="fa-solid fa-cloud-arrow-up"></i> Choose Portrait Photo from Device
               </label>
-              <span id="creator-photo-status" class="creator-photo-status">Default Romantic 3D Badge Selected</span>
+              <span id="creator-photo-status" class="creator-photo-status">No photo selected</span>
             </div>
-            <!-- Main Photo Thumbnail Preview with Zoom and Remove 'X' -->
+            <!-- Upload Progress Bar -->
+            <div class="photo-progress-wrap hidden" id="main-photo-progress-wrap">
+              <div class="photo-progress-bar">
+                <div class="photo-progress-fill" id="main-photo-progress-fill"></div>
+              </div>
+              <span class="photo-progress-text" id="main-photo-progress-text">0%</span>
+            </div>
+            <!-- Preview with ✅ tick -->
             <div id="creator-single-photo-preview" class="creator-single-photo-preview hidden" style="margin-top: 10px;">
-              <div class="memory-thumb-chip" id="main-photo-thumb-chip" style="cursor: pointer; display: inline-flex; position: relative;">
-                <img id="main-photo-preview-img" src="" alt="Main Portrait" class="memory-thumb-img" style="cursor: zoom-in; width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 2px solid #ff758c;">
+              <div class="photo-preview-card" id="main-photo-thumb-chip">
+                <img id="main-photo-preview-img" src="" alt="Main Portrait" class="memory-thumb-img">
                 <button type="button" id="btn-remove-main-photo" class="btn-remove-thumb" title="Remove Photo">&times;</button>
+                <div class="photo-upload-tick hidden" id="main-photo-tick"><i class="fa-solid fa-circle-check"></i></div>
               </div>
             </div>
             <div style="margin-top: 8px;">
@@ -399,7 +481,7 @@
             </div>
           </div>
 
-          <!-- Multiple Photo Memories Uploader for 3D Book Album -->
+          <!-- Memories Album -->
           <div class="form-field full-width memories-upload-container">
             <label style="font-size: 1.05rem; font-weight: 700; color: #ffccd5; display: flex; align-items: center; gap: 8px;">
               <i class="fa-solid fa-images" style="color: #ff758c;"></i> 📸 Memories Album (Upload Multiple Photos)
@@ -420,50 +502,129 @@
                 <i class="fa-solid fa-plus"></i> Add URL
               </button>
             </div>
-            
-            <!-- Dynamic Memories Thumbnail Gallery -->
             <div class="memories-previews-grid" id="memories-previews-grid" style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 14px;">
               <!-- Populated by JS -->
             </div>
           </div>
+        </div>
 
-          <!-- Dynamic Safarnama / Journey Chapter Builder -->
-          <div class="safarnama-builder-section">
-            <div class="safarnama-builder-header">
-              <div class="safarnama-builder-title">
-                <i class="fa-solid fa-feather-pointed"></i>
-                <div>
-                  <h4>📖 Safarnama / Our Journey Chapters</h4>
-                  <p>Add unlimited chapters with custom headings & descriptions! Each chapter appears in the 3D Safarnama Book with a <strong>"Follow in Chat"</strong> button.</p>
-                </div>
-              </div>
-              <div class="safarnama-builder-actions">
-                <button type="button" class="btn-reset-chapters" id="btn-reset-safarnama" title="Reset to Romantic Templates">
-                  <i class="fa-solid fa-arrows-rotate"></i> Reset Templates
-                </button>
+        <!-- Step 1 Navigation -->
+        <div class="wizard-nav-row">
+          <button type="button" class="wizard-btn-back" id="wizard-btn-back-1">
+            <i class="fa-solid fa-right-from-bracket"></i> Logout
+          </button>
+          <button type="button" class="wizard-btn-next disabled" id="wizard-btn-next-1">
+            Next: Safarnama <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== STEP 2: SAFARNAMA CHAPTERS ===== -->
+    <div class="wizard-step" id="wizard-step-2" data-step="2">
+      <div class="creator-dashboard-container">
+        <div class="wizard-step-header">
+          <h1 class="creator-welcome-title">📖 Safarnama / Our Journey Chapters</h1>
+          <p class="creator-welcome-sub">Add chapters with headings & descriptions. Each chapter appears in the 3D Safarnama Book with a "Follow in Chat" button.</p>
+        </div>
+
+        <div class="safarnama-builder-section">
+          <div class="safarnama-builder-header">
+            <div class="safarnama-builder-title">
+              <i class="fa-solid fa-feather-pointed"></i>
+              <div>
+                <h4>Write Your Love Story Chapters 💕</h4>
+                <p>At least 1 chapter is required. You can add unlimited chapters!</p>
               </div>
             </div>
-
-            <!-- Dynamic Chapters Container -->
-            <div class="safarnama-builder-list" id="safarnama-builder-list">
-              <!-- Dynamically populated by JS -->
-            </div>
-
-            <!-- Add Chapter CTA Button -->
-            <div class="safarnama-add-row">
-              <button type="button" class="btn-add-safarnama-chapter" id="btn-add-safarnama-chapter">
-                <i class="fa-solid fa-circle-plus"></i> + Add Another Safarnama Chapter
+            <div class="safarnama-builder-actions">
+              <button type="button" class="btn-reset-chapters" id="btn-reset-safarnama" title="Reset to Romantic Templates">
+                <i class="fa-solid fa-arrows-rotate"></i> Reset Templates
               </button>
             </div>
           </div>
 
-          <!-- Idle Account Auto-Deletion Notice (Before Link Generation) -->
-          <div class="idle-policy-banner">
-            <i class="fa-solid fa-clock-rotate-left"></i>
-            <span><strong>Data & URL Retention Policy:</strong> When you generate a surprise link, your data & URL remain active for <strong>48 hours</strong>. If you do not generate a link, your account data will be permanently deleted after <strong>48 to 72 hours</strong>.</span>
+          <div class="safarnama-builder-list" id="safarnama-builder-list">
+            <!-- Dynamically populated by JS -->
           </div>
 
-          <!-- Generate Link Button -->
+          <div class="safarnama-add-row">
+            <button type="button" class="btn-add-safarnama-chapter" id="btn-add-safarnama-chapter">
+              <i class="fa-solid fa-circle-plus"></i> + Add Another Safarnama Chapter
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 2 Navigation -->
+        <div class="wizard-nav-row">
+          <button type="button" class="wizard-btn-back" id="wizard-btn-back-2">
+            <i class="fa-solid fa-arrow-left"></i> Back: Details
+          </button>
+          <button type="button" class="wizard-btn-next disabled" id="wizard-btn-next-2">
+            Next: Questions <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== STEP 3: CHAT QUESTIONS ===== -->
+    <div class="wizard-step" id="wizard-step-3" data-step="3">
+      <div class="creator-dashboard-container">
+        <div class="wizard-step-header">
+          <h1 class="creator-welcome-title">💬 Ask Your Lovely Questions</h1>
+          <p class="creator-welcome-sub">Write custom questions that will be asked during the live chat experience. You can edit the default ones or add your own!</p>
+        </div>
+
+        <div class="chat-questions-builder" id="chat-questions-builder">
+          <div class="questions-builder-header">
+            <div class="questions-builder-title">
+              <i class="fa-solid fa-comments"></i>
+              <div>
+                <h4>Customize Chat Questions 💖</h4>
+                <p>At least 1 question is required. These questions will be asked to your special person during the typewriter chat!</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="questions-list" id="questions-list">
+            <!-- Dynamically populated by JS -->
+          </div>
+
+          <div class="questions-add-row">
+            <button type="button" class="btn-add-question" id="btn-add-question">
+              <i class="fa-solid fa-circle-plus"></i> + Add Custom Question
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 3 Navigation -->
+        <div class="wizard-nav-row">
+          <button type="button" class="wizard-btn-back" id="wizard-btn-back-3">
+            <i class="fa-solid fa-arrow-left"></i> Back: Safarnama
+          </button>
+          <button type="button" class="wizard-btn-next disabled" id="wizard-btn-next-3">
+            Next: Generate Link <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== STEP 4: LINK GENERATION & LIVE TRACKER ===== -->
+    <div class="wizard-step" id="wizard-step-4" data-step="4">
+      <div class="creator-dashboard-container">
+        <div class="wizard-step-header">
+          <h1 class="creator-welcome-title">🎁 Generate & Share Your Surprise Link</h1>
+          <p class="creator-welcome-sub">Everything is ready! Generate your magical birthday surprise link and track live activity.</p>
+        </div>
+
+        <!-- Idle Account Auto-Deletion Notice -->
+        <div class="idle-policy-banner">
+          <i class="fa-solid fa-clock-rotate-left"></i>
+          <span><strong>Data & URL Retention Policy:</strong> Your data & URL remain active for <strong>48 hours</strong> after link generation. Without a generated link, data deletes after <strong>48 to 72 hours</strong>.</span>
+        </div>
+
+        <!-- Generate Link Button -->
+        <form id="creator-surprise-form">
           <div class="creator-form-submit-row">
             <button type="submit" class="btn-generate-surprise-link" id="btn-generate-surprise-link">
               <span class="btn-shine"></span>
@@ -479,7 +640,7 @@
             <h4>Your Magical Surprise Link is Ready! 🎉</h4>
           </div>
           <p>Share this link with your special person. When they open it, their grand 3D birthday celebration will begin!</p>
-          
+
           <div class="link-copy-input-row">
             <input type="text" id="final-surprise-link-input" readonly value="">
             <button type="button" class="btn-copy-final-link" id="btn-copy-final-link">
@@ -488,7 +649,7 @@
           </div>
           <div class="copy-feedback" id="final-copy-feedback"><i class="fa-solid fa-circle-check"></i> Surprise Link copied to clipboard! Send with love ❤️</div>
 
-          <!-- Link Active Duration & Expiry Time Card -->
+          <!-- Link Expiry Card -->
           <div class="link-expiry-card" id="link-expiry-card">
             <div class="link-expiry-header">
               <div class="expiry-icon-pulse"><i class="fa-solid fa-clock"></i></div>
@@ -509,15 +670,15 @@
             </div>
           </div>
 
-          <!-- Permanent Deletion Policy Note -->
+          <!-- Policy Note -->
           <div class="link-deletion-policy-note">
             <div class="policy-note-icon"><i class="fa-solid fa-shield-halved"></i></div>
             <div class="policy-note-content">
               <strong>⚠️ Permanent Auto-Deletion Policy:</strong>
-              <p>Your data and URL will be deleted permanently after <strong>48 hrs</strong> after link generation. If you do not generate a link, your data will be deleted permanently after <strong>48 to 72 hrs</strong>.</p>
+              <p>Your data and URL will be deleted permanently after <strong>48 hrs</strong> after link generation.</p>
               <div class="policy-subnote">
                 <i class="fa-solid fa-trash-can"></i>
-                <span>When this timer ends, all uploaded photos, messages, girlfriend chat replies, and account data are automatically & permanently erased from both Telegram and the server.</span>
+                <span>All uploaded photos, messages, chat replies, and account data are auto-erased from Telegram and server.</span>
               </div>
             </div>
           </div>
@@ -532,60 +693,65 @@
           </div>
         </div>
 
-      </div>
-
-      <!-- =========================================================
-           LIVE RECIPIENT TRACKER & 2-WAY LIVE CHAT HUB
-           ========================================================= -->
-      <div class="creator-live-tracker-card" id="creator-live-tracker-card">
-        <div class="tracker-header">
-          <div class="tracker-title-group">
-            <div class="tracker-icon-pulse"><i class="fa-solid fa-tower-broadcast"></i></div>
-            <div>
-              <h3>Live Recipient Tracker & 2-Way Chat 📡</h3>
-              <p>See what your birthday partner is doing in real time when they open their surprise link.</p>
-            </div>
-          </div>
-          <div class="tracker-status-pill" id="tracker-online-status">
-            <span class="status-dot"></span>
-            <span id="tracker-status-label">Waiting for Activity...</span>
-          </div>
-        </div>
-
-        <div class="tracker-body-grid">
-          <!-- Real-Time Activity Log Stream -->
-          <div class="tracker-activity-stream">
-            <div class="stream-header">
-              <span><i class="fa-solid fa-list-check"></i> Recipient Live Activity Feed</span>
-              <button type="button" class="btn-refresh-tracker" id="btn-refresh-tracker"><i class="fa-solid fa-rotate"></i> Refresh</button>
-            </div>
-            <div class="activity-timeline-list" id="activity-timeline-list">
-              <div class="activity-empty-state">
-                <i class="fa-solid fa-satellite-dish"></i>
-                <p>No activity yet. When she opens the link and explores the surprise, live activities will appear here!</p>
+        <!-- ===== LIVE RECIPIENT TRACKER & 2-WAY LIVE CHAT HUB ===== -->
+        <div class="creator-live-tracker-card" id="creator-live-tracker-card">
+          <div class="tracker-header">
+            <div class="tracker-title-group">
+              <div class="tracker-icon-pulse"><i class="fa-solid fa-tower-broadcast"></i></div>
+              <div>
+                <h3>Live Recipient Tracker & 2-Way Chat 📡</h3>
+                <p>See what your birthday partner is doing in real time when they open their surprise link.</p>
               </div>
             </div>
+            <div class="tracker-status-pill" id="tracker-online-status">
+              <span class="status-dot"></span>
+              <span id="tracker-status-label">Waiting for Activity...</span>
+            </div>
           </div>
 
-          <!-- 2-Way Live Chat Trigger Card -->
-          <div class="tracker-chat-dock">
-            <div class="chat-dock-header">
-              <span><i class="fa-solid fa-comments"></i> 2-Way Live Chat Dock</span>
-              <span class="chat-dock-badge" id="creator-chat-badge-state">⚪ Idle</span>
+          <div class="tracker-body-grid">
+            <div class="tracker-activity-stream">
+              <div class="stream-header">
+                <span><i class="fa-solid fa-list-check"></i> Recipient Live Activity Feed</span>
+                <button type="button" class="btn-refresh-tracker" id="btn-refresh-tracker"><i class="fa-solid fa-rotate"></i> Refresh</button>
+              </div>
+              <div class="activity-timeline-list" id="activity-timeline-list">
+                <div class="activity-empty-state">
+                  <i class="fa-solid fa-satellite-dish"></i>
+                  <p>No activity yet. When they open the link and explore the surprise, live activities will appear here!</p>
+                </div>
+              </div>
             </div>
-            <p class="chat-dock-hint">
-              When she clicks <strong>"Follow in Chat"</strong> on any Safarnama chapter, the automated questions pause and this button activates with an instant red alert so you two can chat live!
-            </p>
-            <button type="button" class="btn-creator-open-live-chat disabled" id="btn-creator-open-live-chat">
-              <span class="chat-btn-pulse-dot hidden" id="chat-btn-red-dot"></span>
-              <i class="fa-solid fa-message"></i>
-              <span id="creator-chat-btn-label">Live Chat Disabled (Waiting for her...)</span>
-            </button>
+
+            <div class="tracker-chat-dock">
+              <div class="chat-dock-header">
+                <span><i class="fa-solid fa-comments"></i> 2-Way Live Chat Dock</span>
+                <span class="chat-dock-badge" id="creator-chat-badge-state">⚪ Idle</span>
+              </div>
+              <p class="chat-dock-hint">
+                When they click <strong>"Follow in Chat"</strong> on any Safarnama chapter, the automated questions pause and this button activates for live chat!
+              </p>
+              <button type="button" class="btn-creator-open-live-chat disabled" id="btn-creator-open-live-chat">
+                <span class="chat-btn-pulse-dot hidden" id="chat-btn-red-dot"></span>
+                <i class="fa-solid fa-message"></i>
+                <span id="creator-chat-btn-label">Live Chat Disabled (Waiting...)</span>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
+        <!-- Step 4 Navigation -->
+        <div class="wizard-nav-row">
+          <button type="button" class="wizard-btn-back" id="wizard-btn-back-4">
+            <i class="fa-solid fa-arrow-left"></i> Back: Edit Details
+          </button>
+          <button type="button" class="wizard-btn-next wizard-btn-logout" id="wizard-btn-logout-4">
+            <i class="fa-solid fa-right-from-bracket"></i> Logout
+          </button>
+        </div>
+      </div>
     </div>
+
   </section>
 
   <!-- =========================================================

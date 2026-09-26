@@ -1,0 +1,1328 @@
+/* =========================================================
+   RESPONSIVE.CSS — Complete Mobile & Desktop UI Fix
+   Sabhi components ke liye proper responsive layout
+   No glitch, no overflow, no out-of-display elements
+   ========================================================= */
+
+/* =========================================================
+   BASE FIXES — Prevent horizontal overflow globally
+   ========================================================= */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  overflow-x: hidden;
+}
+
+img, video, canvas, iframe {
+  max-width: 100%;
+}
+
+/* =========================================================
+   GLOBAL TOUCH IMPROVEMENTS
+   ========================================================= */
+button, a, [role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+input, select, textarea {
+  max-width: 100%;
+}
+
+/* =========================================================
+   PORTAL LANDING SCREEN
+   ========================================================= */
+
+/* Large Desktop (1200px+) */
+@media (min-width: 1200px) {
+  .portal-landing-container {
+    padding: 50px 40px 80px 40px;
+    gap: 40px;
+  }
+  .portal-feature-index-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Desktop (768px - 1199px) */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .portal-landing-container {
+    padding: 40px 28px 60px 28px;
+    gap: 30px;
+  }
+  .portal-feature-index-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .portal-hero-title {
+    font-size: clamp(2rem, 4.5vw, 3rem);
+  }
+}
+
+/* Tablet (601px - 767px) */
+@media (min-width: 601px) and (max-width: 767px) {
+  .portal-landing-container {
+    padding: 30px 20px 50px 20px;
+    gap: 24px;
+  }
+  .portal-feature-index-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+  .portal-hero-title {
+    font-size: clamp(1.8rem, 4vw, 2.6rem);
+  }
+  .portal-hero-tagline {
+    font-size: 0.95rem;
+  }
+  .portal-landing-footer {
+    flex-direction: column;
+    align-items: stretch;
+    max-width: 400px;
+  }
+  .btn-portal-login,
+  .btn-portal-guest {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Mobile (max-width: 600px) */
+@media (max-width: 600px) {
+  .portal-landing-screen {
+    padding: 16px 14px 30px 14px;
+    align-items: flex-start;
+  }
+  .portal-landing-container {
+    padding: 20px 0 40px 0;
+    gap: 20px;
+  }
+  .portal-brand-header {
+    padding: 0 4px;
+  }
+  .portal-sparkle-pill {
+    font-size: 0.68rem;
+    letter-spacing: 1.5px;
+    padding: 5px 12px;
+  }
+  .portal-hero-title {
+    font-size: clamp(1.6rem, 7vw, 2.2rem);
+    line-height: 1.2;
+    margin-bottom: 8px;
+  }
+  .portal-hero-tagline {
+    font-size: 0.88rem;
+    line-height: 1.5;
+    padding: 0 4px;
+  }
+  .portal-feature-index-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .portal-index-card {
+    padding: 14px 16px;
+    border-radius: 14px;
+    gap: 12px;
+  }
+  .index-card-icon {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    font-size: 1.1rem;
+  }
+  .index-card-info h3 {
+    font-size: 0.95rem;
+  }
+  .index-card-info p {
+    font-size: 0.8rem;
+  }
+  .portal-landing-footer {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    max-width: 100%;
+    padding: 0 4px;
+    gap: 10px;
+  }
+  .btn-portal-login {
+    width: 100%;
+    justify-content: center;
+    font-size: 1rem;
+    padding: 14px 24px;
+  }
+  .btn-portal-guest,
+  .btn-portal-sandbox {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* =========================================================
+   NEON LOGIN MODAL
+   ========================================================= */
+@media (max-width: 600px) {
+  .neon-glass-login-card {
+    width: 96% !important;
+    padding: 24px 18px !important;
+    border-radius: 18px !important;
+    max-height: 92vh;
+    overflow-y: auto;
+  }
+  .neon-login-header h2 {
+    font-size: 1.25rem;
+  }
+  .neon-lock-badge {
+    width: 48px !important;
+    height: 48px !important;
+    font-size: 1.3rem !important;
+  }
+  .login-tab-btn {
+    font-size: 0.78rem;
+    padding: 8px 10px;
+    gap: 4px;
+  }
+  .login-actions-row {
+    flex-direction: column;
+  }
+  .btn-neon-start,
+  .btn-neon-help {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* =========================================================
+   CREATOR DASHBOARD
+   ========================================================= */
+@media (max-width: 600px) {
+  .creator-dashboard-container {
+    padding: 20px 14px 50px 14px;
+    gap: 18px;
+  }
+  .creator-welcome-title {
+    font-size: clamp(1.4rem, 6vw, 1.8rem);
+  }
+  .creator-welcome-sub {
+    font-size: 0.84rem;
+  }
+  .btn-delete-account-corner {
+    position: relative;
+    top: auto;
+    right: auto;
+    margin-top: 12px;
+    width: 100%;
+    justify-content: center;
+  }
+  .deck-cards-stage {
+    height: 195px;
+  }
+  .deck-card {
+    width: 240px !important;
+    height: 175px !important;
+    padding: 14px !important;
+  }
+  .deck-card.stacked-behind {
+    transform: translateX(38px) scale(0.84) translateZ(-40px) !important;
+  }
+  .deck-card-title {
+    font-size: 1.05rem;
+  }
+  .deck-avatar-badge {
+    font-size: 1.8rem;
+  }
+  .creator-form-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .creator-form-card {
+    padding: 18px 14px;
+    border-radius: 16px;
+  }
+  .creator-form-header h3 {
+    font-size: 1.1rem;
+  }
+  .link-copy-input-row {
+    flex-direction: column;
+  }
+  .btn-copy-final-link {
+    width: 100%;
+    justify-content: center;
+  }
+  .link-actions-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .btn-launch-preview,
+  .btn-logout-portal {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* =========================================================
+   DELETE / ENV MODALS
+   ========================================================= */
+@media (max-width: 600px) {
+  .delete-account-card {
+    width: 96% !important;
+    padding: 20px 16px !important;
+    max-height: 90vh;
+    border-radius: 16px !important;
+  }
+  .delete-modal-header h2 {
+    font-size: 1.15rem;
+  }
+  .admin-env-card {
+    width: 96% !important;
+    padding: 22px 16px !important;
+    border-radius: 18px !important;
+  }
+  .admin-env-actions {
+    grid-template-columns: 1fr !important;
+  }
+  .btn-env-save,
+  .btn-env-test {
+    width: 100%;
+  }
+}
+
+/* =========================================================
+   CURTAIN INTRO SCREEN
+   ========================================================= */
+@media (max-width: 600px) {
+  .curtain-intro-content {
+    padding: 28px 20px;
+    width: 92%;
+    border-radius: 22px;
+  }
+  .intro-headline {
+    font-size: clamp(1.4rem, 6vw, 2rem);
+  }
+  .intro-subtext {
+    font-size: 0.9rem;
+    margin-bottom: 20px;
+  }
+  .btn-celebrate-intro {
+    font-size: 1rem;
+    padding: 14px 28px;
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* =========================================================
+   ROMANTIC CHAT SCREEN
+   ========================================================= */
+@media (max-width: 600px) {
+  .romantic-chat-screen {
+    padding: 14px 10px;
+    align-items: flex-start;
+  }
+  .romantic-chat-container {
+    gap: 12px;
+    margin: auto;
+  }
+  .romantic-hero-title {
+    font-size: clamp(1.7rem, 7vw, 2.5rem);
+  }
+  .romantic-hero-subtitle {
+    font-size: 0.88rem;
+  }
+  .romantic-note-card {
+    padding: 12px 14px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .chat-card-window {
+    border-radius: 18px;
+  }
+  .chat-card-header {
+    padding: 12px 14px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .chat-user-status {
+    gap: 8px;
+  }
+  .chat-avatar {
+    width: 36px;
+    height: 36px;
+    font-size: 1.1rem;
+  }
+  .chat-user-name {
+    font-size: 0.92rem;
+  }
+  .chat-progress-badge {
+    font-size: 0.72rem;
+    padding: 4px 10px;
+  }
+  .btn-resume-questions {
+    font-size: 0.72rem;
+    padding: 4px 10px;
+  }
+  .btn-skip-chat {
+    font-size: 0.72rem;
+    padding: 4px 8px;
+  }
+  .chat-messages-scroll {
+    height: 240px;
+    max-height: 35vh;
+    padding: 14px 12px;
+  }
+  .chat-msg-bubble {
+    max-width: 85%;
+    font-size: 0.88rem;
+    padding: 10px 13px;
+  }
+  .chat-input-bar {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+  .chat-input-wrapper input {
+    font-size: 0.88rem;
+    padding: 10px 38px 10px 14px;
+  }
+  .chat-send-btn {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    font-size: 0.95rem;
+  }
+  .chat-footer-actions {
+    flex-direction: column;
+    width: 100%;
+    gap: 10px;
+  }
+  .btn-romantic-order,
+  .btn-romantic-enter-3d {
+    width: 100%;
+    justify-content: center;
+    padding: 13px 20px;
+    font-size: 0.95rem;
+  }
+  .floating-chat-history-btn {
+    bottom: 16px;
+    left: 12px;
+    padding: 8px 12px;
+    font-size: 0.78rem;
+    gap: 6px;
+  }
+}
+
+/* =========================================================
+   DUAL BOOKS (MEMORIES & SAFARNAMA)
+   ========================================================= */
+@media (max-width: 600px) {
+  .dual-books-container {
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 0 4px;
+  }
+  .book-card-item {
+    max-width: 100%;
+    width: 100%;
+  }
+  .book-3d-wrapper {
+    height: 185px;
+  }
+  .book-cover-title {
+    font-size: 1.5rem;
+  }
+  .book-album-modal-card,
+  .safarnama-modal-card {
+    width: 96% !important;
+    max-height: 88vh;
+    border-radius: 18px !important;
+  }
+  .memories-grid-wrapper {
+    grid-template-columns: 1fr !important;
+    max-height: 45vh;
+  }
+  .safarnama-chapters-scroll {
+    max-height: 42vh;
+  }
+}
+
+@media (min-width: 601px) and (max-width: 900px) {
+  .dual-books-container {
+    gap: 14px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .book-card-item {
+    max-width: 240px;
+    flex: 1 1 240px;
+  }
+  .book-3d-wrapper {
+    height: 210px;
+  }
+}
+
+/* =========================================================
+   ORDER HUB (TREATS STORE)
+   ========================================================= */
+@media (max-width: 600px) {
+  .order-fullscreen-topnav {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+  .order-topnav-title {
+    font-size: 0.88rem;
+    gap: 6px;
+  }
+  .btn-order-nav-back {
+    padding: 7px 12px;
+    font-size: 0.8rem;
+  }
+  .btn-order-nav-3d {
+    padding: 7px 12px;
+    font-size: 0.78rem;
+  }
+  .order-fullscreen-container {
+    padding: 16px 12px 40px 12px;
+    gap: 14px;
+  }
+  .store-products-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px;
+  }
+  .product-visual {
+    height: 85px;
+  }
+  .product-emoji {
+    font-size: 2.2rem;
+  }
+  .product-title {
+    font-size: 0.82rem;
+  }
+  .product-desc {
+    font-size: 0.72rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .product-details {
+    padding: 10px 10px 12px;
+  }
+  .store-app-banner {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+  .order-filter-pills {
+    padding: 6px 4px 10px 4px;
+    gap: 6px;
+  }
+  .order-filter-pill {
+    font-size: 0.75rem;
+    padding: 6px 12px;
+  }
+  .order-storefront-scroll {
+    max-height: none;
+    overflow-y: visible;
+  }
+  .order-fullscreen-footer {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px 4px;
+  }
+  .btn-order-footer-back,
+  .btn-order-footer-3d {
+    width: 100%;
+    justify-content: center;
+    font-size: 0.95rem;
+    padding: 13px 20px;
+  }
+}
+
+@media (min-width: 601px) and (max-width: 900px) {
+  .store-products-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  .order-fullscreen-container {
+    padding: 20px 16px 40px 16px;
+  }
+}
+
+/* =========================================================
+   3D BIRTHDAY WORLD MAIN SCREEN
+   ========================================================= */
+@media (max-width: 600px) {
+  .top-nav {
+    top: 10px;
+    left: 10px;
+    right: 10px;
+  }
+  .logo-badge {
+    padding: 6px 14px;
+    gap: 7px;
+  }
+  .logo-title {
+    font-size: 0.82rem;
+  }
+  .sparkle-icon {
+    font-size: 1.1rem;
+  }
+  .icon-btn {
+    width: 38px;
+    height: 38px;
+    font-size: 1rem;
+  }
+  .hero-celebrant-overlay {
+    top: 22%;
+    width: 94vw;
+  }
+  .wish-subtitle {
+    font-size: 1.5rem;
+  }
+  .celebrant-name-display {
+    font-size: clamp(1.5rem, 6.5vw, 2.8rem);
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .age-badge {
+    font-size: clamp(0.85rem, 3vw, 1.2rem);
+    padding: 2px 10px;
+  }
+  .bottom-action-bar {
+    bottom: 16px;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 97vw;
+    padding: 0 4px;
+  }
+  .action-card-btn {
+    padding: 8px 12px;
+    border-radius: 14px;
+    gap: 7px;
+  }
+  .action-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    font-size: 1rem;
+  }
+  .action-text strong {
+    font-size: 0.8rem;
+  }
+  .action-text small {
+    display: none;
+  }
+  .main-screen-quest-card {
+    bottom: 14px;
+    padding: 10px 16px;
+    border-radius: 18px;
+    gap: 10px;
+    max-width: 97vw;
+  }
+  .quest-icon-wrap {
+    font-size: 1.8rem;
+  }
+  .quest-title {
+    font-size: clamp(0.95rem, 4vw, 1.2rem);
+    letter-spacing: 0.8px;
+  }
+  .quest-subtitle {
+    font-size: clamp(0.72rem, 2.5vw, 0.88rem);
+  }
+  .quest-badge-counter {
+    font-size: 0.65rem;
+    padding: 2px 7px;
+  }
+  .guided-story-bar {
+    bottom: 14px;
+    max-width: 97vw;
+  }
+  .guided-action-btn {
+    padding: 12px 18px;
+    border-radius: 18px;
+    gap: 10px;
+  }
+  .guided-action-btn i {
+    font-size: 1.3rem;
+  }
+  .guided-action-btn strong {
+    font-size: 0.92rem;
+  }
+  .guided-action-btn small {
+    font-size: 0.72rem;
+  }
+  .tap-gift-card {
+    bottom: 100px;
+    padding: 12px 18px;
+    border-radius: 22px;
+    gap: 10px;
+  }
+  .tap-gift-icon {
+    font-size: 1.8rem;
+  }
+  .tap-gift-content strong {
+    font-size: 1rem;
+  }
+  .tap-gift-content small {
+    font-size: 0.78rem;
+  }
+  .camera-telemetry-hud {
+    width: calc(100vw - 28px);
+    max-width: 320px;
+    left: 14px;
+  }
+  .preview-back-btn {
+    top: 12px;
+    left: 12px;
+    padding: 8px 14px;
+    font-size: 0.8rem;
+  }
+  .preview-back-btn span {
+    display: none;
+  }
+}
+
+@media (min-width: 601px) and (max-width: 900px) {
+  .bottom-action-bar {
+    gap: 10px;
+  }
+  .action-text small {
+    font-size: 0.68rem;
+  }
+  .hero-celebrant-overlay {
+    top: 20%;
+  }
+  .celebrant-name-display {
+    font-size: clamp(2rem, 4.5vw, 3.2rem);
+  }
+}
+
+/* =========================================================
+   MENU DRAWER
+   ========================================================= */
+@media (max-width: 600px) {
+  .menu-drawer {
+    width: 100%;
+    max-width: 100%;
+  }
+  .menu-drawer-header {
+    padding: 18px 16px 14px 16px;
+  }
+  .menu-drawer-content {
+    padding: 16px;
+    gap: 18px;
+  }
+  .drawer-pill-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .drawer-action-pill {
+    font-size: 0.78rem;
+    padding: 9px 10px;
+  }
+  .drawer-theme-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .drawer-actions-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* =========================================================
+   MODALS (General)
+   ========================================================= */
+@media (max-width: 600px) {
+  .modal-overlay {
+    padding: 14px 10px;
+    align-items: flex-end;
+  }
+  .modal-card {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 22px 22px 0 0 !important;
+    padding: 24px 18px 32px !important;
+    max-height: 88vh;
+    overflow-y: auto;
+  }
+  #portal-login-modal {
+    align-items: center;
+    padding: 12px;
+  }
+  #portal-login-modal .modal-card {
+    border-radius: 20px !important;
+    margin: 0;
+  }
+  #delete-account-modal {
+    align-items: center;
+    padding: 12px;
+  }
+  #delete-account-modal .modal-card {
+    border-radius: 18px !important;
+  }
+  .card-title {
+    font-size: 1.3rem;
+  }
+  #banner-title {
+    font-size: clamp(1.6rem, 6vw, 2.5rem);
+  }
+  #banner-desc {
+    font-size: 0.95rem;
+  }
+  .celebration-banner {
+    padding: 20px 24px;
+    border-radius: 20px;
+    width: 90vw;
+  }
+  .book-album-modal-card,
+  .safarnama-modal-card {
+    border-radius: 20px 20px 0 0 !important;
+    max-height: 90vh;
+  }
+  .polaroids-gallery-card {
+    width: 100% !important;
+    border-radius: 22px 22px 0 0 !important;
+  }
+  .polaroids-grid {
+    grid-template-columns: 1fr !important;
+    max-width: 260px;
+    margin: 0 auto 20px auto;
+  }
+  .chat-history-modal-card {
+    width: 100%;
+    border-radius: 20px 20px 0 0;
+    max-height: 88vh;
+  }
+  .chat-history-content {
+    max-height: 45vh;
+  }
+}
+
+/* =========================================================
+   ALBUMS SECTION
+   ========================================================= */
+@media (max-width: 600px) {
+  .romantic-albums-section {
+    gap: 10px;
+  }
+  .albums-sparkle-tag {
+    font-size: 0.68rem;
+  }
+  .albums-hint-text {
+    font-size: 0.78rem;
+    text-align: center;
+    padding: 0 8px;
+  }
+}
+
+/* =========================================================
+   3D WEBGL & ARCADE
+   ========================================================= */
+@media (max-width: 600px) {
+  #canvas-container {
+    touch-action: none;
+  }
+  .arcade-card {
+    padding: 8px 16px;
+    gap: 16px;
+  }
+  .stat-label {
+    font-size: 0.5rem;
+  }
+  .stat-val {
+    font-size: 0.9rem;
+  }
+  .arcade-timer-bar {
+    width: 200px;
+  }
+  .firecrackers-canvas-overlay {
+    width: 100vw;
+    height: 55vh;
+    top: 5%;
+    transform: translateX(-50%);
+  }
+}
+
+/* =========================================================
+   MEMORIES UPLOAD
+   ========================================================= */
+@media (max-width: 600px) {
+  .memories-upload-container {
+    padding: 12px;
+  }
+  .memory-thumb-chip {
+    width: 75px;
+    height: 75px;
+  }
+}
+
+/* =========================================================
+   SMOOTH SCROLLING
+   ========================================================= */
+.chat-messages-scroll,
+.order-storefront-scroll,
+.safarnama-chapters-scroll,
+.memories-grid-wrapper,
+.chat-history-content,
+.delete-account-card,
+.book-album-modal-card {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* =========================================================
+   TINY SCREENS (max-width: 400px)
+   ========================================================= */
+@media (max-width: 400px) {
+  .portal-hero-title {
+    font-size: 1.5rem;
+  }
+  .portal-hero-tagline {
+    font-size: 0.82rem;
+  }
+  .btn-portal-login {
+    font-size: 0.95rem;
+    padding: 13px 18px;
+  }
+  .celebrant-name-display {
+    font-size: 1.4rem;
+  }
+  .deck-card {
+    width: 210px !important;
+    height: 165px !important;
+  }
+  .deck-card.stacked-behind {
+    transform: translateX(30px) scale(0.82) translateZ(-40px) !important;
+  }
+}
+
+/* =========================================================
+   LANDSCAPE MOBILE
+   ========================================================= */
+@media (max-width: 900px) and (orientation: landscape) {
+  .portal-landing-screen {
+    padding: 10px 20px 20px 20px;
+    overflow-y: auto;
+  }
+  .portal-landing-container {
+    padding: 10px 0 30px 0;
+    gap: 14px;
+  }
+  .portal-hero-title {
+    font-size: clamp(1.4rem, 4vw, 2rem);
+  }
+  .portal-feature-index-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .romantic-chat-screen {
+    padding: 10px 16px;
+  }
+  .chat-messages-scroll {
+    height: 200px;
+    max-height: 28vh;
+  }
+  .hero-celebrant-overlay {
+    top: 18%;
+  }
+  .bottom-action-bar {
+    bottom: 10px;
+  }
+  .main-screen-quest-card {
+    bottom: 10px;
+    padding: 8px 14px;
+  }
+  .guided-story-bar {
+    bottom: 10px;
+  }
+  .store-products-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+}
+
+/* =========================================================
+   LARGE SCREENS (1400px+)
+   ========================================================= */
+@media (min-width: 1400px) {
+  .romantic-chat-container {
+    max-width: 700px;
+  }
+  .order-fullscreen-container {
+    max-width: 1200px;
+  }
+  .creator-dashboard-container {
+    max-width: 900px;
+  }
+  .store-products-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+  }
+}
+
+/* =========================================================
+   LIVE RECIPIENT TRACKER & 2-WAY CHAT RESPONSIVE
+   ========================================================= */
+
+/* Desktop & Tablets (>= 769px) */
+@media (min-width: 769px) {
+  .creator-live-tracker-card {
+    padding: 24px 26px;
+    margin-top: 24px;
+  }
+  .tracker-body-grid {
+    grid-template-columns: 1.35fr 1fr;
+    gap: 20px;
+  }
+  .activity-timeline-list {
+    max-height: 250px;
+  }
+}
+
+/* Tablets (601px - 768px) */
+@media (min-width: 601px) and (max-width: 768px) {
+  .creator-live-tracker-card {
+    padding: 18px 16px;
+    margin-top: 18px;
+    border-radius: 16px;
+  }
+  .tracker-header {
+    gap: 10px;
+  }
+  .tracker-body-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .activity-timeline-list {
+    max-height: 220px;
+  }
+}
+
+/* Mobile Screens (<= 600px) */
+@media (max-width: 600px) {
+  .creator-live-tracker-card {
+    padding: 16px 12px;
+    margin-top: 16px;
+    border-radius: 16px;
+  }
+  .tracker-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding-bottom: 14px;
+    margin-bottom: 14px;
+  }
+  .tracker-title-group {
+    gap: 10px;
+    width: 100%;
+  }
+  .tracker-icon-pulse {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    font-size: 1.1rem;
+    border-radius: 10px;
+  }
+  .tracker-title-group h3 {
+    font-size: 1.05rem;
+    line-height: 1.25;
+  }
+  .tracker-title-group p {
+    font-size: 0.78rem;
+    line-height: 1.4;
+  }
+  .tracker-status-pill {
+    width: 100%;
+    justify-content: center;
+    padding: 6px 12px;
+    font-size: 0.76rem;
+  }
+  .tracker-body-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .tracker-activity-stream {
+    padding: 12px 10px;
+    border-radius: 12px;
+  }
+  .stream-header {
+    font-size: 0.8rem;
+    margin-bottom: 10px;
+  }
+  .btn-refresh-tracker {
+    font-size: 0.72rem;
+    padding: 3px 8px;
+  }
+  .activity-timeline-list {
+    max-height: 200px;
+    gap: 6px;
+  }
+  .activity-timeline-item {
+    padding: 7px 10px;
+    gap: 8px;
+    border-radius: 8px;
+    font-size: 0.78rem;
+  }
+  .activity-item-icon {
+    font-size: 1rem;
+  }
+  .activity-item-text strong {
+    font-size: 0.8rem;
+    word-break: break-word;
+  }
+  .activity-item-text span {
+    font-size: 0.72rem;
+  }
+  .activity-item-time {
+    font-size: 0.68rem;
+  }
+  .tracker-chat-dock {
+    padding: 14px 12px;
+    border-radius: 12px;
+  }
+  .chat-dock-header {
+    font-size: 0.84rem;
+    margin-bottom: 6px;
+  }
+  .chat-dock-hint {
+    font-size: 0.76rem;
+    line-height: 1.4;
+    margin-bottom: 12px;
+  }
+  .btn-creator-open-live-chat {
+    padding: 12px 14px;
+    font-size: 0.82rem;
+    gap: 8px;
+  }
+  .creator-live-chat-card {
+    width: 96% !important;
+    max-height: 90vh !important;
+    padding: 16px 12px !important;
+    border-radius: 18px !important;
+  }
+  .creator-chat-modal-header h3 {
+    font-size: 1rem;
+  }
+  .creator-chat-messages-scroll {
+    max-height: 52vh;
+    padding: 10px 6px;
+  }
+  .creator-bubble-text {
+    font-size: 0.85rem;
+  }
+  .creator-chat-input-bar {
+    gap: 8px;
+    padding-top: 10px;
+  }
+  .creator-chat-input-bar input {
+    font-size: 16px !important; /* prevent iOS auto-zoom */
+    padding: 10px 12px;
+  }
+  .btn-creator-send-msg {
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+  }
+}
+
+/* =========================================================
+   REDUCED MOTION
+   ========================================================= */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* =========================================================
+   SAFE AREA INSETS (Notched phones - iPhone X+)
+   ========================================================= */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .main-screen-quest-card,
+  .guided-story-bar,
+  .bottom-action-bar {
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+  }
+  .portal-landing-screen {
+    padding-bottom: max(30px, env(safe-area-inset-bottom));
+  }
+  .chat-input-bar {
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+  .wizard-top-bar {
+    padding-top: max(12px, env(safe-area-inset-top));
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
+}
+
+/* =========================================================
+   CREATOR DASHBOARD WIZARD — DESKTOP VS MOBILE RESPONSIVE
+   ========================================================= */
+
+/* Desktop & Laptop (769px and above) */
+@media (min-width: 769px) {
+  .portal-creator-dashboard {
+    padding-bottom: 80px;
+  }
+  .wizard-top-bar {
+    padding: 14px 32px;
+  }
+  .wizard-user-pill {
+    padding: 8px 18px;
+    font-size: 0.92rem;
+  }
+  .wizard-btn-delete {
+    padding: 8px 18px;
+    font-size: 0.88rem;
+  }
+  .wizard-progress-bar {
+    padding: 22px 20px 12px;
+    max-width: 620px;
+  }
+  .step-circle {
+    width: 40px;
+    height: 40px;
+    font-size: 1rem;
+  }
+  .step-label {
+    font-size: 0.8rem;
+  }
+  .mode-carousel-viewport {
+    gap: 18px;
+    padding: 16px 8px;
+  }
+  .mode-card {
+    flex: 0 0 220px;
+  }
+  .mode-arrow-left {
+    left: -20px;
+  }
+  .mode-arrow-right {
+    right: -20px;
+  }
+  .creator-form-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .tracker-body-grid {
+    grid-template-columns: 1.35fr 1fr;
+  }
+}
+
+/* Mobile Screens (max-width: 768px) */
+@media (max-width: 768px) {
+  .portal-creator-dashboard {
+    padding-bottom: 50px;
+  }
+  .wizard-top-bar {
+    padding: 10px 14px;
+  }
+  .wizard-user-pill {
+    padding: 5px 12px;
+    font-size: 0.78rem;
+    gap: 6px;
+  }
+  .wizard-btn-delete {
+    padding: 5px 10px;
+    font-size: 0.76rem;
+  }
+  .delete-label-text {
+    display: inline;
+  }
+  .wizard-progress-bar {
+    padding: 12px 10px 6px;
+    max-width: 100%;
+  }
+  .step-circle {
+    width: 32px;
+    height: 32px;
+    font-size: 0.82rem;
+  }
+  .step-label {
+    font-size: 0.68rem;
+  }
+  .wizard-progress-line {
+    margin: -12px 3px 0 3px;
+  }
+  .creator-dashboard-container {
+    padding: 10px 12px;
+    gap: 16px;
+  }
+  .wizard-step-header .creator-welcome-title {
+    font-size: 1.4rem;
+  }
+  .wizard-step-header .creator-welcome-sub {
+    font-size: 0.82rem;
+  }
+  .mode-carousel-wrapper {
+    position: relative;
+    padding: 0 8px;
+  }
+  .mode-carousel-viewport {
+    gap: 12px;
+    padding: 10px 4px;
+  }
+  .mode-card {
+    flex: 0 0 78vw;
+    max-width: 280px;
+    padding: 16px 14px;
+  }
+  .mode-carousel-arrow {
+    width: 38px;
+    height: 38px;
+    font-size: 0.95rem;
+  }
+  .mode-arrow-left {
+    left: 0px;
+  }
+  .mode-arrow-right {
+    right: 0px;
+  }
+  .creator-form-card,
+  .safarnama-builder-section,
+  .chat-questions-builder {
+    padding: 18px 14px;
+    border-radius: 20px;
+  }
+  .creator-form-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .wizard-nav-row {
+    flex-direction: row;
+    gap: 10px;
+  }
+  .wizard-btn-back,
+  .wizard-btn-next {
+    flex: 1;
+    justify-content: center;
+    padding: 12px 14px;
+    font-size: 0.88rem;
+  }
+  .tracker-body-grid {
+    grid-template-columns: 1fr;
+  }
+  .btn-generate-surprise-link {
+    width: 100%;
+    padding: 14px 20px;
+    font-size: 0.98rem;
+    justify-content: center;
+  }
+}
+
+/* Extra Small Phones (max-width: 420px) */
+@media (max-width: 420px) {
+  .wizard-top-bar {
+    padding: 8px 10px;
+  }
+  .delete-label-text {
+    display: none;
+  }
+  .wizard-user-pill strong {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mode-card {
+    flex: 0 0 84vw;
+  }
+}
+

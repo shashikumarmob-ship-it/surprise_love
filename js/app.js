@@ -314,9 +314,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Recipient Activity Tracking Helper
   function trackRecipientActivity(action, details, icon = '✨') {
     const username = getRecipientUserKey();
+    const token = activeSurpriseToken || (new URLSearchParams(window.location.search || window.location.hash.replace(/^#/, '?')).get('s') || '').trim();
     const now = new Date();
     const timeStr = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
-    const actData = { action, details, icon, time: timeStr, username };
+    const actData = { action, details, icon, time: timeStr, username, token };
 
     if (liveChatBus) {
       try { liveChatBus.postMessage({ type: 'activity', data: actData }); } catch(e) {}
@@ -385,6 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   ];
 
+  let activeChatQuestions = [...romanticQuestions];
   let currentQuestionIndex = 0;
   let isTypingQuestion = false;
 
@@ -469,13 +471,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // If automated questioning is paused because she's having a 2-way follow-up conversation, halt!
     if (isAutomatedChatPaused) return;
 
-    if (currentQuestionIndex >= romanticQuestions.length) {
+    if (currentQuestionIndex >= activeChatQuestions.length) {
       finishChatJourney();
       return;
     }
 
     isTypingQuestion = true;
-    const qData = romanticQuestions[currentQuestionIndex];
+    const rawQ = activeChatQuestions[currentQuestionIndex];
+    const qData = typeof rawQ === 'string'
+      ? { question: rawQ, suggestions: ["Aww so sweet! 💕", "Thank you! ❤️", "Love this! ✨"] }
+      : rawQ;
     if (chatStepCounter) chatStepCounter.textContent = currentQuestionIndex + 1;
     if (chatLiveStatus) chatLiveStatus.textContent = "Typing with love...";
 
@@ -744,7 +749,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const text = replyText || (chatUserInput ? chatUserInput.value.trim() : '');
     if (!text || isTypingQuestion) return;
 
-    const currentQData = romanticQuestions[currentQuestionIndex];
+    const rawQ = activeChatQuestions[currentQuestionIndex];
+    const currentQData = typeof rawQ === 'string' ? { question: rawQ, suggestions: [] } : (rawQ || { question: "Lovely Question", suggestions: [] });
     const now = new Date();
     const timeStr = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
     const quotedData = activeFollowUpQuote ? { ...activeFollowUpQuote } : null;
@@ -811,8 +817,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Dispatch 2-way live chat message to backend server
       const username = getRecipientUserKey();
+      const token = activeSurpriseToken || (new URLSearchParams(window.location.search || window.location.hash.replace(/^#/, '?')).get('s') || '').trim();
       const livePayload = {
         username: username,
+        token: token,
         sender: 'celebrant',
         text: text,
         quote: quotedData,
@@ -897,7 +905,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Move to next question smoothly
     currentQuestionIndex++;
-    if (currentQuestionIndex < romanticQuestions.length) {
+    if (currentQuestionIndex < activeChatQuestions.length) {
       setTimeout(() => {
         typeNextQuestion();
       }, 700);
@@ -956,14 +964,48 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch(e) {}
   }
 
+  const celebrantSeenMsgIds = new Set();
+
   if (liveChatBus) {
     liveChatBus.onmessage = (event) => {
       const { type, data } = event.data || {};
       if (type === 'live_chat_msg' && data && data.sender === 'creator') {
-        receiveCreatorLiveMessage(data);
+        const msgKey = data.id || (data.text + '_' + (data.timestamp || data.time));
+        if (!celebrantSeenMsgIds.has(msgKey)) {
+          celebrantSeenMsgIds.add(msgKey);
+          receiveCreatorLiveMessage(data);
+        }
       }
     };
   }
+
+  // Cross-device live reply polling for Celebrant (phone & computer across internet)
+  async function celebrantPollLiveReplies() {
+    const username = getRecipientUserKey();
+    const token = activeSurpriseToken || (new URLSearchParams(window.location.search || window.location.hash.replace(/^#/, '?')).get('s') || '').trim();
+    if (!token && (!username || username === 'user')) return;
+
+    try {
+      const url = `${API_BASE}/api/live_progress?username=${encodeURIComponent(username)}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
+      const res = await fetch(url);
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json && json.status === 'success' && json.chat && Array.isArray(json.chat.messages)) {
+        json.chat.messages.forEach(msg => {
+          if (msg.sender === 'creator') {
+            const msgKey = msg.id || (msg.text + '_' + (msg.timestamp || msg.time));
+            if (!celebrantSeenMsgIds.has(msgKey)) {
+              celebrantSeenMsgIds.add(msgKey);
+              receiveCreatorLiveMessage(msg);
+            }
+          } else if (msg.id) {
+            celebrantSeenMsgIds.add(msg.id);
+          }
+        });
+      }
+    } catch(e) {}
+  }
+  setInterval(celebrantPollLiveReplies, 3000);
 
   function finishChatJourney() {
     if (chatLiveStatus) chatLiveStatus.textContent = "So in love with you! 💖";
@@ -1351,6 +1393,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (Array.isArray(parsed)) userSafarnamaChapters = parsed;
               } catch(e) {}
             }
+            if (d.questions && Array.isArray(d.questions) && d.questions.length > 0) {
+              activeChatQuestions = d.questions;
+            }
             // Main portrait from server (sanitized proxy URL, resolved for display)
             const serverPhoto = d.photo ? resolvePhotoUrl(d.photo) : null;
             if (serverPhoto) currentPhotoDataUrl = d.photo;
@@ -1367,6 +1412,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             updateCelebrantInfo();
             applyTheme(activeTheme);
+            trackRecipientActivity('link_opened', 'Opened magical birthday surprise link 🚀', '🚀');
             return;
           }
         }
@@ -2624,12 +2670,14 @@ document.addEventListener('DOMContentLoaded', () => {
       photoUrl: creatorInputPhotoUrl ? creatorInputPhotoUrl.value : '',
       mode: selectedCreatorMode,
       safarnama: userSafarnamaChapters,
+      questions: userCustomQuestions,
       memoriesPhotos: userMemoriesPhotos,
       savedAt: new Date().toISOString()
     };
     try {
       localStorage.setItem(`birthday_userdata_${userKey}`, JSON.stringify(data));
       localStorage.setItem(`birthday_safarnama_${userKey}`, JSON.stringify(userSafarnamaChapters));
+      localStorage.setItem(`birthday_questions_${userKey}`, JSON.stringify(userCustomQuestions));
       localStorage.setItem(`birthday_memories_photos_${userKey}`, JSON.stringify(userMemoriesPhotos));
     } catch(e) {}
     // Also try server
@@ -2657,19 +2705,30 @@ document.addEventListener('DOMContentLoaded', () => {
       currentPhotoDataUrl = data.photoUrl;
       const singlePreview = document.getElementById('creator-single-photo-preview');
       const previewImg = document.getElementById('main-photo-preview-img');
+      const photoTick = document.getElementById('main-photo-tick');
       if (singlePreview && previewImg) {
         previewImg.src = data.photoUrl;
         singlePreview.classList.remove('hidden');
+      }
+      if (photoTick) {
+        photoTick.classList.remove('hidden');
       }
       if (creatorPhotoStatus) {
         creatorPhotoStatus.textContent = '✅ Photo loaded from Telegram Cloud!';
         creatorPhotoStatus.style.color = '#00ff88';
       }
     }
-    if (data.mode) setDeckMode(data.mode);
+    if (data.mode) {
+      if (typeof setModeCard === 'function') setModeCard(data.mode);
+      else setDeckMode(data.mode);
+    }
 
     if (data.safarnama && Array.isArray(data.safarnama) && data.safarnama.length > 0) {
       userSafarnamaChapters = data.safarnama;
+    }
+
+    if (data.questions && Array.isArray(data.questions) && data.questions.length > 0) {
+      userCustomQuestions = data.questions;
     }
 
     if (data.memoriesPhotos && Array.isArray(data.memoriesPhotos) && data.memoriesPhotos.length > 0) {
@@ -2695,6 +2754,8 @@ document.addEventListener('DOMContentLoaded', () => {
       img.src = data.photoUrl;
     }
     renderSafarnamaBuilder();
+    if (typeof renderQuestionsBuilder === 'function') renderQuestionsBuilder();
+    if (typeof updateWizardValidation === 'function') updateWizardValidation();
   }
 
   // --- Helper: Restore saved form data (Server-First with Local Cache Fallback) ---
@@ -2738,6 +2799,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Restore previous form data & render Safarnama builder
     restoreUserFormData(currentPortalUser);
+    initCreatorLiveTracker();
+
+    // Direct landing to Step 4 if active unexpired link already exists
+    const savedExp = localStorage.getItem(`birthday_link_expires_${currentPortalUser}`);
+    const lastLink = localStorage.getItem(`birthday_last_generated_link_${currentPortalUser}`);
+    if (savedExp) {
+      const expNum = parseInt(savedExp, 10);
+      if (Date.now() < expNum && lastLink) {
+        if (finalSurpriseLinkInput) finalSurpriseLinkInput.value = lastLink;
+        if (generatedLinkBox) generatedLinkBox.classList.remove('hidden');
+        startLinkExpiryCountdown(expNum, currentPortalUser);
+        goToWizardStep(4);
+      } else {
+        goToWizardStep(1);
+      }
+    } else {
+      goToWizardStep(1);
+    }
 
     if (window.confetti) window.confetti({ particleCount: 50, spread: 70, origin: { y: 0.6 } });
     if (window.birthdayAudio) { try { window.birthdayAudio.playFanfare(); } catch(e) {} }
@@ -2929,62 +3008,163 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 5. 3D Overlapping Deck Mode Switcher (For GF vs For BF)
-  function setDeckMode(mode) {
+  // ===== 5-MODE SURPRISE CAROUSEL CONTROLLER =====
+  const MODE_CONFIGS = {
+    gf: {
+      heading: "💖 Fill Her Surprise Details",
+      subheading: "Personalize her name, romantic wish, and upload photo:",
+      namePlaceholder: "e.g. Ananya / Priya / Jaan",
+      nickPlaceholder: "e.g. My Princess / Angel / Queen",
+      theme: "rose-glamour",
+      wish: "Happy Birthday to the most amazing, gorgeous, and loving girl in the whole world! Thank you for bringing endless joy, warmth, and magic into my life. Every single day with you is my favorite day. May all your sweetest dreams come true today and forever! 💖✨"
+    },
+    bf: {
+      heading: "👦 Fill His Surprise Details",
+      subheading: "Personalize his name, sweet wish, and upload photo:",
+      namePlaceholder: "e.g. Rahul / Aryan / Kabir",
+      nickPlaceholder: "e.g. My Handsome King / Rockstar / Hero",
+      theme: "midnight-gold",
+      wish: "Happy Birthday to the most loving, wonderful, and caring boyfriend in the world! Thank you for always protecting me, making me laugh, and being my biggest support. I love you to infinity and beyond! 🤴🔥"
+    },
+    friend: {
+      heading: "🤝 Fill Your Bestie's Surprise Details",
+      subheading: "Personalize their name, fun wish, and upload photo:",
+      namePlaceholder: "e.g. Rohit / Sneha / Aman",
+      nickPlaceholder: "e.g. Partner in Crime / Bro / Bestie",
+      theme: "cyber-neon",
+      wish: "Happy Birthday to my absolute favorite human & partner in crime! 🥳 Thank you for all the endless laughs, crazy memories, and late-night gossips. May this year bring you massive success, happiness, and free treats for me! 🎉🍕"
+    },
+    spouse: {
+      heading: "💍 Fill Your Beloved's Surprise Details",
+      subheading: "Personalize their name, heartfelt life-partner wish, and upload photo:",
+      namePlaceholder: "e.g. Simran / Vikram / Shweta",
+      nickPlaceholder: "e.g. My Life / Soulmate / Humsafar",
+      theme: "rose-glamour",
+      wish: "Happy Birthday to my beloved life partner & soulmate! ❤️ Walking through life hand in hand with you is the greatest blessing I could ever ask for. Thank you for making our home a paradise filled with peace, laughter, and unconditional love. Forever yours! 💍✨"
+    },
+    boss: {
+      heading: "👔 Fill Your Leader's Surprise Details",
+      subheading: "Personalize their name, inspiring wish, and upload photo:",
+      namePlaceholder: "e.g. Sir / Ma'am / Mr. Sharma",
+      nickPlaceholder: "e.g. Our Respected Mentor / Leader / Guide",
+      theme: "midnight-gold",
+      wish: "Warmest Birthday greetings to an inspiring leader and incredible mentor! 🌟 Thank you for your visionary leadership, invaluable guidance, and constant encouragement. Wishing you continued success, good health, and prosperous milestones ahead! 👔⭐"
+    }
+  };
+
+  const MODE_ORDER = ['gf', 'bf', 'friend', 'spouse', 'boss'];
+  let currentModeIdx = 0;
+
+  function setModeCard(mode) {
+    if (!MODE_CONFIGS[mode]) mode = 'gf';
     selectedCreatorMode = mode;
-    if (mode === 'gf') {
-      if (deckCardGf) {
-        deckCardGf.classList.remove('stacked-behind');
-        deckCardGf.classList.add('active-focus');
-        const st = deckCardGf.querySelector('.deck-active-status');
-        if (st) st.innerHTML = '<i class="fa-solid fa-circle-check"></i> SELECTED (FRONT)';
-      }
-      if (deckCardBf) {
-        deckCardBf.classList.remove('active-focus');
-        deckCardBf.classList.add('stacked-behind');
-        const st = deckCardBf.querySelector('.deck-active-status');
-        if (st) st.innerHTML = '<i class="fa-solid fa-hand-pointer"></i> Click to Select';
-      }
+    currentModeIdx = MODE_ORDER.indexOf(mode);
 
-      // Update Form labels for Girlfriend
-      if (creatorFormHeading) creatorFormHeading.textContent = "💖 Fill Her Surprise Details";
-      if (creatorFormSubheading) creatorFormSubheading.textContent = "Personalize her name, romantic wish, and upload photo:";
-      if (creatorInputName) creatorInputName.placeholder = "e.g. Ananya / Priya / Jaan";
-      if (creatorInputNickname) creatorInputNickname.placeholder = "e.g. My Princess / Angel / Queen";
-      if (creatorInputWish) creatorInputWish.value = "Happy Birthday to the most amazing, gorgeous, and loving girl in the whole world! Thank you for bringing endless joy, warmth, and magic into my life. Every single day with you is my favorite day. May all your sweetest dreams come true today and forever! 💖✨";
-    } else {
-      if (deckCardBf) {
-        deckCardBf.classList.remove('stacked-behind');
-        deckCardBf.classList.add('active-focus');
-        const st = deckCardBf.querySelector('.deck-active-status');
-        if (st) st.innerHTML = '<i class="fa-solid fa-circle-check"></i> SELECTED (FRONT)';
+    // Update active card class & badge
+    MODE_ORDER.forEach(m => {
+      const card = document.getElementById(`mode-card-${m}`);
+      if (card) {
+        const isActive = (m === mode);
+        card.classList.toggle('mode-card-active', isActive);
+        const badge = card.querySelector('.mode-card-badge');
+        if (badge) {
+          badge.innerHTML = isActive
+            ? '<i class="fa-solid fa-circle-check"></i> SELECTED'
+            : '<i class="fa-solid fa-hand-pointer"></i> Tap to Select';
+        }
       }
-      if (deckCardGf) {
-        deckCardGf.classList.remove('active-focus');
-        deckCardGf.classList.add('stacked-behind');
-        const st = deckCardGf.querySelector('.deck-active-status');
-        if (st) st.innerHTML = '<i class="fa-solid fa-hand-pointer"></i> Click to Select';
-      }
+    });
 
-      // Update Form labels for Boyfriend
-      if (creatorFormHeading) creatorFormHeading.textContent = "👦 Fill His Surprise Details";
-      if (creatorFormSubheading) creatorFormSubheading.textContent = "Personalize his name, sweet wish, and upload photo:";
-      if (creatorInputName) creatorInputName.placeholder = "e.g. Rahul / Aryan / Kabir";
-      if (creatorInputNickname) creatorInputNickname.placeholder = "e.g. My Handsome King / Rockstar / Hero";
-      if (creatorInputWish) creatorInputWish.value = "Happy Birthday to the most loving, wonderful, and caring boyfriend in the world! Thank you for always protecting me, making me laugh, and being my biggest support. I love you to infinity and beyond! 🤴🔥";
+    // Update carousel dots
+    document.querySelectorAll('.carousel-dot').forEach((dot, idx) => {
+      dot.classList.toggle('active', idx === currentModeIdx);
+    });
+
+    // Update form labels & placeholders
+    const cfg = MODE_CONFIGS[mode];
+    if (creatorFormHeading) creatorFormHeading.textContent = cfg.heading;
+    if (creatorFormSubheading) creatorFormSubheading.textContent = cfg.subheading;
+    if (creatorInputName) creatorInputName.placeholder = cfg.namePlaceholder;
+    if (creatorInputNickname) creatorInputNickname.placeholder = cfg.nickPlaceholder;
+    if (creatorInputTheme && cfg.theme) creatorInputTheme.value = cfg.theme;
+    if (creatorInputWish && (!creatorInputWish.value || Object.values(MODE_CONFIGS).some(c => c.wish === creatorInputWish.value))) {
+      creatorInputWish.value = cfg.wish;
     }
 
     if (window.birthdayAudio) {
       try { window.birthdayAudio.playPop(); } catch(e) {}
     }
+
+    if (typeof updateWizardValidation === 'function') updateWizardValidation();
   }
 
-  if (deckCardGf) {
-    deckCardGf.addEventListener('click', () => setDeckMode('gf'));
+  function setDeckMode(mode) {
+    setModeCard(mode);
   }
 
-  if (deckCardBf) {
-    deckCardBf.addEventListener('click', () => setDeckMode('bf'));
+  function scrollModeCardIntoView(idx) {
+    const targetMode = MODE_ORDER[idx];
+    const targetCard = document.getElementById(`mode-card-${targetMode}`);
+    if (targetCard) {
+      targetCard.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+  }
+
+  // Arrow navigation buttons on card borders
+  const modeArrowLeft = document.getElementById('mode-arrow-left');
+  const modeArrowRight = document.getElementById('mode-arrow-right');
+
+  if (modeArrowLeft) {
+    modeArrowLeft.addEventListener('click', () => {
+      currentModeIdx = (currentModeIdx - 1 + MODE_ORDER.length) % MODE_ORDER.length;
+      setModeCard(MODE_ORDER[currentModeIdx]);
+      scrollModeCardIntoView(currentModeIdx);
+    });
+  }
+
+  if (modeArrowRight) {
+    modeArrowRight.addEventListener('click', () => {
+      currentModeIdx = (currentModeIdx + 1) % MODE_ORDER.length;
+      setModeCard(MODE_ORDER[currentModeIdx]);
+      scrollModeCardIntoView(currentModeIdx);
+    });
+  }
+
+  // Card clicks
+  MODE_ORDER.forEach((m, idx) => {
+    const card = document.getElementById(`mode-card-${m}`);
+    if (card) {
+      card.addEventListener('click', () => {
+        setModeCard(m);
+        scrollModeCardIntoView(idx);
+      });
+    }
+  });
+
+  // Dots clicks
+  document.querySelectorAll('.carousel-dot').forEach((dot) => {
+    dot.addEventListener('click', (e) => {
+      const idx = parseInt(e.currentTarget.getAttribute('data-idx'), 10);
+      if (!isNaN(idx) && MODE_ORDER[idx]) {
+        setModeCard(MODE_ORDER[idx]);
+        scrollModeCardIntoView(idx);
+      }
+    });
+  });
+
+  // Real Photo Upload Progress Bar Helper
+  function updateMainPhotoProgress(percent) {
+    const wrap = document.getElementById('main-photo-progress-wrap');
+    const fill = document.getElementById('main-photo-progress-fill');
+    const txt = document.getElementById('main-photo-progress-text');
+    if (wrap) wrap.classList.remove('hidden');
+    if (fill) fill.style.width = `${percent}%`;
+    if (txt) txt.textContent = `${percent}%`;
+    if (percent >= 100) {
+      setTimeout(() => {
+        if (wrap) wrap.classList.add('hidden');
+      }, 700);
+    }
   }
 
   // Helper: Set and preview main portrait photo
@@ -2996,9 +3176,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const singlePreview = document.getElementById('creator-single-photo-preview');
     const previewImg = document.getElementById('main-photo-preview-img');
+    const photoTick = document.getElementById('main-photo-tick');
     if (singlePreview && previewImg) {
       previewImg.src = resolvePhotoUrl(url);
       singlePreview.classList.remove('hidden');
+    }
+    if (photoTick) {
+      photoTick.classList.remove('hidden');
     }
     if (creatorPhotoStatus) {
       creatorPhotoStatus.textContent = statusMsg;
@@ -3006,9 +3190,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     updateMemoriesPhoto(url, userMemoriesPhotos);
     if (currentPortalUser) saveUserFormData(currentPortalUser);
+    if (typeof updateWizardValidation === 'function') updateWizardValidation();
   }
 
-  // 6. Main Portrait Photo Upload (Lossless upload to local server API + Instant Preview)
+  // 6. Main Portrait Photo Upload (Lossless upload to local server API + Instant Preview + Real Progress + Green Tick)
   if (creatorInputPhoto) {
     creatorInputPhoto.addEventListener('change', (e) => {
       const file = e.target.files[0];
@@ -3019,25 +3204,29 @@ document.addEventListener('DOMContentLoaded', () => {
         creatorPhotoStatus.style.color = '#ffd700';
       }
 
+      updateMainPhotoProgress(20);
+
       const reader = new FileReader();
       reader.onload = (ev) => {
         const dataUrl = ev.target.result;
+        updateMainPhotoProgress(60);
         // Show local preview immediately
         setMainPortraitPhoto(dataUrl, '⏳ Uploading to Server...');
 
-         // Upload original lossless file to server & Telegram Cloud
-         fetch(`${API_BASE}/api/upload_image`, {
-           method: 'POST',
-           headers: authHeaders(),
-           body: JSON.stringify({
-             image: dataUrl,
-             filename: file.name,
-             username: currentPortalUser || 'user',
-             type: 'Main Portrait'
+        // Upload original lossless file to server & Telegram Cloud
+        fetch(`${API_BASE}/api/upload_image`, {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({
+            image: dataUrl,
+            filename: file.name,
+            username: currentPortalUser || 'user',
+            type: 'Main Portrait'
           })
         })
         .then(res => res.json())
         .then(serverData => {
+          updateMainPhotoProgress(100);
           if (serverData && serverData.status === 'success' && serverData.url) {
             const finalPhotoUrl = serverData.tg_url || serverData.url;
             setMainPortraitPhoto(finalPhotoUrl, '✅ Photo Uploaded to Telegram & Saved!');
@@ -3045,6 +3234,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         })
         .catch(() => {
+          updateMainPhotoProgress(100);
           setMainPortraitPhoto(dataUrl, '✅ Photo Ready!');
         });
       };
@@ -3071,12 +3261,17 @@ document.addEventListener('DOMContentLoaded', () => {
       currentPhotoDataUrl = null;
       const singlePreview = document.getElementById('creator-single-photo-preview');
       if (singlePreview) singlePreview.classList.add('hidden');
+      const photoTick = document.getElementById('main-photo-tick');
+      if (photoTick) photoTick.classList.add('hidden');
+      const wrap = document.getElementById('main-photo-progress-wrap');
+      if (wrap) wrap.classList.add('hidden');
       if (creatorPhotoStatus) {
-        creatorPhotoStatus.textContent = 'Default Romantic 3D Badge Selected';
+        creatorPhotoStatus.textContent = 'No photo selected';
         creatorPhotoStatus.style.color = 'rgba(255,255,255,0.7)';
       }
       updateMemoriesPhoto(null, userMemoriesPhotos);
       if (currentPortalUser) saveUserFormData(currentPortalUser);
+      if (typeof updateWizardValidation === 'function') updateWizardValidation();
     });
   }
 
@@ -3128,7 +3323,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="memory-thumb-chip" data-idx="${idx}" style="cursor:pointer;" title="Click to view full image">
           <img src="${src}" alt="Memory ${idx + 1}" class="memory-thumb-img">
           <button type="button" class="btn-remove-thumb" data-idx="${idx}" title="Remove">&times;</button>
-          ${isUploading ? '<div class="thumb-upload-indicator">⏳ Uploading...</div>' : ''}
+          ${isUploading ? '<div class="thumb-upload-indicator">⏳ Uploading...</div>' : '<div class="photo-upload-tick" style="position:absolute; bottom:4px; right:4px; font-size:0.72rem; padding:2px 6px; z-index:5;"><i class="fa-solid fa-circle-check"></i></div>'}
         </div>
       `;
     });
@@ -3240,9 +3435,335 @@ document.addEventListener('DOMContentLoaded', () => {
         renderMemoriesPreviewsGrid();
         updateMemoriesPhoto(currentPhotoDataUrl, userMemoriesPhotos);
         if (currentPortalUser) saveUserFormData(currentPortalUser);
+        if (typeof updateWizardValidation === 'function') updateWizardValidation();
       }
     });
   }
+
+  // ===== STEP 3: CUSTOM CHAT QUESTIONS BUILDER =====
+  const DEFAULT_QUESTIONS_PRESETS = [
+    {
+      question: "Hey prettiest girl... 💕 Do you know who is the luckiest guy in the entire universe today? (Hint: The one typing this for you ❤️)",
+      suggestions: ["You are! 🥰", "My handsome boy ❤️", "Aww so sweet! 💕"]
+    },
+    {
+      question: "What is the one thing that made you smile the most this past year? 🥰",
+      suggestions: ["Being with you! ❤️", "All our cute calls 📱", "Your sweet surprises 🎁"]
+    },
+    {
+      question: "If you could make one magical birthday wish right this second, what would it be? ✨",
+      suggestions: ["To stay by your side forever 💕", "Lots of happiness & love 🌸", "A big tight hug right now! 🫂"]
+    },
+    {
+      question: "What is your absolute favorite memory of us together so far? 💕",
+      suggestions: ["Every moment with you 🥰", "Our late night talks 🌙", "Our first date 🌹"]
+    },
+    {
+      question: "Are you ready to step into your grand 3D birthday surprise wonderland now, my princess? 👑🎂",
+      suggestions: ["Yes, take me there! ✨", "Can't wait! 🎉", "Let's celebrate! 💖"]
+    }
+  ];
+
+  let userCustomQuestions = JSON.parse(JSON.stringify(DEFAULT_QUESTIONS_PRESETS));
+
+  function renderQuestionsBuilder() {
+    const listEl = document.getElementById('questions-list');
+    if (!listEl) return;
+
+    listEl.innerHTML = '';
+    userCustomQuestions.forEach((qObj, idx) => {
+      const card = document.createElement('div');
+      card.className = 'question-item-card';
+      const numStr = String(idx + 1).padStart(2, '0');
+      const qText = typeof qObj === 'string' ? qObj : (qObj.question || '');
+      card.innerHTML = `
+        <div class="question-item-top">
+          <span class="question-number-badge"><i class="fa-solid fa-comments"></i> Question ${numStr}</span>
+          ${userCustomQuestions.length > 1 ? `<button type="button" class="btn-delete-question" data-idx="${idx}" title="Delete Question"><i class="fa-solid fa-trash-can"></i></button>` : ''}
+        </div>
+        <div class="form-field full-width" style="margin-top: 6px;">
+          <input type="text" class="question-text-input" data-idx="${idx}" placeholder="Write your lovely question here..." value="${qText.replace(/"/g, '&quot;')}" style="width: 100%; padding: 10px 14px; border-radius: 12px; background: rgba(255,255,255,0.06); border: 1.5px solid rgba(255,117,140,0.25); color: #fff; font-size: 0.9rem;">
+        </div>
+      `;
+      listEl.appendChild(card);
+    });
+
+    // Input listeners
+    listEl.querySelectorAll('.question-text-input').forEach(inp => {
+      inp.addEventListener('input', (e) => {
+        const idx = parseInt(e.target.dataset.idx, 10);
+        if (userCustomQuestions[idx] !== undefined) {
+          if (typeof userCustomQuestions[idx] === 'string') {
+            userCustomQuestions[idx] = e.target.value;
+          } else {
+            userCustomQuestions[idx].question = e.target.value;
+          }
+          if (currentPortalUser) saveUserFormData(currentPortalUser);
+          updateWizardValidation();
+        }
+      });
+    });
+
+    // Delete listeners
+    listEl.querySelectorAll('.btn-delete-question').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const idx = parseInt(e.currentTarget.dataset.idx, 10);
+        if (!isNaN(idx)) {
+          userCustomQuestions.splice(idx, 1);
+          renderQuestionsBuilder();
+          if (currentPortalUser) saveUserFormData(currentPortalUser);
+          updateWizardValidation();
+        }
+      });
+    });
+
+    updateWizardValidation();
+  }
+
+  const btnAddQuestion = document.getElementById('btn-add-question');
+  if (btnAddQuestion) {
+    btnAddQuestion.addEventListener('click', () => {
+      const nextNum = userCustomQuestions.length + 1;
+      userCustomQuestions.push({
+        question: `Sweet Question ${nextNum}: What brings the biggest smile to your face? 💕`,
+        suggestions: ["Being with you! ❤️", "Your warm hugs 🤗", "Sweet surprises ✨"]
+      });
+      renderQuestionsBuilder();
+      if (currentPortalUser) saveUserFormData(currentPortalUser);
+      if (window.birthdayAudio) {
+        try { window.birthdayAudio.playPop(); } catch(e) {}
+      }
+    });
+  }
+
+  // ===== 4-STEP WIZARD CONTROLLER & VALIDATION =====
+  let currentWizardStep = 1;
+  let wizardToastTimer = null;
+
+  function showWizardToast(msg) {
+    const toast = document.getElementById('wizard-toast');
+    const toastMsg = document.getElementById('wizard-toast-msg');
+    if (!toast || !toastMsg) return;
+    toastMsg.textContent = msg;
+    toast.classList.remove('hidden');
+    if (wizardToastTimer) clearTimeout(wizardToastTimer);
+    wizardToastTimer = setTimeout(() => {
+      toast.classList.add('hidden');
+    }, 4500);
+  }
+
+  function isStep1Valid() {
+    const nameVal = creatorInputName ? creatorInputName.value.trim() : '';
+    const wishVal = creatorInputWish ? creatorInputWish.value.trim() : '';
+    const hasPhoto = Boolean(currentPhotoDataUrl || (creatorInputPhotoUrl && creatorInputPhotoUrl.value.trim()));
+    return Boolean(nameVal && wishVal && hasPhoto);
+  }
+
+  function showStep1ValidationToast() {
+    const missing = [];
+    const nameVal = creatorInputName ? creatorInputName.value.trim() : '';
+    const wishVal = creatorInputWish ? creatorInputWish.value.trim() : '';
+    const hasPhoto = Boolean(currentPhotoDataUrl || (creatorInputPhotoUrl && creatorInputPhotoUrl.value.trim()));
+
+    if (!nameVal) missing.push("Celebrant's Real Name");
+    if (!wishVal) missing.push("Birthday Message / Love Letter");
+    if (!hasPhoto) missing.push("Main Portrait Photo");
+
+    if (missing.length > 0) {
+      showWizardToast(`⚠️ Please fill: ${missing.join(', ')}`);
+    }
+  }
+
+  function isStep2Valid() {
+    return Array.isArray(userSafarnamaChapters) && userSafarnamaChapters.length >= 1 &&
+      userSafarnamaChapters.some(c => (c.heading && c.heading.trim()) || (c.description && c.description.trim()));
+  }
+
+  function isStep3Valid() {
+    return Array.isArray(userCustomQuestions) && userCustomQuestions.length >= 1 &&
+      userCustomQuestions.some(q => (typeof q === 'string' ? q.trim() : (q.question && q.question.trim())));
+  }
+
+  function updateWizardValidation() {
+    const btnNext1 = document.getElementById('wizard-btn-next-1');
+    if (btnNext1) {
+      btnNext1.classList.toggle('disabled', !isStep1Valid());
+    }
+
+    const btnNext2 = document.getElementById('wizard-btn-next-2');
+    if (btnNext2) {
+      btnNext2.classList.toggle('disabled', !isStep2Valid());
+    }
+
+    const btnNext3 = document.getElementById('wizard-btn-next-3');
+    if (btnNext3) {
+      btnNext3.classList.toggle('disabled', !isStep3Valid());
+    }
+  }
+
+  function goToWizardStep(stepNum) {
+    currentWizardStep = stepNum;
+
+    // 1. Update step containers
+    for (let i = 1; i <= 4; i++) {
+      const stepEl = document.getElementById(`wizard-step-${i}`);
+      if (stepEl) {
+        if (i === stepNum) {
+          stepEl.classList.add('wizard-step-active');
+        } else {
+          stepEl.classList.remove('wizard-step-active');
+        }
+      }
+    }
+
+    // 2. Update progress indicators
+    const progressSteps = document.querySelectorAll('.wizard-progress-step');
+    progressSteps.forEach(ps => {
+      const s = parseInt(ps.getAttribute('data-step'), 10);
+      if (s === stepNum) {
+        ps.className = 'wizard-progress-step active';
+      } else if (s < stepNum) {
+        ps.className = 'wizard-progress-step completed';
+      } else {
+        ps.className = 'wizard-progress-step';
+      }
+    });
+
+    const progressLines = document.querySelectorAll('.wizard-progress-line');
+    progressLines.forEach(pl => {
+      const after = parseInt(pl.getAttribute('data-after'), 10);
+      if (after < stepNum) {
+        pl.classList.add('completed');
+      } else {
+        pl.classList.remove('completed');
+      }
+    });
+
+    // 3. Scroll dashboard to top
+    if (portalCreatorDashboard) {
+      portalCreatorDashboard.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    updateWizardValidation();
+  }
+
+  // Progress step bar clicks
+  document.querySelectorAll('.wizard-progress-step').forEach(ps => {
+    ps.addEventListener('click', () => {
+      const targetStep = parseInt(ps.getAttribute('data-step'), 10);
+      if (targetStep < currentWizardStep) {
+        goToWizardStep(targetStep);
+      } else if (targetStep === currentWizardStep) {
+        // already here
+      } else {
+        if (currentWizardStep === 1 && !isStep1Valid()) {
+          showStep1ValidationToast();
+          return;
+        }
+        if ((currentWizardStep === 2 || targetStep > 2) && !isStep2Valid()) {
+          showWizardToast("⚠️ Please add at least 1 Safarnama chapter first!");
+          return;
+        }
+        if ((currentWizardStep === 3 || targetStep > 3) && !isStep3Valid()) {
+          showWizardToast("⚠️ Please add at least 1 Chat Question first!");
+          return;
+        }
+        goToWizardStep(targetStep);
+      }
+    });
+  });
+
+  // Step 1 Navigation
+  const wizardBtnNext1 = document.getElementById('wizard-btn-next-1');
+  if (wizardBtnNext1) {
+    wizardBtnNext1.addEventListener('click', () => {
+      if (!isStep1Valid()) {
+        showStep1ValidationToast();
+        return;
+      }
+      if (currentPortalUser) saveUserFormData(currentPortalUser);
+      goToWizardStep(2);
+      if (window.birthdayAudio) { try { window.birthdayAudio.playPop(); } catch(e) {} }
+    });
+  }
+
+  const wizardBtnBack1 = document.getElementById('wizard-btn-back-1');
+  if (wizardBtnBack1) {
+    wizardBtnBack1.addEventListener('click', () => {
+      if (btnLogoutPortal) btnLogoutPortal.click();
+    });
+  }
+
+  // Step 2 Navigation
+  const wizardBtnNext2 = document.getElementById('wizard-btn-next-2');
+  if (wizardBtnNext2) {
+    wizardBtnNext2.addEventListener('click', () => {
+      if (!isStep2Valid()) {
+        showWizardToast("⚠️ Please add at least 1 Safarnama chapter!");
+        return;
+      }
+      if (currentPortalUser) saveUserFormData(currentPortalUser);
+      goToWizardStep(3);
+      if (window.birthdayAudio) { try { window.birthdayAudio.playPop(); } catch(e) {} }
+    });
+  }
+
+  const wizardBtnBack2 = document.getElementById('wizard-btn-back-2');
+  if (wizardBtnBack2) {
+    wizardBtnBack2.addEventListener('click', () => {
+      goToWizardStep(1);
+    });
+  }
+
+  // Step 3 Navigation
+  const wizardBtnNext3 = document.getElementById('wizard-btn-next-3');
+  if (wizardBtnNext3) {
+    wizardBtnNext3.addEventListener('click', () => {
+      if (!isStep3Valid()) {
+        showWizardToast("⚠️ Please add at least 1 Chat Question!");
+        return;
+      }
+      if (currentPortalUser) saveUserFormData(currentPortalUser);
+      goToWizardStep(4);
+      if (window.birthdayAudio) { try { window.birthdayAudio.playPop(); } catch(e) {} }
+    });
+  }
+
+  const wizardBtnBack3 = document.getElementById('wizard-btn-back-3');
+  if (wizardBtnBack3) {
+    wizardBtnBack3.addEventListener('click', () => {
+      goToWizardStep(2);
+    });
+  }
+
+  // Step 4 Navigation
+  const wizardBtnBack4 = document.getElementById('wizard-btn-back-4');
+  if (wizardBtnBack4) {
+    wizardBtnBack4.addEventListener('click', () => {
+      const confirmEdit = window.confirm("⚠️ Note: Agar aap details badalte hain, to link update karne ke liye aapko wapas Step 4 par aakar 'Generate Surprise Link' par click karna hoga.\n\nKya aap details edit karna chahte hain?");
+      if (!confirmEdit) return;
+      goToWizardStep(3);
+      showWizardToast("✏️ Edit mode: Changes save karne ke baad Step 4 par aakar link dubara generate karein.");
+    });
+  }
+
+  const wizardBtnLogout4 = document.getElementById('wizard-btn-logout-4');
+  if (wizardBtnLogout4) {
+    wizardBtnLogout4.addEventListener('click', () => {
+      if (btnLogoutPortal) btnLogoutPortal.click();
+    });
+  }
+
+  // Real-time input validation listeners for Step 1
+  if (creatorInputName) {
+    creatorInputName.addEventListener('input', () => updateWizardValidation());
+  }
+  if (creatorInputWish) {
+    creatorInputWish.addEventListener('input', () => updateWizardValidation());
+  }
+
+  // Initialize questions builder
+  renderQuestionsBuilder();
 
   // 7. Generate Surprise Link Form Submission
   // 7. Generate Surprise Link Form Submission
@@ -3382,6 +3903,7 @@ document.addEventListener('DOMContentLoaded', () => {
         photo: currentPhotoDataUrl || '',
         memories: allMemoriesUrls,
         safarnama: userSafarnamaChapters || [],
+        questions: userCustomQuestions || [],
         exp: expAt,
         gen_at: genAt
       };
@@ -3585,6 +4107,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (loggedUserName) loggedUserName.textContent = savedSession;
         if (portalLandingScreen) portalLandingScreen.classList.add('hidden');
         if (portalCreatorDashboard) portalCreatorDashboard.classList.remove('hidden');
+        initCreatorLiveTracker();
         
         // Restore form data silently on page reload
         setTimeout(() => {
@@ -3596,16 +4119,20 @@ document.addEventListener('DOMContentLoaded', () => {
             const expNum = parseInt(savedExp, 10);
             if (Date.now() >= expNum) {
               handleLinkAutoExpiry(currentPortalUser);
+              goToWizardStep(1);
             } else {
               const lastLink = localStorage.getItem(`birthday_last_generated_link_${currentPortalUser}`);
               if (lastLink && finalSurpriseLinkInput) {
                 finalSurpriseLinkInput.value = lastLink;
-                // Keep generatedLinkBox HIDDEN by default until user explicitly clicks "Generate Surprise Link" button!
-                if (generatedLinkBox) generatedLinkBox.classList.add('hidden');
+                if (generatedLinkBox) generatedLinkBox.classList.remove('hidden');
                 startLinkExpiryCountdown(expNum, currentPortalUser);
+                goToWizardStep(4);
+              } else {
+                goToWizardStep(1);
               }
             }
           } else {
+            goToWizardStep(1);
             // Check idle account 72h expiration (48 to 72 hours)
             const regTime = localStorage.getItem(`birthday_user_registered_${currentPortalUser}`);
             if (regTime) {
@@ -3897,6 +4424,16 @@ document.addEventListener('DOMContentLoaded', () => {
   let cachedLiveChatMessages = [];
   let liveTrackerPollInterval = null;
 
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   function renderActivityTimeline(activities) {
     if (!activityTimelineList) return;
 
@@ -3916,11 +4453,12 @@ document.addEventListener('DOMContentLoaded', () => {
     reversed.forEach((act) => {
       html += `
         <div class="activity-timeline-item">
-          <div class="timeline-icon-wrap">${act.icon || '✨'}</div>
-          <div class="timeline-content">
-            <div class="timeline-text">${act.details || act.action || 'Activity'}</div>
-            <div class="timeline-time"><i class="fa-regular fa-clock"></i> ${act.time || ''}</div>
+          <div class="activity-item-icon">${act.icon || '✨'}</div>
+          <div class="activity-item-text">
+            <strong>${escapeHtml(act.details || act.action || 'Activity')}</strong>
+            <span>${act.action ? escapeHtml(act.action.replace(/_/g, ' ')) : ''}</span>
           </div>
+          <div class="activity-item-time"><i class="fa-regular fa-clock"></i> ${escapeHtml(act.time || '')}</div>
         </div>
       `;
     });
@@ -3974,14 +4512,9 @@ document.addEventListener('DOMContentLoaded', () => {
      if (!userKey) return;
 
      try {
-       const res = await fetch(`${API_BASE}/api/live_progress?username=${encodeURIComponent(userKey)}`, { headers: authHeaders() });
-       if (res.status === 401) {
-         if (liveTrackerPollInterval) {
-           clearInterval(liveTrackerPollInterval);
-           liveTrackerPollInterval = null;
-         }
-         return;
-       }
+       const token = activeSurpriseToken || (localStorage.getItem(`birthday_short_token_${userKey}`) || '');
+       const url = `${API_BASE}/api/live_progress?username=${encodeURIComponent(userKey)}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
+       const res = await fetch(url, { headers: authHeaders() });
        if (!res.ok) return;
        const data = await res.json();
 
@@ -4042,7 +4575,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Refresh Tracker Button Click
   if (btnRefreshTracker) {
     btnRefreshTracker.addEventListener('click', () => {
-      fetchLiveProgressData();
+      initCreatorLiveTracker();
       if (window.birthdayAudio) {
         try { window.birthdayAudio.playPop(); } catch(e) {}
       }
@@ -4112,11 +4645,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     creatorLiveInput.value = '';
 
-    // 1. Post to backend server
+    // 1. Post to backend server with authentication & token
+    const token = activeSurpriseToken || (localStorage.getItem(`birthday_short_token_${userKey}`) || '');
+    const sendPayload = Object.assign({}, msgPayload, { token: token });
+
     fetch(`${API_BASE}/api/live_chat_send`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(msgPayload)
+      headers: authHeaders(),
+      body: JSON.stringify(sendPayload)
     }).catch(() => {});
 
     // 2. Broadcast to recipient tab in real time
