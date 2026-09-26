@@ -246,18 +246,22 @@ class BirthdayScene {
     this.initFirecrackerAudioBoost();
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const clientW = this.fcCanvas.clientWidth || Math.min(window.innerWidth * 0.8, 960);
-    const clientH = this.fcCanvas.clientHeight || Math.min(window.innerHeight * 0.65, 620);
+    const clientW = this.fcCanvas.clientWidth || Math.min(window.innerWidth * 0.9, 960);
+    const clientH = this.fcCanvas.clientHeight || Math.min(window.innerHeight * 0.68, 620);
     this.fcCanvas.width = clientW * dpr;
     this.fcCanvas.height = clientH * dpr;
+    this.fcCanvas.style.display = 'block';
+    this.fcCanvas.style.opacity = '1';
     this.fcCanvas.classList.add('active');
 
     this.onFcComplete = onVideoComplete;
     this.fcVideo.volume = 1.0;
     this.fcVideo.muted = false;
 
-    // Zero-delay exact seek
-    this.fcVideo.currentTime = 7.5;
+    // Start video playback from 0s for instant firecracker burst
+    try {
+      this.fcVideo.currentTime = 0;
+    } catch(e) {}
 
     const startProcessing = () => {
       this.isFcPlaying = true;
@@ -278,65 +282,71 @@ class BirthdayScene {
           const bw = this.fcBufferCanvas.width;
           const bh = this.fcBufferCanvas.height;
 
-          this.fcBufferCtx.drawImage(this.fcVideo, 0, 0, bw, bh);
-          const frame = this.fcBufferCtx.getImageData(0, 0, bw, bh);
-          const l = frame.data.length;
-          const timeNow = (Date.now() - startTime) * 0.003;
+          try {
+            this.fcBufferCtx.drawImage(this.fcVideo, 0, 0, bw, bh);
+            const frame = this.fcBufferCtx.getImageData(0, 0, bw, bh);
+            const l = frame.data.length;
+            const timeNow = (Date.now() - startTime) * 0.003;
 
-          // Precision 4K Chroma-Key & Sub-pixel Edge Anti-Aliasing (Zero Green Fringe)
-          for (let i = 0; i < l; i += 4) {
-            const r = frame.data[i];
-            const g = frame.data[i + 1];
-            const b = frame.data[i + 2];
+            // Precision 4K Chroma-Key & Sub-pixel Edge Anti-Aliasing (Zero Green Fringe)
+            for (let i = 0; i < l; i += 4) {
+              const r = frame.data[i];
+              const g = frame.data[i + 1];
+              const b = frame.data[i + 2];
 
-            // Green Dominance Delta
-            const maxRB = (r > b) ? r : b;
-            const greenDiff = g - maxRB;
+              // Green Dominance Delta
+              const maxRB = (r > b) ? r : b;
+              const greenDiff = g - maxRB;
 
-            // Pure green background removal & edge despill
-            if (g > 48 && greenDiff > 10) {
-              if (greenDiff > 28) {
-                frame.data[i + 3] = 0; // 100% Transparent
-                continue;
-              } else {
-                // Smooth sub-pixel alpha feather on edges
-                frame.data[i + 3] = Math.round((1 - (greenDiff - 10) / 18) * 255);
-                frame.data[i + 1] = maxRB; // Remove green fringing on sparks
+              // Pure green background removal & edge despill
+              if (g > 45 && greenDiff > 8) {
+                if (greenDiff > 22) {
+                  frame.data[i + 3] = 0; // 100% Transparent
+                  continue;
+                } else {
+                  // Smooth sub-pixel alpha feather on edges
+                  frame.data[i + 3] = Math.round((1 - (greenDiff - 8) / 14) * 255);
+                  frame.data[i + 1] = maxRB; // Remove green fringing on sparks
+                }
+              }
+
+              // Dynamic Multi-Color Festival Grading for Firecracker Sparks & Bursts
+              if (frame.data[i + 3] > 20) {
+                const pixelIdx = i >> 2;
+                const px = pixelIdx % bw;
+                const py = (pixelIdx / bw) | 0;
+                const lum = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
+
+                // Chromatic waves for Gold, Crimson Red, Royal Blue, Emerald, Violet, Cyan
+                const phase = (px / bw) * 4.0 + (py / bh) * 3.0 + timeNow;
+                const cr = 0.5 + 0.5 * Math.sin(phase);
+                const cg = 0.5 + 0.5 * Math.sin(phase + 2.094);
+                const cb = 0.5 + 0.5 * Math.sin(phase + 4.188);
+
+                if (lum > 0.82) {
+                  // Crisp incandescent sparkling diamond-gold/white core
+                  frame.data[i] = Math.min(255, r * 1.08 + cr * 35);
+                  frame.data[i + 1] = Math.min(255, g * 1.05 + cg * 30);
+                  frame.data[i + 2] = Math.min(255, b * 1.08 + cb * 35);
+                } else {
+                  // Firecracker sparks, tails and trails get rich brilliant rainbow colors
+                  frame.data[i] = Math.min(255, Math.floor(lum * cr * 340 + 35));
+                  frame.data[i + 1] = Math.min(255, Math.floor(lum * cg * 320 + 25));
+                  frame.data[i + 2] = Math.min(255, Math.floor(lum * cb * 360 + 45));
+                }
               }
             }
 
-            // Dynamic Multi-Color Festival Grading for Firecracker Sparks & Bursts
-            if (frame.data[i + 3] > 20) {
-              const pixelIdx = i >> 2;
-              const px = pixelIdx % bw;
-              const py = (pixelIdx / bw) | 0;
-              const lum = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
+            this.fcBufferCtx.putImageData(frame, 0, 0);
 
-              // Chromatic waves for Gold, Crimson Red, Royal Blue, Emerald, Violet, Cyan
-              const phase = (px / bw) * 4.0 + (py / bh) * 3.0 + timeNow;
-              const cr = 0.5 + 0.5 * Math.sin(phase);
-              const cg = 0.5 + 0.5 * Math.sin(phase + 2.094);
-              const cb = 0.5 + 0.5 * Math.sin(phase + 4.188);
-
-              if (lum > 0.82) {
-                // Crisp incandescent sparkling diamond-gold/white core
-                frame.data[i] = Math.min(255, r * 1.08 + cr * 35);
-                frame.data[i + 1] = Math.min(255, g * 1.05 + cg * 30);
-                frame.data[i + 2] = Math.min(255, b * 1.08 + cb * 35);
-              } else {
-                // Firecracker sparks, tails and trails get rich brilliant rainbow colors
-                frame.data[i] = Math.min(255, Math.floor(lum * cr * 340 + 35));
-                frame.data[i + 1] = Math.min(255, Math.floor(lum * cg * 320 + 25));
-                frame.data[i + 2] = Math.min(255, Math.floor(lum * cb * 360 + 45));
-              }
-            }
+            // Render transparent sparks directly over the 3D scene
+            this.fcCtx.clearRect(0, 0, this.fcCanvas.width, this.fcCanvas.height);
+            this.fcCtx.drawImage(this.fcBufferCanvas, 0, 0, this.fcCanvas.width, this.fcCanvas.height);
+          } catch(err) {
+            // Direct draw fallback in case of CORS or canvas security restrictions
+            this.fcCtx.clearRect(0, 0, this.fcCanvas.width, this.fcCanvas.height);
+            this.fcCtx.drawImage(this.fcVideo, 0, 0, this.fcCanvas.width, this.fcCanvas.height);
           }
-
-          this.fcBufferCtx.putImageData(frame, 0, 0);
-
-          // Render transparent sparks with High-DPI 4K crispness directly over the 3D scene
-          this.fcCtx.clearRect(0, 0, this.fcCanvas.width, this.fcCanvas.height);
-          this.fcCtx.drawImage(this.fcBufferCanvas, 0, 0, this.fcCanvas.width, this.fcCanvas.height);
         }
 
         this.fcAnimFrame = requestAnimationFrame(processChromaFrame);
@@ -363,9 +373,14 @@ class BirthdayScene {
   stopGreenScreenFirecrackers() {
     this.isFcPlaying = false;
     if (this.fcAnimFrame) cancelAnimationFrame(this.fcAnimFrame);
-    if (this.fcVideo) this.fcVideo.pause();
+    if (this.fcVideo) {
+      this.fcVideo.pause();
+      try { this.fcVideo.currentTime = 0; } catch(e) {}
+    }
     if (this.fcCanvas) {
       this.fcCanvas.classList.remove('active');
+      this.fcCanvas.style.opacity = '0';
+      this.fcCanvas.style.display = 'none';
       if (this.fcCtx) this.fcCtx.clearRect(0, 0, this.fcCanvas.width, this.fcCanvas.height);
     }
     if (this.onFcComplete) {

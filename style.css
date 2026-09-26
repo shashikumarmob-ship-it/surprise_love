@@ -5254,18 +5254,24 @@ body.disco-active .disco-overlay {
    ========================================================= */
 .firecrackers-canvas-overlay {
   position: fixed;
-  top: 8%;
+  top: 6%;
   left: 50%;
   transform: translateX(-50%);
-  width: min(80vw, 880px);
-  height: min(65vh, 580px);
+  width: min(90vw, 960px);
+  height: min(68vh, 620px);
   pointer-events: none;
-  z-index: 150;
+  z-index: 880;
   opacity: 0;
+  display: none;
   mix-blend-mode: screen;
   image-rendering: -webkit-optimize-contrast;
-  filter: drop-shadow(0 0 16px rgba(255, 215, 0, 0.45)) contrast(1.15) saturate(1.4);
-  transition: opacity 0.3s ease;
+  filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.5)) contrast(1.15) saturate(1.4);
+  transition: opacity 0.35s ease;
+}
+
+.firecrackers-canvas-overlay.active {
+  display: block !important;
+  opacity: 1 !important;
 }
 
 .photo-upload-status {
