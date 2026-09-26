@@ -1285,42 +1285,369 @@ class BirthdayScene {
   }
 
   /* =========================================================
-     3D PHOTO FRAME ON RIGHT SIDE (ENLARGED & EASEL STAND)
+     3D IMPERIAL ROYAL PHOTO FRAME ON EASEL STAND (RIGHT SIDE)
      ========================================================= */
   createPhotoFrame() {
     this.photoFrameGroup = new THREE.Group();
+    this.royalFrameGems = []; // For animated jewel glint in animate()
 
-    // Gold Ornate Beveled Outer Frame (Enlarged)
-    const frameMat = new THREE.MeshStandardMaterial({
+    // Royal Materials
+    const royalGoldMat = new THREE.MeshStandardMaterial({
       color: 0xffd700,
-      metalness: 0.9,
-      roughness: 0.15
+      metalness: 0.94,
+      roughness: 0.14,
+      emissive: 0x241800
     });
-    const frameBorder = new THREE.Mesh(new THREE.BoxGeometry(2.4, 3.1, 0.14), frameMat);
-    frameBorder.position.y = 2.4;
-    frameBorder.castShadow = true;
-    this.photoFrameGroup.add(frameBorder);
+    const brightGoldMat = new THREE.MeshStandardMaterial({
+      color: 0xffea78,
+      metalness: 0.96,
+      roughness: 0.10,
+      emissive: 0x332200
+    });
+    const antiqueGoldMat = new THREE.MeshStandardMaterial({
+      color: 0xd4af37,
+      metalness: 0.88,
+      roughness: 0.24
+    });
+    const velvetMat = new THREE.MeshStandardMaterial({
+      color: 0x450314, // Deep Royal Crimson Velvet Matting
+      roughness: 0.95,
+      metalness: 0.05
+    });
+    const rubyMat = new THREE.MeshStandardMaterial({
+      color: 0xff0040,
+      emissive: 0x990022,
+      emissiveIntensity: 0.65,
+      roughness: 0.08,
+      metalness: 0.25
+    });
+    const sapphireMat = new THREE.MeshStandardMaterial({
+      color: 0x0077ff,
+      emissive: 0x002288,
+      emissiveIntensity: 0.55,
+      roughness: 0.08,
+      metalness: 0.25
+    });
+    const emeraldMat = new THREE.MeshStandardMaterial({
+      color: 0x00e676,
+      emissive: 0x005522,
+      emissiveIntensity: 0.55,
+      roughness: 0.08,
+      metalness: 0.25
+    });
+    const pearlMat = new THREE.MeshStandardMaterial({
+      color: 0xfffdf5,
+      roughness: 0.18,
+      metalness: 0.35
+    });
+    const woodBackMat = new THREE.MeshStandardMaterial({
+      color: 0x1f1109,
+      roughness: 0.7
+    });
 
-    // Tripod Easel Stand Legs (Floor to Frame)
-    const legMat = new THREE.MeshStandardMaterial({ color: 0x3d2714, roughness: 0.5, metalness: 0.3 });
-    const legGeo = new THREE.CylinderGeometry(0.08, 0.08, 3.2, 12);
+    const centerY = 2.4;
 
-    const legL = new THREE.Mesh(legGeo, legMat);
-    legL.position.set(-0.85, 1.4, -0.05);
-    legL.rotation.z = 0.12;
+    // 1. Backing Mahogany Board
+    const backPlate = new THREE.Mesh(new THREE.BoxGeometry(2.72, 3.52, 0.08), woodBackMat);
+    backPlate.position.set(0, centerY, -0.02);
+    backPlate.castShadow = true;
+    backPlate.userData = { type: 'photo-frame' };
+    this.photoFrameGroup.add(backPlate);
+
+    // 2. Heavy Baroque Outer Gilded Frame Moulding
+    // Top & Bottom Heavy Bars
+    const topBar = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.26, 0.18), royalGoldMat);
+    topBar.position.set(0, centerY + 1.62, 0.06);
+    topBar.castShadow = true;
+    topBar.userData = { type: 'photo-frame' };
+    this.photoFrameGroup.add(topBar);
+
+    const bottomBar = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.26, 0.18), royalGoldMat);
+    bottomBar.position.set(0, centerY - 1.62, 0.06);
+    bottomBar.castShadow = true;
+    bottomBar.userData = { type: 'photo-frame' };
+    this.photoFrameGroup.add(bottomBar);
+
+    // Left & Right Heavy Bars
+    const leftBar = new THREE.Mesh(new THREE.BoxGeometry(0.26, 3.24, 0.18), royalGoldMat);
+    leftBar.position.set(-1.22, centerY, 0.06);
+    leftBar.castShadow = true;
+    leftBar.userData = { type: 'photo-frame' };
+    this.photoFrameGroup.add(leftBar);
+
+    const rightBar = new THREE.Mesh(new THREE.BoxGeometry(0.26, 3.24, 0.18), royalGoldMat);
+    rightBar.position.set(1.22, centerY, 0.06);
+    rightBar.castShadow = true;
+    rightBar.userData = { type: 'photo-frame' };
+    this.photoFrameGroup.add(rightBar);
+
+    // Stepped Outer Gilded Chamfer Lip
+    const topOuterLip = new THREE.Mesh(new THREE.BoxGeometry(2.86, 0.1, 0.22), brightGoldMat);
+    topOuterLip.position.set(0, centerY + 1.76, 0.07);
+    topOuterLip.userData = { type: 'photo-frame' };
+    this.photoFrameGroup.add(topOuterLip);
+
+    const bottomOuterLip = new THREE.Mesh(new THREE.BoxGeometry(2.86, 0.1, 0.22), brightGoldMat);
+    bottomOuterLip.position.set(0, centerY - 1.76, 0.07);
+    bottomOuterLip.userData = { type: 'photo-frame' };
+    this.photoFrameGroup.add(bottomOuterLip);
+
+    const leftOuterLip = new THREE.Mesh(new THREE.BoxGeometry(0.1, 3.62, 0.22), brightGoldMat);
+    leftOuterLip.position.set(-1.38, centerY, 0.07);
+    leftOuterLip.userData = { type: 'photo-frame' };
+    this.photoFrameGroup.add(leftOuterLip);
+
+    const rightOuterLip = new THREE.Mesh(new THREE.BoxGeometry(0.1, 3.62, 0.22), brightGoldMat);
+    rightOuterLip.position.set(1.38, centerY, 0.07);
+    rightOuterLip.userData = { type: 'photo-frame' };
+    this.photoFrameGroup.add(rightOuterLip);
+
+    // 3. Tier 2: Royal Crimson Velvet Matting Inset
+    const velvetMatting = new THREE.Mesh(new THREE.BoxGeometry(2.36, 3.12, 0.12), velvetMat);
+    velvetMatting.position.set(0, centerY, 0.06);
+    velvetMatting.userData = { type: 'photo-frame' };
+    this.photoFrameGroup.add(velvetMatting);
+
+    // 4. Tier 3: Inner Filigree Rope & Beaded Gold Moulding
+    const topInnerBead = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.08, 0.15), brightGoldMat);
+    topInnerBead.position.set(0, centerY + 1.45, 0.09);
+    topInnerBead.userData = { type: 'photo-frame' };
+    this.photoFrameGroup.add(topInnerBead);
+
+    const bottomInnerBead = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.08, 0.15), brightGoldMat);
+    bottomInnerBead.position.set(0, centerY - 1.45, 0.09);
+    bottomInnerBead.userData = { type: 'photo-frame' };
+    this.photoFrameGroup.add(bottomInnerBead);
+
+    const leftInnerBead = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.98, 0.15), brightGoldMat);
+    leftInnerBead.position.set(-1.06, centerY, 0.09);
+    leftInnerBead.userData = { type: 'photo-frame' };
+    this.photoFrameGroup.add(leftInnerBead);
+
+    const rightInnerBead = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.98, 0.15), brightGoldMat);
+    rightInnerBead.position.set(1.06, centerY, 0.09);
+    rightInnerBead.userData = { type: 'photo-frame' };
+    this.photoFrameGroup.add(rightInnerBead);
+
+    // 5. Four Sculpted Baroque Corner Rosettes with Radiant Rubies
+    const cornerOffsets = [
+      { x: -1.26, y: centerY + 1.66 }, // Top-Left
+      { x: 1.26, y: centerY + 1.66 },  // Top-Right
+      { x: -1.26, y: centerY - 1.66 }, // Bottom-Left
+      { x: 1.26, y: centerY - 1.66 }   // Bottom-Right
+    ];
+
+    cornerOffsets.forEach(pos => {
+      const rosetteGroup = new THREE.Group();
+      rosetteGroup.position.set(pos.x, pos.y, 0.16);
+
+      // Gold Fluted Disc Medallion
+      const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.08, 16), brightGoldMat);
+      disc.rotation.x = Math.PI / 2;
+      rosetteGroup.add(disc);
+
+      // Ornate Outer Beaded Ring
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.038, 8, 16), royalGoldMat);
+      rosetteGroup.add(ring);
+
+      // Faceted Center Ruby Gemstone
+      const ruby = new THREE.Mesh(new THREE.OctahedronGeometry(0.09, 0), rubyMat);
+      ruby.position.z = 0.06;
+      rosetteGroup.add(ruby);
+      this.royalFrameGems.push(ruby);
+
+      // Mini corner gold bracket accents
+      const bracket1 = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.05, 0.05), brightGoldMat);
+      bracket1.position.set(pos.x > 0 ? -0.1 : 0.1, 0, 0.02);
+      rosetteGroup.add(bracket1);
+
+      const bracket2 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.18, 0.05), brightGoldMat);
+      bracket2.position.set(0, pos.y > centerY ? -0.1 : 0.1, 0.02);
+      rosetteGroup.add(bracket2);
+
+      rosetteGroup.userData = { type: 'photo-frame' };
+      this.photoFrameGroup.add(rosetteGroup);
+    });
+
+    // 6. Side Baroque Carved Medallions with Pearl Drops (Left & Right Midpoints)
+    [-1, 1].forEach(side => {
+      const sideCrest = new THREE.Group();
+      sideCrest.position.set(side * 1.38, centerY, 0.14);
+
+      const crestPlate = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.08, 12), brightGoldMat);
+      crestPlate.rotation.x = Math.PI / 2;
+      sideCrest.add(crestPlate);
+
+      const crestRing = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.03, 8, 14), royalGoldMat);
+      sideCrest.add(crestRing);
+
+      const centerGem = new THREE.Mesh(new THREE.OctahedronGeometry(0.07, 0), sapphireMat);
+      centerGem.position.z = 0.05;
+      sideCrest.add(centerGem);
+      this.royalFrameGems.push(centerGem);
+
+      const pearlDrop = new THREE.Mesh(new THREE.SphereGeometry(0.08, 12, 12), pearlMat);
+      pearlDrop.position.set(0, -0.22, 0.02);
+      sideCrest.add(pearlDrop);
+
+      sideCrest.userData = { type: 'photo-frame' };
+      this.photoFrameGroup.add(sideCrest);
+    });
+
+    // 7. MAGNIFICENT IMPERIAL ROYAL CROWN (Apex Centerpiece on Top of Frame)
+    const crownGroup = new THREE.Group();
+    crownGroup.position.set(0, centerY + 1.82, 0.12);
+
+    // Crown Base Arch / Headband
+    const crownBase = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.14, 0.16), brightGoldMat);
+    crownGroup.add(crownBase);
+
+    // Crown Band Inset Jewels (7 alternating precious gems)
+    const bandGems = [
+      { x: -0.55, mat: sapphireMat },
+      { x: -0.37, mat: pearlMat },
+      { x: -0.18, mat: emeraldMat },
+      { x: 0, mat: rubyMat, scale: 1.3 }, // Center Royal Ruby
+      { x: 0.18, mat: emeraldMat },
+      { x: 0.37, mat: pearlMat },
+      { x: 0.55, mat: sapphireMat }
+    ];
+    bandGems.forEach(bg => {
+      const gemMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.055 * (bg.scale || 1.0), 0), bg.mat);
+      gemMesh.position.set(bg.x, 0, 0.09);
+      crownGroup.add(gemMesh);
+      this.royalFrameGems.push(gemMesh);
+    });
+
+    // 5 Royal Crown Peaks / Fleur-de-lis:
+    // A. Center Sovereign Peak (Grand Apex)
+    const centerPeak = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.55, 6), brightGoldMat);
+    centerPeak.position.set(0, 0.35, 0.0);
+    crownGroup.add(centerPeak);
+
+    // Center Giant Imperial Ruby Diamond
+    const centerImperialRuby = new THREE.Mesh(new THREE.OctahedronGeometry(0.16, 0), rubyMat);
+    centerImperialRuby.position.set(0, 0.28, 0.08);
+    crownGroup.add(centerImperialRuby);
+    this.royalFrameGems.push(centerImperialRuby);
+
+    // Imperial Golden Cross atop Center Peak
+    const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.28, 0.06), brightGoldMat);
+    crossV.position.set(0, 0.72, 0.0);
+    crownGroup.add(crossV);
+
+    const crossH = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.06, 0.06), brightGoldMat);
+    crossH.position.set(0, 0.76, 0.0);
+    crownGroup.add(crossH);
+
+    const crossDiamond = new THREE.Mesh(new THREE.OctahedronGeometry(0.06, 0), brightGoldMat);
+    crossDiamond.position.set(0, 0.76, 0.04);
+    crownGroup.add(crossDiamond);
+
+    // B. Mid Left & Mid Right Peaks (Sceptre Peaks with Sapphires)
+    [-0.38, 0.38].forEach(x => {
+      const midPeak = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.42, 6), brightGoldMat);
+      midPeak.position.set(x, 0.28, 0.0);
+      crownGroup.add(midPeak);
+
+      const midSapphire = new THREE.Mesh(new THREE.SphereGeometry(0.085, 12, 12), sapphireMat);
+      midSapphire.position.set(x, 0.52, 0.0);
+      crownGroup.add(midSapphire);
+      this.royalFrameGems.push(midSapphire);
+    });
+
+    // C. Outer Left & Outer Right Peaks (Finial Peaks with Luminous Pearls)
+    [-0.68, 0.68].forEach(x => {
+      const outerPeak = new THREE.Mesh(new THREE.ConeGeometry(0.10, 0.32, 6), brightGoldMat);
+      outerPeak.position.set(x, 0.22, 0.0);
+      crownGroup.add(outerPeak);
+
+      const outerPearl = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 12), pearlMat);
+      outerPearl.position.set(x, 0.40, 0.0);
+      crownGroup.add(outerPearl);
+    });
+
+    // Decorative Crown Arches (Connecting Ribbons)
+    [-0.20, 0.20].forEach(x => {
+      const arch = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.03, 6, 12, Math.PI), royalGoldMat);
+      arch.position.set(x, 0.12, 0.0);
+      arch.rotation.z = Math.PI;
+      crownGroup.add(arch);
+    });
+
+    crownGroup.userData = { type: 'photo-frame' };
+    this.photoFrameGroup.add(crownGroup);
+
+    // 8. GRAND ROYAL GILDED EASEL STAND
+    // Fluted Antique Gold Pillars with Rings & Imperial Orb Feet
+    const legGeo = new THREE.CylinderGeometry(0.085, 0.085, 3.4, 16);
+    const ringGeo = new THREE.TorusGeometry(0.11, 0.025, 8, 16);
+    const footGeo = new THREE.SphereGeometry(0.16, 16, 16);
+
+    // Left Front Pillar
+    const legL = new THREE.Mesh(legGeo, antiqueGoldMat);
+    legL.position.set(-0.88, 1.45, -0.05);
+    legL.rotation.z = 0.11;
     this.photoFrameGroup.add(legL);
 
-    const legR = new THREE.Mesh(legGeo, legMat);
-    legR.position.set(0.85, 1.4, -0.05);
-    legR.rotation.z = -0.12;
+    // Left Pillar Gold Collars
+    [-0.8, 0.0, 0.8].forEach(ly => {
+      const ring = new THREE.Mesh(ringGeo, brightGoldMat);
+      ring.position.set(0, ly, 0);
+      ring.rotation.x = Math.PI / 2;
+      legL.add(ring);
+    });
+
+    const footL = new THREE.Mesh(footGeo, royalGoldMat);
+    footL.position.set(-1.06, 0.12, -0.05);
+    this.photoFrameGroup.add(footL);
+
+    // Right Front Pillar
+    const legR = new THREE.Mesh(legGeo, antiqueGoldMat);
+    legR.position.set(0.88, 1.45, -0.05);
+    legR.rotation.z = -0.11;
     this.photoFrameGroup.add(legR);
 
-    const legBack = new THREE.Mesh(legGeo, legMat);
-    legBack.position.set(0, 1.4, -0.7);
+    // Right Pillar Gold Collars
+    [-0.8, 0.0, 0.8].forEach(ly => {
+      const ring = new THREE.Mesh(ringGeo, brightGoldMat);
+      ring.position.set(0, ly, 0);
+      ring.rotation.x = Math.PI / 2;
+      legR.add(ring);
+    });
+
+    const footR = new THREE.Mesh(footGeo, royalGoldMat);
+    footR.position.set(1.06, 0.12, -0.05);
+    this.photoFrameGroup.add(footR);
+
+    // Back Support Pillar
+    const legBack = new THREE.Mesh(legGeo, antiqueGoldMat);
+    legBack.position.set(0, 1.45, -0.72);
     legBack.rotation.x = -0.32;
     this.photoFrameGroup.add(legBack);
 
-    // Canvas Texture with celebrant portrait
+    const footBack = new THREE.Mesh(footGeo, royalGoldMat);
+    footBack.position.set(0, 0.12, -1.24);
+    this.photoFrameGroup.add(footBack);
+
+    // Gilded Cross Shelf Supporting the Frame
+    const crossShelf = new THREE.Mesh(new THREE.BoxGeometry(2.85, 0.14, 0.26), royalGoldMat);
+    crossShelf.position.set(0, 0.76, 0.04);
+    this.photoFrameGroup.add(crossShelf);
+
+    // Baroque Shelf Scroll Brackets
+    [-0.75, 0.75].forEach(sx => {
+      const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.28, 0.14), brightGoldMat);
+      bracket.position.set(sx, 0.58, 0.02);
+      this.photoFrameGroup.add(bracket);
+    });
+
+    // Top Easel Hinge Finial (Golden Acorn)
+    const apexFinial = new THREE.Mesh(new THREE.SphereGeometry(0.14, 16, 16), brightGoldMat);
+    apexFinial.position.set(0, 3.12, -0.16);
+    this.photoFrameGroup.add(apexFinial);
+
+    // 9. Canvas Texture with Celebrant Portrait
     this.photoCanvas = document.createElement('canvas');
     this.photoCanvas.width = 512;
     this.photoCanvas.height = 680;
@@ -1331,34 +1658,51 @@ class BirthdayScene {
 
     const photoMat = new THREE.MeshStandardMaterial({
       map: this.photoTexture,
-      roughness: 0.25,
-      metalness: 0.1
+      roughness: 0.22,
+      metalness: 0.10
     });
 
-    this.photoPlane = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 2.8), photoMat);
-    this.photoPlane.position.set(0, 2.4, 0.08);
+    this.photoPlane = new THREE.Mesh(new THREE.PlaneGeometry(2.06, 2.76), photoMat);
+    this.photoPlane.position.set(0, centerY, 0.12);
     this.photoPlane.userData = { type: 'photo-frame' };
     this.photoFrameGroup.add(this.photoPlane);
 
-    // Glowing 3D "+" Add/Change Photo Badge on Top-Right Corner
+    // 10. ROYAL GOLD SEAL PHOTO BADGE ("+" ADD/CHANGE PHOTO)
     const badgeGroup = new THREE.Group();
-    badgeGroup.position.set(1.05, 3.7, 0.2);
+    badgeGroup.position.set(1.22, centerY + 1.48, 0.28);
 
-    const badgeOrb = new THREE.Mesh(
-      new THREE.SphereGeometry(0.3, 16, 16),
-      new THREE.MeshStandardMaterial({ color: 0x00f2fe, emissive: 0x0088cc, roughness: 0.2 })
+    // Royal Scalloped Gold Medallion
+    const badgeBezel = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.32, 0.32, 0.08, 16),
+      brightGoldMat
     );
-    badgeGroup.add(badgeOrb);
+    badgeBezel.rotation.x = Math.PI / 2;
+    badgeGroup.add(badgeBezel);
 
-    // 3D "+" symbol (cross)
+    // Outer Gilded Ring
+    const badgeRim = new THREE.Mesh(
+      new THREE.TorusGeometry(0.30, 0.038, 8, 20),
+      royalGoldMat
+    );
+    badgeGroup.add(badgeRim);
+
+    // Center Ruby Cabochon
+    const badgeCenter = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.22, 0.22, 0.09, 16),
+      rubyMat
+    );
+    badgeCenter.rotation.x = Math.PI / 2;
+    badgeGroup.add(badgeCenter);
+
+    // Glowing White/Gold Crystal "+" Cross
     const crossMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const crossH = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.08, 0.08), crossMat);
-    crossH.position.z = 0.26;
-    badgeGroup.add(crossH);
+    const bCrossH = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.07, 0.08), crossMat);
+    bCrossH.position.z = 0.08;
+    badgeGroup.add(bCrossH);
 
-    const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.32, 0.08), crossMat);
-    crossV.position.z = 0.26;
-    badgeGroup.add(crossV);
+    const bCrossV = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.28, 0.08), crossMat);
+    bCrossV.position.z = 0.08;
+    badgeGroup.add(bCrossV);
 
     badgeGroup.userData = { type: 'photo-frame' };
     this.photoFrameGroup.add(badgeGroup);
@@ -1550,10 +1894,58 @@ class BirthdayScene {
   drawDefaultPhotoTexture(customImg = null, name = 'My Love', age = '') {
     if (!this.photoCanvas) return;
     const ctx = this.photoCanvas.getContext('2d');
+    const w = 512, h = 680;
+
+    // Helper: Draw Victorian Royal Gold Corner Flourishes
+    const drawRoyalGoldCornerFlourishes = (context, pad = 24, size = 44) => {
+      context.save();
+      context.strokeStyle = '#ffd700';
+      context.lineWidth = 3;
+      context.lineCap = 'round';
+
+      const corners = [
+        { x: pad, y: pad, sx: 1, sy: 1 },             // Top-Left
+        { x: w - pad, y: pad, sx: -1, sy: 1 },         // Top-Right
+        { x: pad, y: h - pad, sx: 1, sy: -1 },         // Bottom-Left
+        { x: w - pad, y: h - pad, sx: -1, sy: -1 }     // Bottom-Right
+      ];
+
+      corners.forEach(c => {
+        context.save();
+        context.translate(c.x, c.y);
+        context.scale(c.sx, c.sy);
+
+        // Outer corner bracket
+        context.beginPath();
+        context.moveTo(0, size);
+        context.lineTo(0, 0);
+        context.lineTo(size, 0);
+        context.stroke();
+
+        // Inner ornate swirl
+        context.beginPath();
+        context.arc(size * 0.45, size * 0.45, size * 0.35, Math.PI, Math.PI * 1.5);
+        context.stroke();
+
+        // Little gold diamond at corner tip
+        context.fillStyle = '#ffea78';
+        context.beginPath();
+        context.moveTo(0, -2);
+        context.lineTo(4, 2);
+        context.lineTo(0, 6);
+        context.lineTo(-4, 2);
+        context.closePath();
+        context.fill();
+
+        context.restore();
+      });
+      context.restore();
+    };
+
     if (customImg && customImg.width > 0) {
       this.currentCustomPhotoImg = customImg;
       const imgAspect = customImg.width / customImg.height;
-      const canvasAspect = 512 / 680;
+      const canvasAspect = w / h;
       let sx = 0, sy = 0, sw = customImg.width, sh = customImg.height;
       if (imgAspect > canvasAspect) {
         sw = customImg.height * canvasAspect;
@@ -1562,63 +1954,129 @@ class BirthdayScene {
         sh = customImg.width / canvasAspect;
         sy = (customImg.height - sh) / 2;
       }
-      ctx.drawImage(customImg, sx, sy, sw, sh, 0, 0, 512, 680);
+      ctx.drawImage(customImg, sx, sy, sw, sh, 0, 0, w, h);
 
-      // Rose gold elegant border overlay
-      ctx.strokeStyle = '#ff758c';
-      ctx.lineWidth = 14;
-      ctx.strokeRect(7, 7, 498, 666);
+      // Subtle royal vignette for rich museum portrait depth
+      const vig = ctx.createRadialGradient(w / 2, h / 2, w * 0.3, w / 2, h / 2, w * 0.75);
+      vig.addColorStop(0, 'rgba(0,0,0,0)');
+      vig.addColorStop(1, 'rgba(25, 4, 10, 0.48)');
+      ctx.fillStyle = vig;
+      ctx.fillRect(0, 0, w, h);
+
+      // Royal Gold Double Filigree Border
+      ctx.strokeStyle = '#ffd700';
+      ctx.lineWidth = 10;
+      ctx.strokeRect(5, 5, w - 10, h - 10);
+
+      ctx.strokeStyle = '#ffea78';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(16, 16, w - 32, h - 32);
+
+      ctx.strokeStyle = 'rgba(70, 5, 20, 0.7)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(21, 21, w - 42, h - 42);
+
+      // 4 Victorian Baroque Corner Flourishes in Gold
+      drawRoyalGoldCornerFlourishes(ctx, 24, 46);
+
+      // Miniature Royal Crown Stamp on Top Center
+      ctx.fillStyle = '#ffd700';
+      ctx.font = '24px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('👑', w / 2, 44);
+
       return;
     }
 
-    // Default Romantic Celebratory Portrait Card (No photo uploaded)
-    const grad = ctx.createLinearGradient(0, 0, 512, 680);
-    grad.addColorStop(0, '#3d0f28');
-    grad.addColorStop(0.5, '#200715');
-    grad.addColorStop(1, '#0e020a');
+    // Default Royal Celebratory Portrait Card (No photo uploaded yet)
+    // Deep Imperial Crimson Velvet Radial Gradient
+    const grad = ctx.createRadialGradient(w / 2, h / 2, 60, w / 2, h / 2, 420);
+    grad.addColorStop(0, '#4a061c');
+    grad.addColorStop(0.55, '#280310');
+    grad.addColorStop(1, '#110006');
     ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 512, 680);
+    ctx.fillRect(0, 0, w, h);
 
-    // Rose Gold decorative border
-    ctx.strokeStyle = '#ff758c';
-    ctx.lineWidth = 14;
-    ctx.strokeRect(10, 10, 492, 660);
+    // Elegant Golden Rays fanning from crown
+    ctx.save();
+    ctx.translate(w / 2, 230);
+    for (let r = 0; r < 24; r++) {
+      ctx.rotate(Math.PI / 12);
+      ctx.fillStyle = r % 2 === 0 ? 'rgba(255, 215, 0, 0.04)' : 'rgba(255, 234, 120, 0.08)';
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-12, 340);
+      ctx.lineTo(12, 340);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
 
-    // Celebratory Badge
-    ctx.fillStyle = '#ff758c';
-    ctx.font = 'bold 34px Outfit, sans-serif';
+    // Royal Gold Double Filigree Border
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 10;
+    ctx.strokeRect(5, 5, w - 10, h - 10);
+
+    ctx.strokeStyle = '#ffea78';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(16, 16, w - 32, h - 32);
+
+    ctx.strokeStyle = 'rgba(70, 5, 20, 0.7)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(21, 21, w - 42, h - 42);
+
+    // 4 Victorian Baroque Corner Flourishes in Gold
+    drawRoyalGoldCornerFlourishes(ctx, 24, 48);
+
+    // Top Royal Header Banner
+    ctx.fillStyle = '#ffea78';
+    ctx.font = 'bold 20px "Cinzel", "Playfair Display", Georgia, serif';
     ctx.textAlign = 'center';
-    ctx.fillText('💖 MY SWEETHEART 💖', 256, 90);
+    ctx.fillText('✦  HER ROYAL HIGHNESS  ✦', w / 2, 85);
 
-    // Glowing Heart circle
+    // Golden Imperial Crown Crest in the Center
     ctx.beginPath();
-    ctx.arc(256, 280, 140, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255, 117, 140, 0.18)';
+    ctx.arc(w / 2, 240, 130, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 215, 0, 0.10)';
     ctx.fill();
-    ctx.strokeStyle = '#ff758c';
-    ctx.lineWidth = 6;
+    ctx.strokeStyle = 'rgba(255, 215, 0, 0.45)';
+    ctx.lineWidth = 4;
     ctx.stroke();
 
-    // Heart Icon
-    ctx.font = '90px sans-serif';
-    ctx.fillText('💖', 256, 310);
+    // Large 3D Imperial Crown Icon
+    ctx.font = '96px sans-serif';
+    ctx.fillText('👑', w / 2, 275);
 
-    // Name & Age text
+    // Celebrant Name with 24K Gold Glow
+    ctx.save();
+    ctx.shadowColor = '#ffd700';
+    ctx.shadowBlur = 18;
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 36px Outfit, sans-serif';
-    ctx.fillText((name || 'MY LOVE').toUpperCase(), 256, 510);
+    ctx.font = 'bold 36px "Cinzel", "Playfair Display", Georgia, serif';
+    ctx.fillText((name || 'MY QUEEN').toUpperCase(), w / 2, 455);
+    ctx.restore();
 
+    // Royal Subtitle
     ctx.fillStyle = '#ffd700';
-    ctx.font = 'bold 30px Outfit, sans-serif';
+    ctx.font = 'bold 26px "Playfair Display", Georgia, serif';
     if (age && parseInt(age) > 0) {
-      ctx.fillText(`Sweet ${age} • Queen of My Heart`, 256, 565);
+      ctx.fillText(`Sweet ${age}  •  Queen of My Heart`, w / 2, 505);
     } else {
-      ctx.fillText('Queen of My Heart 💕', 256, 565);
+      ctx.fillText('Sovereign of My Heart 💕', w / 2, 505);
     }
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-    ctx.font = '22px Outfit, sans-serif';
-    ctx.fillText('Tap + to Add Her Photo 📸', 256, 625);
+    // Royal Call-to-Action Plaque at bottom
+    ctx.fillStyle = 'rgba(255, 215, 0, 0.16)';
+    ctx.beginPath();
+    ctx.roundRect(w / 2 - 170, 565, 340, 52, 26);
+    ctx.fill();
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 20px Outfit, sans-serif';
+    ctx.fillText('👑 Tap to Crown Her Photo 📸', w / 2, 598);
   }
 
   clearUserPhoto() {
@@ -4197,10 +4655,19 @@ class BirthdayScene {
       });
     }
 
-    // 6. Photo Frame + Badge Pulsing Glow
+    // 6. Royal Photo Frame + Badge Pulsing Glow & Gemstones Sparkle
     if (this.photoBadge) {
-      const pulse = 1.0 + Math.sin(time * 5) * 0.15;
+      const pulse = 1.0 + Math.sin(time * 4.5) * 0.12;
       this.photoBadge.scale.set(pulse, pulse, pulse);
+    }
+    if (this.royalFrameGems && this.royalFrameGems.length > 0) {
+      const gemGlint = 0.5 + Math.sin(time * 3.2) * 0.4;
+      for (let g = 0; g < this.royalFrameGems.length; g++) {
+        const gem = this.royalFrameGems[g];
+        if (gem.material && gem.material.emissiveIntensity !== undefined) {
+          gem.material.emissiveIntensity = gemGlint;
+        }
+      }
     }
 
     // 7. Background side balloons wobble & glitter shimmer
