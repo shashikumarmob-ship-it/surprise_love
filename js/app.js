@@ -1954,6 +1954,9 @@ document.addEventListener('DOMContentLoaded', () => {
         scene.setCameraView('cake');
         Object.values(camPills).forEach(b => { if (b) b.classList.remove('active'); });
         if (camPills.cake) camPills.cake.classList.add('active');
+        if (typeof scene.blowCandles === 'function') {
+          scene.blowCandles();
+        }
         scene.start3SecondFirecrackers();
       }
     });

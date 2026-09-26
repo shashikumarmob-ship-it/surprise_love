@@ -49,6 +49,19 @@ class BirthdayScene {
     this.confettiList = [];
     this.sparklerActive = false;
 
+    // VFX Systems Properties
+    this.vfxAuraParticles = null;
+    this.vfxAuraParticlesData = [];
+    this.vfxAuraRing = null;
+    this.vfxAuraIntensity = 1.0;
+    this.vfxBokehParticles = null;
+    this.vfxBokehData = [];
+    this.vfxStarTrails = [];
+    this.vfxLastStarSpawn = 0;
+    this.vfxActiveFireworks = [];
+    this.vfxSmokeParticles = [];
+    this.vfxSliceSparks = [];
+
     // Raycaster
     this.raycaster = new THREE.Raycaster();
     this.mouse = new THREE.Vector2();
@@ -158,6 +171,7 @@ class BirthdayScene {
     this.createDiscoBall();
     this.createConfettiStorm();
     this.createRosePetalsSystem();
+    this.initVfxSystem();
 
     window.addEventListener('resize', this.onWindowResize.bind(this));
     window.addEventListener('orientationchange', () => {
@@ -1656,6 +1670,9 @@ class BirthdayScene {
     // Reveal the 4-5 Party Friends cheering behind the cake
     this.revealPartyFriends();
 
+    // Trigger Magical Cake Aura & Fairy Dust Sparkle burst
+    this.burstCakeAuraVFX();
+
     // Lift cloth upwards and fade away
     gsap.to(this.clothCover.position, {
       y: 13.5,
@@ -1910,6 +1927,14 @@ class BirthdayScene {
       gsap.to(light, { intensity: 2.5, duration: 0.4 });
     });
 
+    // Trigger Candle Ignition Shockwave Ring VFX
+    if (this.candles.length > 0) {
+      const cPos = new THREE.Vector3();
+      this.candles[0].getWorldPosition(cPos);
+      cPos.y += 1.4;
+      this.triggerCandleIgnitionVFX(cPos);
+    }
+
     if (window.confetti) {
       window.confetti({ particleCount: 50, spread: 75, origin: { y: 0.55 } });
     }
@@ -1954,7 +1979,15 @@ class BirthdayScene {
     this.cakeKnife.visible = true;
 
     gsap.timeline()
-      .to(this.cakeKnife.position, { y: 1.8, duration: 0.6, ease: 'power2.in' })
+      .to(this.cakeKnife.position, {
+        y: 1.8,
+        duration: 0.6,
+        ease: 'power2.in',
+        onComplete: () => {
+          // Trigger Slicing Spark Fountain VFX
+          this.createKnifeSliceSparkFountain({ x: 0, y: 2.2, z: 1.5 });
+        }
+      })
       .to(this.cakeKnife.position, { y: 9.0, duration: 0.5, ease: 'power2.out', onComplete: () => {
         this.cakeKnife.visible = false;
       }})
@@ -2199,7 +2232,8 @@ class BirthdayScene {
           this.partyFriends.forEach(f => { f.userData.isClapping = true; });
         }
 
-        // 4. Start Firecrackers Video and stay on fireworks view until it finishes completely!
+        // 4. Start 3D Multi-Color Particle Fireworks & Firecrackers Video
+        this.launchCelebrationFireworkShow(10);
         this.playGreenScreenFirecrackers(null, () => {
           // Firecrackers have completely finished -> NOW smoothly return camera to celebration angle (mobile vs desktop)
           const grandCam = this.getCelebrationCameraCoords();
@@ -2259,7 +2293,8 @@ class BirthdayScene {
       ease: 'power2.inOut'
     });
 
-    // 2. Play Real Firecrackers Video (7.5s to End) with Authentic Sound
+    // 2. Play 3D Multi-Color Fireworks Show & Real Firecrackers Video
+    this.launchCelebrationFireworkShow(8);
     this.playGreenScreenFirecrackers(null, () => {
       // 3. Firecrackers finished -> Smoothly return camera to celebration angle
       const grandCam = this.getCelebrationCameraCoords();
@@ -2689,6 +2724,728 @@ class BirthdayScene {
     if (this.giftBoxMat) this.giftBoxMat.color.setHex(theme.giftBox);
     if (this.giftRibbonMat) this.giftRibbonMat.color.setHex(theme.giftRibbon);
     if (this.cakeGlowLight) this.cakeGlowLight.color.setHex(theme.lightGlow);
+
+    if (this.vfxAuraRing && theme.lightGlow) {
+      this.vfxAuraRing.material.color.setHex(theme.lightGlow);
+    }
+  }
+
+  /* =========================================================
+     CINEMATIC VFX SUITE (4-IN-1 SPECIAL EFFECTS ENGINE)
+     1. Magical Golden Aura & Fairy Dust Sparkles (Around 3D Cake)
+     2. Grand Multi-Color 3D Particle Fireworks & Slicing Sparks
+     3. Candle Smoke Wisps & Flickering Flame Shockwave
+     4. Ambient Floating Bokeh Lights & Night Sky Star Trails
+     ========================================================= */
+
+  createVfxCanvasTexture(type) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    const cx = 32;
+    const cy = 32;
+
+    if (type === 'star') {
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 28);
+      grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+      grad.addColorStop(0.2, 'rgba(255, 225, 130, 0.9)');
+      grad.addColorStop(0.55, 'rgba(255, 185, 60, 0.35)');
+      grad.addColorStop(1, 'rgba(255, 140, 0, 0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 64, 64);
+
+      // Star cross sparkle rays
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(cx, 3); ctx.lineTo(cx, 61);
+      ctx.moveTo(3, cy); ctx.lineTo(61, cy);
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(255, 235, 160, 0.55)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(11, 11); ctx.lineTo(53, 53);
+      ctx.moveTo(11, 53); ctx.lineTo(53, 11);
+      ctx.stroke();
+    } else if (type === 'bokeh') {
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 30);
+      grad.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+      grad.addColorStop(0.4, 'rgba(255, 230, 210, 0.6)');
+      grad.addColorStop(0.75, 'rgba(255, 190, 205, 0.25)');
+      grad.addColorStop(1, 'rgba(255, 160, 190, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 30, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (type === 'spark') {
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 26);
+      grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+      grad.addColorStop(0.25, 'rgba(255, 245, 190, 0.95)');
+      grad.addColorStop(0.6, 'rgba(255, 170, 45, 0.45)');
+      grad.addColorStop(1, 'rgba(255, 90, 0, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 26, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (type === 'smoke') {
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 30);
+      grad.addColorStop(0, 'rgba(225, 225, 235, 0.75)');
+      grad.addColorStop(0.4, 'rgba(200, 200, 215, 0.4)');
+      grad.addColorStop(0.75, 'rgba(175, 175, 190, 0.15)');
+      grad.addColorStop(1, 'rgba(150, 150, 165, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 30, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (type === 'glow_ring') {
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 31);
+      grad.addColorStop(0, 'rgba(255, 220, 60, 0.85)');
+      grad.addColorStop(0.35, 'rgba(255, 180, 80, 0.45)');
+      grad.addColorStop(0.7, 'rgba(255, 120, 160, 0.2)');
+      grad.addColorStop(1, 'rgba(255, 60, 110, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 31, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    return new THREE.CanvasTexture(canvas);
+  }
+
+  initVfxSystem() {
+    this.starTexture = this.createVfxCanvasTexture('star');
+    this.sparkTexture = this.createVfxCanvasTexture('spark');
+    this.bokehTexture = this.createVfxCanvasTexture('bokeh');
+    this.smokeTexture = this.createVfxCanvasTexture('smoke');
+    this.glowRingTexture = this.createVfxCanvasTexture('glow_ring');
+
+    this.initCakeAuraVFX();
+    this.initBokehAndStarTrailsVFX();
+  }
+
+  /* --- VFX 1: MAGICAL GOLDEN AURA & FAIRY DUST SPARKLES --- */
+  initCakeAuraVFX() {
+    // A. Luminous Aura Disk on the table under the cake
+    const ringGeo = new THREE.PlaneGeometry(8.5, 8.5);
+    const ringMat = new THREE.MeshBasicMaterial({
+      map: this.glowRingTexture,
+      transparent: true,
+      opacity: 0.55,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    this.vfxAuraRing = new THREE.Mesh(ringGeo, ringMat);
+    this.vfxAuraRing.rotation.x = -Math.PI / 2;
+    this.vfxAuraRing.position.set(0, 1.28, 0);
+    this.scene.add(this.vfxAuraRing);
+
+    // B. 160 Orbiting Golden Fairy Dust Sparkle Points
+    const auraCount = 160;
+    const auraGeo = new THREE.BufferGeometry();
+    const auraPositions = new Float32Array(auraCount * 3);
+    const auraColors = new Float32Array(auraCount * 3);
+    this.vfxAuraParticlesData = [];
+
+    const goldColor = new THREE.Color(0xffd700);
+    const roseGoldColor = new THREE.Color(0xff9ebb);
+    const amberColor = new THREE.Color(0xffba08);
+
+    for (let i = 0; i < auraCount; i++) {
+      const radius = 1.6 + Math.random() * 2.8;
+      const angle = Math.random() * Math.PI * 2;
+      const y = 1.4 + Math.random() * 5.2;
+      const speed = 0.35 + Math.random() * 0.8;
+      const bobAmp = 0.15 + Math.random() * 0.25;
+      const bobFreq = 1.2 + Math.random() * 2.0;
+      const phase = Math.random() * Math.PI * 2;
+
+      auraPositions[i * 3] = Math.cos(angle) * radius;
+      auraPositions[i * 3 + 1] = y;
+      auraPositions[i * 3 + 2] = Math.sin(angle) * radius;
+
+      const cPick = Math.random();
+      const col = cPick < 0.5 ? goldColor : (cPick < 0.8 ? roseGoldColor : amberColor);
+      auraColors[i * 3] = col.r;
+      auraColors[i * 3 + 1] = col.g;
+      auraColors[i * 3 + 2] = col.b;
+
+      this.vfxAuraParticlesData.push({
+        radius,
+        angle,
+        y,
+        baseY: y,
+        speed,
+        bobAmp,
+        bobFreq,
+        phase,
+        riseSpeed: 0.12 + Math.random() * 0.2
+      });
+    }
+
+    auraGeo.setAttribute('position', new THREE.BufferAttribute(auraPositions, 3));
+    auraGeo.setAttribute('color', new THREE.BufferAttribute(auraColors, 3));
+
+    const auraMat = new THREE.PointsMaterial({
+      size: 0.45,
+      map: this.starTexture,
+      transparent: true,
+      opacity: 0.85,
+      vertexColors: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+
+    this.vfxAuraParticles = new THREE.Points(auraGeo, auraMat);
+    this.scene.add(this.vfxAuraParticles);
+  }
+
+  burstCakeAuraVFX() {
+    this.vfxAuraIntensity = 1.8;
+    gsap.to(this, {
+      vfxAuraIntensity: 1.1,
+      duration: 2.5,
+      ease: 'power2.out'
+    });
+
+    if (this.vfxAuraParticles && this.vfxAuraParticles.material) {
+      gsap.to(this.vfxAuraParticles.material, {
+        size: 0.75,
+        duration: 0.8,
+        yoyo: true,
+        repeat: 1,
+        ease: 'power1.inOut'
+      });
+    }
+
+    // Sparkle flare burst from cake apex
+    this.launch3DFireworkBurst(0, 4.2, 0, 0xffd700, 75);
+  }
+
+  updateVfxAura(time) {
+    if (!this.vfxAuraParticles || !this.vfxAuraParticlesData) return;
+
+    const positions = this.vfxAuraParticles.geometry.attributes.position.array;
+    const l = this.vfxAuraParticlesData.length;
+
+    for (let i = 0; i < l; i++) {
+      const p = this.vfxAuraParticlesData[i];
+      p.angle += p.speed * 0.012;
+      p.y += p.riseSpeed * 0.02;
+
+      if (p.y > 6.2) {
+        p.y = 1.35;
+      }
+
+      const curRadius = p.radius + Math.sin(time * 2.0 + p.phase) * 0.15;
+      const bobY = p.y + Math.sin(time * p.bobFreq + p.phase) * p.bobAmp;
+
+      positions[i * 3] = Math.cos(p.angle) * curRadius;
+      positions[i * 3 + 1] = bobY;
+      positions[i * 3 + 2] = Math.sin(p.angle) * curRadius;
+    }
+    this.vfxAuraParticles.geometry.attributes.position.needsUpdate = true;
+
+    if (this.vfxAuraRing) {
+      const pulse = 1.0 + Math.sin(time * 2.5) * 0.08;
+      this.vfxAuraRing.scale.set(pulse, pulse, 1.0);
+      this.vfxAuraRing.material.opacity = (0.45 + Math.sin(time * 3.0) * 0.15) * this.vfxAuraIntensity;
+    }
+  }
+
+  /* --- VFX 4: AMBIENT FLOATING BOKEH LIGHTS & STAR TRAILS --- */
+  initBokehAndStarTrailsVFX() {
+    const bokehCount = 100;
+    const bokehGeo = new THREE.BufferGeometry();
+    const bokehPositions = new Float32Array(bokehCount * 3);
+    const bokehColors = new Float32Array(bokehCount * 3);
+    this.vfxBokehData = [];
+
+    const palette = [
+      new THREE.Color(0xff758c), // Rose
+      new THREE.Color(0xffd166), // Gold
+      new THREE.Color(0xcdb4db), // Soft Lavender
+      new THREE.Color(0xffc6ff), // Fairy Pink
+      new THREE.Color(0x9bf6ff)  // Ethereal Cyan
+    ];
+
+    for (let i = 0; i < bokehCount; i++) {
+      const x = (Math.random() - 0.5) * 55;
+      const y = 1.0 + Math.random() * 25;
+      const z = (Math.random() - 0.5) * 50;
+
+      bokehPositions[i * 3] = x;
+      bokehPositions[i * 3 + 1] = y;
+      bokehPositions[i * 3 + 2] = z;
+
+      const col = palette[Math.floor(Math.random() * palette.length)];
+      bokehColors[i * 3] = col.r;
+      bokehColors[i * 3 + 1] = col.g;
+      bokehColors[i * 3 + 2] = col.b;
+
+      this.vfxBokehData.push({
+        baseX: x, baseY: y, baseZ: z,
+        swayX: 0.8 + Math.random() * 1.5,
+        swayY: 0.6 + Math.random() * 1.2,
+        swayZ: 0.8 + Math.random() * 1.5,
+        freq: 0.3 + Math.random() * 0.5,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+
+    bokehGeo.setAttribute('position', new THREE.BufferAttribute(bokehPositions, 3));
+    bokehGeo.setAttribute('color', new THREE.BufferAttribute(bokehColors, 3));
+
+    const bokehMat = new THREE.PointsMaterial({
+      size: 1.25,
+      map: this.bokehTexture,
+      transparent: true,
+      opacity: 0.55,
+      vertexColors: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+
+    this.vfxBokehParticles = new THREE.Points(bokehGeo, bokehMat);
+    this.scene.add(this.vfxBokehParticles);
+
+    this.vfxStarTrails = [];
+    this.vfxLastStarSpawn = 0;
+  }
+
+  updateVfxBokeh(time) {
+    if (!this.vfxBokehParticles || !this.vfxBokehData) return;
+
+    const positions = this.vfxBokehParticles.geometry.attributes.position.array;
+    const l = this.vfxBokehData.length;
+
+    for (let i = 0; i < l; i++) {
+      const b = this.vfxBokehData[i];
+      positions[i * 3] = b.baseX + Math.sin(time * b.freq + b.phase) * b.swayX;
+      positions[i * 3 + 1] = b.baseY + Math.cos(time * b.freq * 0.8 + b.phase) * b.swayY;
+      positions[i * 3 + 2] = b.baseZ + Math.sin(time * b.freq * 1.2 + b.phase) * b.swayZ;
+    }
+    this.vfxBokehParticles.geometry.attributes.position.needsUpdate = true;
+
+    if (this.vfxBokehParticles.material) {
+      this.vfxBokehParticles.material.opacity = 0.55 + Math.sin(time * 1.5) * 0.15;
+    }
+  }
+
+  spawnShootingStar() {
+    const startX = (Math.random() - 0.5) * 60;
+    const startY = 22 + Math.random() * 12;
+    const startZ = -15 - Math.random() * 20;
+
+    const angle = (Math.random() * 0.4 + 0.2) * (Math.random() < 0.5 ? 1 : -1);
+    const speed = 1.2 + Math.random() * 0.8;
+    const vx = Math.cos(angle) * speed;
+    const vy = -Math.sin(angle) * speed * 0.6;
+    const vz = (Math.random() - 0.5) * 0.3;
+
+    const points = [
+      new THREE.Vector3(startX, startY, startZ),
+      new THREE.Vector3(startX - vx * 2.5, startY - vy * 2.5, startZ - vz * 2.5)
+    ];
+    const geo = new THREE.BufferGeometry().setFromPoints(points);
+    const mat = new THREE.LineBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending
+    });
+    const line = new THREE.Line(geo, mat);
+    this.scene.add(line);
+
+    this.vfxStarTrails.push({
+      line,
+      geo,
+      mat,
+      pos: new THREE.Vector3(startX, startY, startZ),
+      vel: new THREE.Vector3(vx, vy, vz),
+      length: 3.5 + Math.random() * 2.0,
+      life: 1.0,
+      decay: 0.02 + Math.random() * 0.01
+    });
+  }
+
+  updateVfxStarTrails(time) {
+    if (time - this.vfxLastStarSpawn > 3.2 + Math.random() * 2.5) {
+      this.vfxLastStarSpawn = time;
+      this.spawnShootingStar();
+    }
+
+    for (let i = this.vfxStarTrails.length - 1; i >= 0; i--) {
+      const st = this.vfxStarTrails[i];
+      st.life -= st.decay;
+      if (st.life <= 0) {
+        this.scene.remove(st.line);
+        st.geo.dispose();
+        st.mat.dispose();
+        this.vfxStarTrails.splice(i, 1);
+        continue;
+      }
+
+      st.pos.add(st.vel);
+      st.mat.opacity = Math.max(0, st.life * 0.95);
+
+      const positions = st.geo.attributes.position.array;
+      positions[0] = st.pos.x;
+      positions[1] = st.pos.y;
+      positions[2] = st.pos.z;
+      positions[3] = st.pos.x - st.vel.x * (st.length * st.life);
+      positions[4] = st.pos.y - st.vel.y * (st.length * st.life);
+      positions[5] = st.pos.z - st.vel.z * (st.length * st.life);
+      st.geo.attributes.position.needsUpdate = true;
+    }
+  }
+
+  /* --- VFX 2: 3D PARTICLES FIREWORKS & KNIFE CUT SPARK FOUNTAIN --- */
+  launch3DFireworkBurst(x, y, z, colorHex = 0xffd700, particleCount = 75) {
+    const geo = new THREE.BufferGeometry();
+    const positions = new Float32Array(particleCount * 3);
+    const colors = new Float32Array(particleCount * 3);
+    const pData = [];
+    const baseCol = new THREE.Color(colorHex);
+
+    for (let i = 0; i < particleCount; i++) {
+      positions[i * 3] = x;
+      positions[i * 3 + 1] = y;
+      positions[i * 3 + 2] = z;
+
+      colors[i * 3] = baseCol.r;
+      colors[i * 3 + 1] = baseCol.g;
+      colors[i * 3 + 2] = baseCol.b;
+
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos((Math.random() * 2) - 1);
+      const speed = 0.25 + Math.random() * 0.55;
+
+      pData.push({
+        vx: Math.sin(phi) * Math.cos(theta) * speed,
+        vy: Math.sin(phi) * Math.sin(theta) * speed + 0.08,
+        vz: Math.cos(phi) * speed,
+        drag: 0.965,
+        gravity: -0.012
+      });
+    }
+
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+    const mat = new THREE.PointsMaterial({
+      size: 0.55,
+      map: this.sparkTexture,
+      transparent: true,
+      opacity: 1.0,
+      vertexColors: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+
+    const mesh = new THREE.Points(geo, mat);
+    this.scene.add(mesh);
+
+    this.vfxActiveFireworks.push({
+      mesh,
+      geo,
+      mat,
+      pData,
+      positions,
+      life: 1.0,
+      decay: 0.016 + Math.random() * 0.008
+    });
+  }
+
+  launchCelebrationFireworkShow(burstCount = 9) {
+    const colors = [0xffd700, 0xff1493, 0x00f2fe, 0x39ff14, 0xff6b6b, 0xbf5af2, 0xffb703];
+    for (let i = 0; i < burstCount; i++) {
+      setTimeout(() => {
+        const x = (Math.random() - 0.5) * 34;
+        const y = 14 + Math.random() * 12;
+        const z = -4 + (Math.random() - 0.5) * 16;
+        const col = colors[Math.floor(Math.random() * colors.length)];
+        this.launch3DFireworkBurst(x, y, z, col, 70);
+
+        if (window.birthdayAudio) {
+          try { window.birthdayAudio.playBalloonPop(); } catch(e) {}
+        }
+      }, i * 350);
+    }
+  }
+
+  createKnifeSliceSparkFountain(pos) {
+    const count = 70;
+    const geo = new THREE.BufferGeometry();
+    const positions = new Float32Array(count * 3);
+    const colors = new Float32Array(count * 3);
+    const pData = [];
+    const goldCol = new THREE.Color(0xffd700);
+    const orangeCol = new THREE.Color(0xff7b00);
+
+    for (let i = 0; i < count; i++) {
+      positions[i * 3] = pos.x;
+      positions[i * 3 + 1] = pos.y;
+      positions[i * 3 + 2] = pos.z;
+
+      const c = Math.random() < 0.6 ? goldCol : orangeCol;
+      colors[i * 3] = c.r;
+      colors[i * 3 + 1] = c.g;
+      colors[i * 3 + 2] = c.b;
+
+      const angle = (Math.PI / 4) + (Math.random() - 0.5) * (Math.PI * 0.8);
+      const speed = 0.15 + Math.random() * 0.35;
+      pData.push({
+        vx: Math.cos(angle) * speed,
+        vy: 0.1 + Math.random() * 0.25,
+        vz: Math.sin(angle) * speed + 0.12,
+        gravity: -0.015,
+        drag: 0.94
+      });
+    }
+
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+    const mat = new THREE.PointsMaterial({
+      size: 0.45,
+      map: this.sparkTexture,
+      transparent: true,
+      opacity: 1.0,
+      vertexColors: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+
+    const mesh = new THREE.Points(geo, mat);
+    this.scene.add(mesh);
+
+    this.vfxSliceSparks.push({
+      mesh, geo, mat, pData, positions,
+      life: 1.0,
+      decay: 0.025
+    });
+  }
+
+  updateVfxFireworks() {
+    for (let i = this.vfxActiveFireworks.length - 1; i >= 0; i--) {
+      const fw = this.vfxActiveFireworks[i];
+      fw.life -= fw.decay;
+      if (fw.life <= 0) {
+        this.scene.remove(fw.mesh);
+        fw.geo.dispose();
+        fw.mat.dispose();
+        this.vfxActiveFireworks.splice(i, 1);
+        continue;
+      }
+
+      fw.mat.opacity = Math.max(0, fw.life);
+      fw.mat.size = 0.55 * Math.max(0.3, fw.life);
+
+      const pos = fw.positions;
+      const count = fw.pData.length;
+      for (let p = 0; p < count; p++) {
+        const pd = fw.pData[p];
+        pd.vy += pd.gravity;
+        pd.vx *= pd.drag;
+        pd.vy *= pd.drag;
+        pd.vz *= pd.drag;
+
+        pos[p * 3] += pd.vx;
+        pos[p * 3 + 1] += pd.vy;
+        pos[p * 3 + 2] += pd.vz;
+      }
+      fw.geo.attributes.position.needsUpdate = true;
+    }
+  }
+
+  updateVfxSliceSparks() {
+    for (let i = this.vfxSliceSparks.length - 1; i >= 0; i--) {
+      const sp = this.vfxSliceSparks[i];
+      sp.life -= sp.decay;
+      if (sp.life <= 0) {
+        this.scene.remove(sp.mesh);
+        sp.geo.dispose();
+        sp.mat.dispose();
+        this.vfxSliceSparks.splice(i, 1);
+        continue;
+      }
+
+      sp.mat.opacity = sp.life;
+      const pos = sp.positions;
+      const count = sp.pData.length;
+      for (let p = 0; p < count; p++) {
+        const pd = sp.pData[p];
+        pd.vy += pd.gravity;
+        pd.vx *= pd.drag;
+        pd.vy *= pd.drag;
+        pd.vz *= pd.drag;
+
+        pos[p * 3] += pd.vx;
+        pos[p * 3 + 1] += pd.vy;
+        pos[p * 3 + 2] += pd.vz;
+
+        if (pos[p * 3 + 1] < 1.3) {
+          pos[p * 3 + 1] = 1.3;
+          pd.vy = -pd.vy * 0.4;
+        }
+      }
+      sp.geo.attributes.position.needsUpdate = true;
+    }
+  }
+
+  /* --- VFX 3: CANDLE IGNITION SHOCKWAVE & SMOKE PUFFS --- */
+  triggerCandleIgnitionVFX(centerPos = null) {
+    const pos = centerPos || new THREE.Vector3(0, 4.8, 0);
+
+    const ringGeo = new THREE.RingGeometry(0.1, 0.45, 32);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0xffd700,
+      transparent: true,
+      opacity: 0.95,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.copy(pos);
+    this.scene.add(ring);
+
+    gsap.to(ring.scale, {
+      x: 7.0, y: 7.0, z: 7.0,
+      duration: 0.75,
+      ease: 'power2.out'
+    });
+    gsap.to(ringMat, {
+      opacity: 0,
+      duration: 0.75,
+      ease: 'power2.out',
+      onComplete: () => {
+        this.scene.remove(ring);
+        ringGeo.dispose();
+        ringMat.dispose();
+      }
+    });
+  }
+
+  createCandleSmokePuff(pos) {
+    const puffCount = 18;
+    const geo = new THREE.BufferGeometry();
+    const positions = new Float32Array(puffCount * 3);
+    const pData = [];
+
+    for (let i = 0; i < puffCount; i++) {
+      positions[i * 3] = pos.x + (Math.random() - 0.5) * 0.15;
+      positions[i * 3 + 1] = pos.y + Math.random() * 0.2;
+      positions[i * 3 + 2] = pos.z + (Math.random() - 0.5) * 0.15;
+
+      pData.push({
+        vx: (Math.random() - 0.5) * 0.03,
+        vy: 0.045 + Math.random() * 0.04,
+        vz: (Math.random() - 0.5) * 0.03,
+        wobbleFreq: 3 + Math.random() * 3,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const mat = new THREE.PointsMaterial({
+      size: 0.65,
+      map: this.smokeTexture,
+      transparent: true,
+      opacity: 0.7,
+      color: 0xdcdce6,
+      depthWrite: false
+    });
+
+    const mesh = new THREE.Points(geo, mat);
+    this.scene.add(mesh);
+
+    this.vfxSmokeParticles.push({
+      mesh, geo, mat, pData, positions,
+      life: 1.0,
+      decay: 0.014
+    });
+  }
+
+  blowCandles() {
+    if (!this.candlesLit) {
+      this.lightCandles();
+      return;
+    }
+    this.candlesLit = false;
+
+    this.flames.forEach((item, idx) => {
+      gsap.to(item.flame.scale, { x: 0.001, y: 0.001, z: 0.001, duration: 0.35 });
+      gsap.to(item.core.scale, { x: 0.001, y: 0.001, z: 0.001, duration: 0.35 });
+      if (item.halo) {
+        gsap.to(item.halo.scale, {
+          x: 0.001, y: 0.001, z: 0.001, duration: 0.35,
+          onComplete: () => {
+            item.flame.visible = false;
+            item.core.visible = false;
+            if (item.halo) item.halo.visible = false;
+          }
+        });
+      }
+
+      const candleWorldPos = new THREE.Vector3();
+      if (this.candles[idx]) {
+        this.candles[idx].getWorldPosition(candleWorldPos);
+        candleWorldPos.y += 1.4;
+        this.createCandleSmokePuff(candleWorldPos);
+      }
+    });
+
+    this.candleLights.forEach(light => {
+      gsap.to(light, { intensity: 0, duration: 0.5 });
+    });
+
+    if (window.birthdayAudio && window.birthdayAudio.ctx) {
+      try {
+        const osc = window.birthdayAudio.ctx.createOscillator();
+        const gain = window.birthdayAudio.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(200, window.birthdayAudio.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(30, window.birthdayAudio.ctx.currentTime + 0.35);
+        gain.gain.setValueAtTime(0.25, window.birthdayAudio.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, window.birthdayAudio.ctx.currentTime + 0.35);
+        osc.connect(gain);
+        gain.connect(window.birthdayAudio.ctx.destination);
+        osc.start();
+        osc.stop(window.birthdayAudio.ctx.currentTime + 0.35);
+      } catch(e) {}
+    }
+  }
+
+  updateVfxSmoke() {
+    for (let i = this.vfxSmokeParticles.length - 1; i >= 0; i--) {
+      const sm = this.vfxSmokeParticles[i];
+      sm.life -= sm.decay;
+      if (sm.life <= 0) {
+        this.scene.remove(sm.mesh);
+        sm.geo.dispose();
+        sm.mat.dispose();
+        this.vfxSmokeParticles.splice(i, 1);
+        continue;
+      }
+
+      sm.mat.opacity = sm.life * 0.7;
+      sm.mat.size = (1.0 + (1.0 - sm.life) * 1.4) * 0.65;
+
+      const pos = sm.positions;
+      const count = sm.pData.length;
+      for (let p = 0; p < count; p++) {
+        const pd = sm.pData[p];
+        pos[p * 3] += pd.vx + Math.sin(sm.life * pd.wobbleFreq + pd.phase) * 0.015;
+        pos[p * 3 + 1] += pd.vy;
+        pos[p * 3 + 2] += pd.vz + Math.cos(sm.life * pd.wobbleFreq + pd.phase) * 0.015;
+      }
+      sm.geo.attributes.position.needsUpdate = true;
+    }
   }
 
   /* =========================================================
@@ -2708,6 +3465,7 @@ class BirthdayScene {
       this.flames.forEach((item, idx) => {
         const flicker = Math.sin(time * 16 + idx * 3.0) * 0.12 + Math.cos(time * 24 + idx) * 0.06;
         item.flame.scale.set(1.0 - flicker * 0.4, 1.0 + flicker, 1.0 - flicker * 0.4);
+        item.flame.rotation.z = Math.sin(time * 22 + idx * 4.0) * 0.12;
         item.core.scale.set(1.0 - flicker * 0.3, 1.0 + flicker * 0.8, 1.0 - flicker * 0.3);
         if (item.halo) item.halo.scale.set(1.0 + flicker * 0.35, 1.0 + flicker * 0.35, 1.0 + flicker * 0.35);
       });
@@ -2715,6 +3473,14 @@ class BirthdayScene {
         light.intensity = 2.4 + Math.sin(time * 18 + idx) * 0.6;
       });
     }
+
+    // 2B. Cinematic VFX Suite Updates
+    this.updateVfxAura(time);
+    this.updateVfxBokeh(time);
+    this.updateVfxStarTrails(time);
+    this.updateVfxFireworks();
+    this.updateVfxSmoke();
+    this.updateVfxSliceSparks();
 
     // 3. Disco Ball & Spotlights
     if (this.discoBallGroup && this.isDiscoActive) {

@@ -2347,6 +2347,7 @@ body {
    FLOATING LEFT-SIDE CORNER CHAT HISTORY BUTTON & MODAL
    ========================================================= */
 .floating-chat-history-btn {
+  display: none !important;
   position: fixed;
   bottom: 24px;
   left: 24px;
