@@ -286,9 +286,77 @@ class BirthdayAudio {
     osc.stop(now + 0.09);
   }
 
-  // FX: Real Firecrackers Audio - Exclusively driven by authentic firecrackers video audio track
+  // FX: Real 4K Fireworks Boom & Crackle Audio Synthesizer
   playFirework() {
-    // Pure authentic video audio is used - synthetic sound disabled
+    this.init();
+    if (!this.ctx || this.isMuted) return;
+    const now = this.ctx.currentTime;
+
+    // 1. Deep Sub-Bass Explosion Boom
+    try {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(160, now);
+      osc.frequency.exponentialRampToValueAtTime(28, now + 0.45);
+      gain.gain.setValueAtTime(0.5, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(now);
+      osc.stop(now + 0.45);
+    } catch(e) {}
+
+    // 2. Sizzling Crackle & Sparkle Shimmer
+    try {
+      const dur = 0.5;
+      const size = Math.floor(this.ctx.sampleRate * dur);
+      const buf = this.ctx.createBuffer(1, size, this.ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < size; i++) {
+        const env = Math.exp(-i / (size * 0.25));
+        const pop = Math.random() > 0.86 ? (Math.random() * 2 - 1) * 1.6 : (Math.random() * 2 - 1) * 0.35;
+        data[i] = pop * env;
+      }
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf;
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(3000, now);
+      filter.frequency.exponentialRampToValueAtTime(1000, now + dur);
+      filter.Q.value = 2.8;
+
+      const crackleGain = this.ctx.createGain();
+      crackleGain.gain.setValueAtTime(0.38, now);
+      crackleGain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+      src.connect(filter);
+      filter.connect(crackleGain);
+      crackleGain.connect(this.masterGain);
+      src.start(now);
+    } catch(e) {}
+  }
+
+  // FX: Rocket Launch Whistle / Whoosh
+  playRocketLaunch() {
+    this.init();
+    if (!this.ctx || this.isMuted) return;
+    const now = this.ctx.currentTime;
+    try {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(320, now);
+      osc.frequency.exponentialRampToValueAtTime(1450, now + 0.65);
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.25, now + 0.15);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(now);
+      osc.stop(now + 0.7);
+    } catch(e) {}
   }
 
   // FX: Real Sparkler Sizzling / Frying Crackle
