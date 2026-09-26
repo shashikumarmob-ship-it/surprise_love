@@ -18,10 +18,72 @@
   <link rel="stylesheet" href="style.css?v=25">
   <link rel="stylesheet" href="responsive.css?v=1">
 
+  <!-- High Priority Background Preload of 3D Cake Model on Link Open -->
+  <link rel="preload" href="cake.glb" as="fetch" crossorigin="anonymous">
+
   <!-- External Libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <!-- Instant Background 3D Cake Preloader: starts downloading cake.glb immediately when page opens -->
+  <script>
+    window.CakePreloader = {
+      status: 'idle',
+      gltf: null,
+      progress: 0,
+      callbacks: [],
+      startPreload() {
+        if (this.status === 'loading' || this.status === 'loaded') return;
+        this.status = 'loading';
+        console.log('🎂 [CakePreloader] Immediate background cake load started on link open...');
+        const tryLoad = () => {
+          if (typeof THREE !== 'undefined' && typeof THREE.GLTFLoader !== 'undefined') {
+            try {
+              const cakeUrl = new URL('cake.glb', window.location.href).href;
+              const loader = new THREE.GLTFLoader();
+              loader.load(
+                cakeUrl,
+                (gltf) => {
+                  console.log('✅ [CakePreloader] 3D cake.glb ready in background!');
+                  this.gltf = gltf;
+                  this.status = 'loaded';
+                  this.progress = 100;
+                  this.callbacks.forEach(cb => {
+                    try { cb(gltf); } catch (e) { console.error(e); }
+                  });
+                  this.callbacks = [];
+                },
+                (xhr) => {
+                  if (xhr.lengthComputable && xhr.total > 0) {
+                    this.progress = Math.round((xhr.loaded / xhr.total) * 100);
+                  }
+                },
+                (err) => {
+                  console.warn('⚠️ [CakePreloader] Background GLB error (will use procedural fallback):', err);
+                  this.status = 'error';
+                }
+              );
+            } catch(e) {
+              this.status = 'error';
+            }
+          } else {
+            // THREE not yet loaded, retry in 30ms
+            setTimeout(tryLoad, 30);
+          }
+        };
+        tryLoad();
+      },
+      onLoaded(cb) {
+        if (this.status === 'loaded' && this.gltf) {
+          cb(this.gltf);
+        } else {
+          this.callbacks.push(cb);
+        }
+      }
+    };
+    // Launch background download of 3D cake instantly when page loads!
+    window.CakePreloader.startPreload();
+  </script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>

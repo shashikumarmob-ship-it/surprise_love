@@ -2171,81 +2171,81 @@ class BirthdayScene {
     this.isCakeGlbLoaded = false;
     this.cakeGlbTopY = 5.37;
 
-    // Load custom cake.glb model from workspace root
-    const loadGlbCake = () => {
-      if (typeof THREE.GLTFLoader === 'undefined') {
-        console.warn('[Cake] THREE.GLTFLoader not available, using fallback cake');
-        this.buildProceduralCakeFallback(theme);
-        return;
-      }
+    // 1. Build procedural fallback cake IMMEDIATELY so table is NEVER empty while downloading
+    this.buildProceduralCakeFallback(theme);
 
-      const loader = new THREE.GLTFLoader();
-      loader.load(
-        'cake.glb',
-        (gltf) => {
-          const model = gltf.scene;
-          this.cakeGlbModel = model;
-          this.isCakeGlbLoaded = true;
-
-          // Enable shadow casting and receiving on all meshes + enhance material
-          model.traverse((child) => {
-            if (child.isMesh) {
-              child.castShadow = true;
-              child.receiveShadow = true;
-              if (child.material) {
-                child.material.side = THREE.DoubleSide;
-                if (child.material.roughness !== undefined) {
-                  child.material.roughness = Math.min(child.material.roughness, 0.6);
-                }
-              }
-            }
-          });
-
-          // Scale & position model precisely on the cake stand:
-          // Model bounds: X [-0.752, 0.748], Y [-0.9515, 0.9480], Z [-0.752, 0.748]
-          // Height = 1.8995, Diameter = 1.50
-          // Scaling by 2.15: Height = 4.08, Diameter = 3.22 (fits on plate of radius 3.6)
-          const cakeScale = 2.15;
-          model.scale.set(cakeScale, cakeScale, cakeScale);
-
-          // Plate is at y = 1.2, top surface is at y = 1.29
-          const plateSurfaceY = 1.29;
-          const posY = plateSurfaceY + 0.9515 * cakeScale;
-          model.position.set(0, posY, 0);
-
-          // Remove any temporary procedural fallback elements
-          if (this.proceduralCakeElements && this.proceduralCakeElements.length > 0) {
-            this.proceduralCakeElements.forEach((el) => {
-              if (el.parent) el.parent.remove(el);
-            });
-            this.proceduralCakeElements = [];
-          }
-
-          this.cakeGroup.add(model);
-
-          // Position candles right on top of the GLB cake
-          const glbTopY = plateSurfaceY + 1.8995 * cakeScale;
-          this.repositionCandles(glbTopY);
-
-          if (this.cakeGlowLight) {
-            this.cakeGlowLight.position.set(0, glbTopY + 1.0, 0);
-          }
-
-          console.log('✅ cake.glb loaded & mounted onto 3D scene successfully!');
-        },
-        undefined,
-        (err) => {
-          console.warn('[Cake GLB Loader Error]: Falling back to procedural cake', err);
-          this.buildProceduralCakeFallback(theme);
-        }
-      );
-    };
-
-    loadGlbCake();
-
-    // Numeric Candles "22"
+    // 2. Numeric Candles "22"
     this.createNumericCandles(22);
     this.scene.add(this.cakeGroup);
+
+    // 3. Apply GLB model once ready (swaps out procedural fallback automatically)
+    const applyGlbModel = (gltf) => {
+      if (this.cakeGlbModel || !gltf || !gltf.scene) return;
+      const model = gltf.scene;
+      this.cakeGlbModel = model;
+      this.isCakeGlbLoaded = true;
+
+      // Enable shadow casting/receiving and enhance material on all meshes
+      model.traverse((child) => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+          if (child.material) {
+            child.material.side = THREE.DoubleSide;
+            if (child.material.roughness !== undefined) {
+              child.material.roughness = Math.min(child.material.roughness, 0.6);
+            }
+          }
+        }
+      });
+
+      // Scale & position model precisely on the cake stand:
+      // Model bounds: X [-0.752, 0.748], Y [-0.9515, 0.9480], Z [-0.752, 0.748]
+      // Height = 1.8995, Diameter = 1.50
+      // Scaling by 2.15: Height = 4.08, Diameter = 3.22 (fits on plate of radius 3.6)
+      const cakeScale = 2.15;
+      model.scale.set(cakeScale, cakeScale, cakeScale);
+
+      // Plate is at y = 1.2, top surface is at y = 1.29
+      const plateSurfaceY = 1.29;
+      const posY = plateSurfaceY + 0.9515 * cakeScale;
+      model.position.set(0, posY, 0);
+
+      // Remove temporary procedural fallback elements now that real GLB is here
+      if (this.proceduralCakeElements && this.proceduralCakeElements.length > 0) {
+        this.proceduralCakeElements.forEach((el) => {
+          if (el.parent) el.parent.remove(el);
+        });
+        this.proceduralCakeElements = [];
+      }
+
+      this.cakeGroup.add(model);
+
+      // Position candles right on top of the GLB cake
+      const glbTopY = plateSurfaceY + 1.8995 * cakeScale;
+      this.repositionCandles(glbTopY);
+
+      if (this.cakeGlowLight) {
+        this.cakeGlowLight.position.set(0, glbTopY + 1.0, 0);
+      }
+
+      console.log('✅ cake.glb loaded & mounted onto 3D scene successfully!');
+    };
+
+    // Use background preloader if available (started when page first opened)
+    if (window.CakePreloader) {
+      window.CakePreloader.onLoaded(applyGlbModel);
+    } else {
+      // Fallback: direct loader (no preloader available)
+      if (typeof THREE.GLTFLoader !== 'undefined') {
+        const loader = new THREE.GLTFLoader();
+        let cakeUrl = 'cake.glb';
+        try { cakeUrl = new URL('cake.glb', window.location.href).href; } catch(e) {}
+        loader.load(cakeUrl, applyGlbModel, undefined, (err) => {
+          console.warn('[Cake GLB Loader Error]: Falling back to procedural cake', err);
+        });
+      }
+    }
   }
 
   buildProceduralCakeFallback(theme) {
