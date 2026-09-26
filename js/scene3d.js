@@ -2001,43 +2001,13 @@ class BirthdayScene {
     }
   }
 
+  /* =========================================================
+     3D FALLING PETALS (Removed per user request)
+     ========================================================= */
   createRosePetalsSystem() {
     this.petalsGroup = new THREE.Group();
     this.petalsData = [];
-
-    const petalGeo = new THREE.PlaneGeometry(0.35, 0.45);
-    const colors = [0xff0a54, 0xff4d6d, 0xff758c, 0xffb3c1];
-
-    for (let i = 0; i < 90; i++) {
-      const col = colors[i % colors.length];
-      const mat = new THREE.MeshStandardMaterial({
-        color: col,
-        roughness: 0.4,
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: 0.88
-      });
-      const petal = new THREE.Mesh(petalGeo, mat);
-      const x = (Math.random() - 0.5) * 32;
-      const y = Math.random() * 25 + 1;
-      const z = (Math.random() - 0.5) * 32;
-      petal.position.set(x, y, z);
-      petal.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-      this.petalsGroup.add(petal);
-
-      this.petalsData.push({
-        mesh: petal,
-        fallSpeed: 0.025 + Math.random() * 0.035,
-        rotSpeedX: (Math.random() - 0.5) * 0.03,
-        rotSpeedY: (Math.random() - 0.5) * 0.04,
-        rotSpeedZ: (Math.random() - 0.5) * 0.03,
-        swaySpeed: 1.2 + Math.random() * 1.5,
-        swayAmp: 0.02 + Math.random() * 0.03,
-        seed: Math.random() * 10
-      });
-    }
-
-    this.scene.add(this.petalsGroup);
+    // 3D falling petals completely disabled per user request
   }
 
   popTableBalloon(balloonMesh) {

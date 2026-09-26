@@ -155,31 +155,124 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* =========================================================
-     FALLING ROSE PETALS 2D CANVAS OVERLAY
+     FLOATING HEART BALLOONS WITH GLITTER OVERLAY
+     (Replaced flat rose petals with Pink & Red Heart Balloons with Glitter)
      ========================================================= */
   const petalsCanvas = document.getElementById('rose-petals-canvas');
   let petalsEnabled = true;
-  let petalsList = [];
+  let heartBalloonsList = [];
+
+  function drawHeartBalloon(ctx, x, y, size, color, rotation, sparklePhase) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rotation);
+
+    // 1. Hanging String with gentle curve
+    ctx.strokeStyle = 'rgba(255, 202, 212, 0.7)';
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    ctx.moveTo(0, size * 0.6);
+    ctx.quadraticCurveTo(Math.sin(sparklePhase) * 6, size * 1.2, Math.sin(sparklePhase * 0.8) * 4, size * 1.75);
+    ctx.stroke();
+
+    // 2. Balloon Knot
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(-size * 0.1, size * 0.63);
+    ctx.lineTo(size * 0.1, size * 0.63);
+    ctx.lineTo(0, size * 0.55);
+    ctx.closePath();
+    ctx.fill();
+
+    // 3. 3D Heart Balloon Body (Plump, beautiful curve)
+    ctx.beginPath();
+    const topH = size * 0.38;
+    ctx.moveTo(0, topH * 0.35);
+    ctx.bezierCurveTo(
+      -size * 0.52, -topH * 0.95,
+      -size * 0.68, topH * 0.35,
+      0, size * 0.58
+    );
+    ctx.bezierCurveTo(
+      size * 0.68, topH * 0.35,
+      size * 0.52, -topH * 0.95,
+      0, topH * 0.35
+    );
+    ctx.closePath();
+
+    // 3D Metallic/Glossy Shading Gradient
+    const grad = ctx.createRadialGradient(-size * 0.16, -size * 0.12, 0, 0, 0, size * 0.65);
+    grad.addColorStop(0, '#ffffff'); // bright gloss highlight
+    grad.addColorStop(0.2, '#ffe0ea');
+    grad.addColorStop(0.45, color);
+    grad.addColorStop(0.92, color);
+    grad.addColorStop(1, '#59001b'); // deep 3D shadow rim
+    ctx.fillStyle = grad;
+    ctx.shadowColor = 'rgba(255, 0, 84, 0.45)';
+    ctx.shadowBlur = 12;
+    ctx.fill();
+
+    // 4. Sparkling Glitter Powder & Star Flecks
+    const sparkles = [
+      { ox: -size * 0.22, oy: -size * 0.08, r: 0.22 },
+      { ox: size * 0.24, oy: -size * 0.02, r: 0.18 },
+      { ox: -size * 0.06, oy: size * 0.22, r: 0.16 },
+      { ox: size * 0.08, oy: -size * 0.24, r: 0.2 }
+    ];
+
+    for (let s = 0; s < sparkles.length; s++) {
+      const sp = sparkles[s];
+      const tw = (Math.sin(sparklePhase + s * 1.6) + 1) * 0.5;
+      if (tw > 0.15) {
+        ctx.save();
+        ctx.translate(sp.ox, sp.oy);
+        ctx.fillStyle = s % 2 === 0 ? '#ffd700' : '#ffffff';
+        ctx.shadowColor = '#ffd700';
+        ctx.shadowBlur = 6;
+        const sr = size * sp.r * (0.6 + tw * 0.5);
+
+        // 4-pointed diamond sparkle star
+        ctx.beginPath();
+        ctx.moveTo(0, -sr);
+        ctx.quadraticCurveTo(0, 0, sr, 0);
+        ctx.quadraticCurveTo(0, 0, 0, sr);
+        ctx.quadraticCurveTo(0, 0, -sr, 0);
+        ctx.quadraticCurveTo(0, 0, 0, -sr);
+        ctx.fill();
+
+        // Central diamond speck
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(0, 0, sr * 0.25, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    ctx.restore();
+  }
 
   function initPetals() {
     if (!petalsCanvas) return;
     petalsCanvas.width = window.innerWidth;
     petalsCanvas.height = window.innerHeight;
-    petalsList = [];
+    heartBalloonsList = [];
 
-    const petalColors = ['#ff0a54', '#ff4d6d', '#ff758c', '#ffb3c1', '#c9184a'];
-    for (let i = 0; i < 45; i++) {
-      petalsList.push({
+    // Pure Romantic Pink & Ruby Red Palette for Heart Balloons
+    const heartColors = ['#ff0054', '#d90429', '#ff4d6d', '#ff0a54', '#ff758c'];
+    for (let i = 0; i < 28; i++) {
+      heartBalloonsList.push({
         x: Math.random() * petalsCanvas.width,
         y: Math.random() * petalsCanvas.height,
-        size: 14 + Math.random() * 16,
-        speedY: 1.2 + Math.random() * 2.0,
-        speedX: Math.random() * 1.5 - 0.75,
-        rotation: Math.random() * Math.PI * 2,
-        rotSpeed: (Math.random() - 0.5) * 0.04,
-        color: petalColors[i % petalColors.length],
+        size: 22 + Math.random() * 18,
+        speedY: 0.8 + Math.random() * 1.4,
+        speedX: Math.random() * 0.8 - 0.4,
+        rotation: (Math.random() - 0.5) * 0.25,
+        rotSpeed: (Math.random() - 0.5) * 0.008,
+        color: heartColors[i % heartColors.length],
         swayAngle: Math.random() * Math.PI * 2,
-        swaySpeed: 0.02 + Math.random() * 0.02
+        swaySpeed: 0.015 + Math.random() * 0.015,
+        sparklePhase: Math.random() * Math.PI * 2
       });
     }
   }
@@ -189,28 +282,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const ctx = petalsCanvas.getContext('2d');
     ctx.clearRect(0, 0, petalsCanvas.width, petalsCanvas.height);
 
-    for (let i = 0; i < petalsList.length; i++) {
-      const p = petalsList[i];
-      p.y += p.speedY;
-      p.swayAngle += p.swaySpeed;
-      p.x += Math.sin(p.swayAngle) * 1.2 + p.speedX;
-      p.rotation += p.rotSpeed;
+    for (let i = 0; i < heartBalloonsList.length; i++) {
+      const b = heartBalloonsList[i];
+      b.y += b.speedY;
+      b.swayAngle += b.swaySpeed;
+      b.x += Math.sin(b.swayAngle) * 0.9 + b.speedX;
+      b.rotation += b.rotSpeed;
+      b.sparklePhase += 0.05;
 
-      if (p.y > petalsCanvas.height + 20) {
-        p.y = -20;
-        p.x = Math.random() * petalsCanvas.width;
+      if (b.y > petalsCanvas.height + 40) {
+        b.y = -40;
+        b.x = Math.random() * petalsCanvas.width;
       }
 
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      ctx.rotate(p.rotation);
-      ctx.fillStyle = p.color;
-      ctx.shadowColor = 'rgba(255, 117, 140, 0.4)';
-      ctx.shadowBlur = 8;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, p.size * 0.55, p.size * 0.85, Math.PI / 4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
+      drawHeartBalloon(ctx, b.x, b.y, b.size, b.color, b.rotation, b.sparklePhase);
     }
 
     requestAnimationFrame(drawPetals);
