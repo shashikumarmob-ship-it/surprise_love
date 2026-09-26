@@ -512,25 +512,27 @@
           <!-- Celebrant Name Font Style Selector (12 Styles) -->
           <div class="form-field full-width">
             <label><i class="fa-solid fa-font"></i> Celebrant Name Font Style <span class="font-badge-count">12 Styles</span></label>
-            <select id="creator-input-font">
-              <option value="outfit" selected>💎 Outfit (Modern Bold Luxury)</option>
-              <option value="dancing-script">💖 Dancing Script (Romantic Calligraphy)</option>
-              <option value="great-vibes">👑 Great Vibes (Royal Signature)</option>
-              <option value="cinzel">🏛️ Cinzel (Imperial Palace Gold)</option>
-              <option value="playfair">✨ Playfair Display (Vintage Serif)</option>
-              <option value="pacifico">🌸 Pacifico (Sweet Heart Brush)</option>
-              <option value="parisienne">🌹 Parisienne (French Romance)</option>
-              <option value="alex-brush">👸 Alex Brush (Princess Script)</option>
-              <option value="sacramento">💌 Sacramento (Delicate Love Letter)</option>
-              <option value="marcellus">🏺 Marcellus (Heritage Roman)</option>
-              <option value="montserrat">💫 Montserrat (Ultra Bold Elegant)</option>
-              <option value="press-start">🕹️ Press Start 2P (Retro 8-Bit)</option>
-            </select>
-            <!-- Live Name Preview Card -->
-            <div class="font-live-preview-card">
-              <div class="font-preview-label"><i class="fa-solid fa-eye"></i> Live Name Font Preview:</div>
-              <div id="font-live-preview-sample" class="font-live-preview-sample">MY LOVE</div>
-              <div id="font-live-preview-desc" class="font-live-preview-desc">Outfit — Modern Bold Luxury</div>
+            <!-- Side-by-side: Select + Live "Aa" Preview -->
+            <div class="font-select-row">
+              <select id="creator-input-font" class="font-select-input">
+                <option value="outfit" selected>💎 Outfit (Modern Bold Luxury)</option>
+                <option value="dancing-script">💖 Dancing Script (Romantic Calligraphy)</option>
+                <option value="great-vibes">👑 Great Vibes (Royal Signature)</option>
+                <option value="cinzel">🏛️ Cinzel (Imperial Palace Gold)</option>
+                <option value="playfair">✨ Playfair Display (Vintage Serif)</option>
+                <option value="pacifico">🌸 Pacifico (Sweet Heart Brush)</option>
+                <option value="parisienne">🌹 Parisienne (French Romance)</option>
+                <option value="alex-brush">👸 Alex Brush (Princess Script)</option>
+                <option value="sacramento">💌 Sacramento (Delicate Love Letter)</option>
+                <option value="marcellus">🏺 Marcellus (Heritage Roman)</option>
+                <option value="montserrat">💫 Montserrat (Ultra Bold Elegant)</option>
+                <option value="press-start">🕹️ Press Start 2P (Retro 8-Bit)</option>
+              </select>
+              <!-- Compact inline font preview -->
+              <div class="font-inline-preview">
+                <span id="font-live-preview-sample" class="font-inline-sample">Aa</span>
+                <span id="font-live-preview-desc" class="font-inline-desc">Outfit</span>
+              </div>
             </div>
           </div>
 

@@ -2768,15 +2768,20 @@ document.addEventListener('DOMContentLoaded', () => {
     return desc[fontId] || 'Outfit — Modern Bold Luxury';
   }
 
-  // Update live preview card when font dropdown changes
+  // Update inline compact "Aa" font preview when font changes
   function updateFontLivePreview() {
     const sample = document.getElementById('font-live-preview-sample');
     const descEl = document.getElementById('font-live-preview-desc');
     if (!sample) return;
-    const nameText = (creatorInputName && creatorInputName.value.trim()) || 'MY LOVE';
-    sample.textContent = nameText.toUpperCase();
+    // Always show "Aa" in the selected font — not the name text
+    sample.textContent = 'Aa';
     sample.style.fontFamily = getFontFamilyCss(celebrantFont);
-    if (descEl) descEl.textContent = getFontDesc(celebrantFont);
+    // Short name only (first word before " —" or "—")
+    if (descEl) {
+      const fullDesc = getFontDesc(celebrantFont);
+      const shortName = fullDesc.split(' \u2014')[0].trim();
+      descEl.textContent = shortName;
+    }
   }
 
   if (creatorInputFont) {
@@ -2794,10 +2799,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Update preview when name changes too
-  if (creatorInputName) {
-    creatorInputName.addEventListener('input', () => updateFontLivePreview());
-  }
   const creatorInputWish = document.getElementById('creator-input-wish');
   const creatorInputPhoto = document.getElementById('creator-input-photo');
   const creatorPhotoStatus = document.getElementById('creator-photo-status');

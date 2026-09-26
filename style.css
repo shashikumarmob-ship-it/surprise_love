@@ -1357,41 +1357,69 @@ body {
   vertical-align: middle;
 }
 
-.font-live-preview-card {
-  background: linear-gradient(135deg, rgba(30, 8, 22, 0.85), rgba(16, 3, 12, 0.95));
-  border: 1.5px solid rgba(255, 215, 0, 0.4);
-  border-radius: 14px;
-  padding: 14px 18px;
+/* ── Font Selector: Side-by-side Row ── */
+.font-select-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.font-select-input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Compact Inline "Aa" Font Preview Box */
+.font-inline-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 84px;
+  max-width: 100px;
+  padding: 8px 10px;
+  background: linear-gradient(135deg, rgba(30, 8, 22, 0.9), rgba(16, 3, 12, 0.95));
+  border: 1.5px solid rgba(255, 215, 0, 0.45);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 0 12px rgba(255, 215, 0, 0.06);
   text-align: center;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), inset 0 0 18px rgba(255, 215, 0, 0.06);
-  margin-top: 10px;
+  flex-shrink: 0;
 }
 
-.font-preview-label {
-  font-size: 0.76rem;
-  font-weight: 700;
-  color: #ffb3c1;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  margin-bottom: 6px;
-}
-
-.font-live-preview-sample {
-  font-size: 2rem;
+.font-inline-sample {
+  font-size: 1.7rem;
   font-weight: 700;
   color: #ffffff;
-  text-shadow: 0 0 16px rgba(255, 215, 0, 0.6), 0 0 30px rgba(255, 0, 84, 0.35);
-  margin: 6px 0;
-  line-height: 1.3;
-  transition: font-family 0.3s ease;
-  word-break: break-word;
+  text-shadow: 0 0 12px rgba(255, 215, 0, 0.6), 0 0 22px rgba(255, 0, 84, 0.3);
+  line-height: 1.2;
+  transition: font-family 0.3s ease, transform 0.2s ease;
+  display: block;
 }
 
-.font-live-preview-desc {
-  font-size: 0.78rem;
-  color: #ffd700;
-  opacity: 0.9;
+.font-inline-sample:hover {
+  transform: scale(1.08);
 }
+
+.font-inline-desc {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #ffd700;
+  opacity: 0.85;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 88px;
+}
+
+/* Keep old classes non-breaking for any older refs */
+.font-live-preview-card { display: none; }
+.font-live-preview-sample { display: none; }
+.font-live-preview-desc { display: none; }
+.font-preview-label { display: none; }
 
 .creator-photo-upload-box {
   display: flex;
@@ -8872,6 +8900,11 @@ body.disco-active .disco-overlay {
 }
 
 .memory-thumb-img {
+  width: 90px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
   cursor: zoom-in;
   transition: transform 0.2s ease, filter 0.2s ease;
 }
