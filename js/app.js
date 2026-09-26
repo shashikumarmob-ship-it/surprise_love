@@ -155,27 +155,28 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* =========================================================
-     FLOATING HEART BALLOONS WITH GLITTER OVERLAY
-     (Replaced flat rose petals with Pink & Red Heart Balloons with Glitter)
+     RISING HEART BALLOONS WITH GLITTER IN LEFT & RIGHT OPEN AREAS
+     (Helium Heart Balloons Rising Upwards in Left & Right Open Wings with Glitter)
      ========================================================= */
   const petalsCanvas = document.getElementById('rose-petals-canvas');
   let petalsEnabled = true;
   let heartBalloonsList = [];
+  let balloonSparkleDust = [];
 
   function drawHeartBalloon(ctx, x, y, size, color, rotation, sparklePhase) {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(rotation);
 
-    // 1. Hanging String with gentle curve
-    ctx.strokeStyle = 'rgba(255, 202, 212, 0.7)';
-    ctx.lineWidth = 1.3;
+    // 1. Hanging String with gentle natural buoyancy curve
+    ctx.strokeStyle = 'rgba(255, 205, 218, 0.75)';
+    ctx.lineWidth = 1.4;
     ctx.beginPath();
     ctx.moveTo(0, size * 0.6);
-    ctx.quadraticCurveTo(Math.sin(sparklePhase) * 6, size * 1.2, Math.sin(sparklePhase * 0.8) * 4, size * 1.75);
+    ctx.quadraticCurveTo(Math.sin(sparklePhase) * 6, size * 1.3, Math.sin(sparklePhase * 0.8) * 4, size * 1.9);
     ctx.stroke();
 
-    // 2. Balloon Knot
+    // 2. Balloon Tie / Knot
     ctx.fillStyle = color;
     ctx.beginPath();
     ctx.moveTo(-size * 0.1, size * 0.63);
@@ -184,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ctx.closePath();
     ctx.fill();
 
-    // 3. 3D Heart Balloon Body (Plump, beautiful curve)
+    // 3. 3D Heart Balloon Body (Plump, beautiful romantic curve)
     ctx.beginPath();
     const topH = size * 0.38;
     ctx.moveTo(0, topH * 0.35);
@@ -200,7 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
     );
     ctx.closePath();
 
-    // 3D Metallic/Glossy Shading Gradient
+    // 3D Glossy Metallic Shading Gradient
     const grad = ctx.createRadialGradient(-size * 0.16, -size * 0.12, 0, 0, 0, size * 0.65);
     grad.addColorStop(0, '#ffffff'); // bright gloss highlight
     grad.addColorStop(0.2, '#ffe0ea');
@@ -252,27 +253,66 @@ document.addEventListener('DOMContentLoaded', () => {
     ctx.restore();
   }
 
+  function getBalloonOpenAreaX(side, canvasWidth) {
+    const isMobile = canvasWidth < 768;
+    // Left open area: left margin to ~22%
+    // Right open area: ~78% to right margin
+    const leftMarginMin = 18;
+    const leftMarginMax = canvasWidth * (isMobile ? 0.22 : 0.24);
+    const rightMarginMin = canvasWidth * (isMobile ? 0.78 : 0.76);
+    const rightMarginMax = canvasWidth - 18;
+
+    if (side === 'left') {
+      return leftMarginMin + Math.random() * Math.max(30, leftMarginMax - leftMarginMin);
+    } else {
+      return rightMarginMin + Math.random() * Math.max(30, rightMarginMax - rightMarginMin);
+    }
+  }
+
   function initPetals() {
     if (!petalsCanvas) return;
     petalsCanvas.width = window.innerWidth;
     petalsCanvas.height = window.innerHeight;
     heartBalloonsList = [];
+    balloonSparkleDust = [];
 
     // Pure Romantic Pink & Ruby Red Palette for Heart Balloons
-    const heartColors = ['#ff0054', '#d90429', '#ff4d6d', '#ff0a54', '#ff758c'];
-    for (let i = 0; i < 28; i++) {
+    const heartColors = ['#ff0054', '#d90429', '#ff4d6d', '#ff0a54', '#ff758c', '#e60067'];
+    const totalBalloons = 26;
+
+    for (let i = 0; i < totalBalloons; i++) {
+      const side = (i % 2 === 0) ? 'left' : 'right';
+      const x = getBalloonOpenAreaX(side, petalsCanvas.width);
+      // Evenly distribute vertically from below bottom to top so balloons are already rising gracefully
+      const y = (i / totalBalloons) * (petalsCanvas.height + 120);
+
       heartBalloonsList.push({
-        x: Math.random() * petalsCanvas.width,
-        y: Math.random() * petalsCanvas.height,
-        size: 22 + Math.random() * 18,
-        speedY: 0.8 + Math.random() * 1.4,
-        speedX: Math.random() * 0.8 - 0.4,
-        rotation: (Math.random() - 0.5) * 0.25,
-        rotSpeed: (Math.random() - 0.5) * 0.008,
-        color: heartColors[i % heartColors.length],
+        side: side,
+        x: x,
+        y: y,
+        size: 24 + Math.random() * 20,
+        speedY: 1.1 + Math.random() * 1.4, // Upward rising speed
         swayAngle: Math.random() * Math.PI * 2,
-        swaySpeed: 0.015 + Math.random() * 0.015,
+        swaySpeed: 0.016 + Math.random() * 0.016,
+        swayAmp: 0.5 + Math.random() * 0.5,
+        rotation: 0,
+        color: heartColors[i % heartColors.length],
         sparklePhase: Math.random() * Math.PI * 2
+      });
+    }
+
+    // Micro glitter sparkle dust floating with the rising balloons
+    for (let d = 0; d < 36; d++) {
+      const side = (d % 2 === 0) ? 'left' : 'right';
+      balloonSparkleDust.push({
+        side: side,
+        x: getBalloonOpenAreaX(side, petalsCanvas.width),
+        y: Math.random() * petalsCanvas.height,
+        size: 1.5 + Math.random() * 2.5,
+        speedY: 0.8 + Math.random() * 1.2,
+        twinkleSpeed: 0.04 + Math.random() * 0.05,
+        phase: Math.random() * Math.PI * 2,
+        color: d % 2 === 0 ? '#ffd700' : '#ffffff'
       });
     }
   }
@@ -280,19 +320,62 @@ document.addEventListener('DOMContentLoaded', () => {
   function drawPetals() {
     if (!petalsCanvas || !petalsEnabled) return;
     const ctx = petalsCanvas.getContext('2d');
-    ctx.clearRect(0, 0, petalsCanvas.width, petalsCanvas.height);
+    const cw = petalsCanvas.width;
+    const ch = petalsCanvas.height;
+    ctx.clearRect(0, 0, cw, ch);
 
+    const isMobile = cw < 768;
+    const leftLimit = cw * (isMobile ? 0.23 : 0.25);
+    const rightLimit = cw * (isMobile ? 0.77 : 0.75);
+
+    // 1. Draw rising micro-glitter dust in left & right open areas
+    for (let d = 0; d < balloonSparkleDust.length; d++) {
+      const dust = balloonSparkleDust[d];
+      dust.y -= dust.speedY;
+      dust.phase += dust.twinkleSpeed;
+      if (dust.y < -20) {
+        dust.y = ch + 20;
+        dust.side = Math.random() < 0.5 ? 'left' : 'right';
+        dust.x = getBalloonOpenAreaX(dust.side, cw);
+      }
+      const alpha = 0.35 + Math.sin(dust.phase) * 0.45;
+      if (alpha > 0.05) {
+        ctx.fillStyle = dust.color;
+        ctx.globalAlpha = Math.min(1, Math.max(0, alpha));
+        ctx.beginPath();
+        ctx.arc(dust.x, dust.y, dust.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+      }
+    }
+
+    // 2. Draw rising Heart Balloons with Glitter
     for (let i = 0; i < heartBalloonsList.length; i++) {
       const b = heartBalloonsList[i];
-      b.y += b.speedY;
-      b.swayAngle += b.swaySpeed;
-      b.x += Math.sin(b.swayAngle) * 0.9 + b.speedX;
-      b.rotation += b.rotSpeed;
-      b.sparklePhase += 0.05;
+      // Float upward towards the sky
+      b.y -= b.speedY;
 
-      if (b.y > petalsCanvas.height + 40) {
-        b.y = -40;
-        b.x = Math.random() * petalsCanvas.width;
+      // Natural gentle horizontal sway
+      b.swayAngle += b.swaySpeed;
+      b.x += Math.sin(b.swayAngle) * b.swayAmp;
+
+      // Restrict strictly to open area (left or right) so center stays completely clear
+      if (b.side === 'left') {
+        b.x = Math.max(14, Math.min(leftLimit, b.x));
+      } else {
+        b.x = Math.max(rightLimit, Math.min(cw - 14, b.x));
+      }
+
+      // Buoyant tilt
+      b.rotation = Math.sin(b.swayAngle * 0.8) * 0.12;
+      b.sparklePhase += 0.06;
+
+      // When balloon floats above the screen top, recycle it from the bottom
+      if (b.y < -90) {
+        b.y = ch + 50 + Math.random() * 80;
+        b.side = Math.random() < 0.5 ? 'left' : 'right';
+        b.x = getBalloonOpenAreaX(b.side, cw);
+        b.speedY = 1.1 + Math.random() * 1.4;
       }
 
       drawHeartBalloon(ctx, b.x, b.y, b.size, b.color, b.rotation, b.sparklePhase);
