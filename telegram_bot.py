@@ -2090,6 +2090,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                         "name": data.get("name", ""),
                         "nickname": data.get("nickname", ""),
                         "theme": data.get("theme", "rose-glamour"),
+                        "font": data.get("font", "outfit"),
                         "wish": data.get("wish", ""),
                         "created_at": gen_at,
                         "expires_at": exp_at,
@@ -2103,11 +2104,13 @@ class WebhookHandler(BaseHTTPRequestHandler):
             if owner_id and BOT_TOKEN and "YOUR_TELEGRAM" not in BOT_TOKEN:
                 try:
                     stamp = user_store.get_user_stamp(username_key)
+                    font_name = str(data.get("font", "outfit")).replace("-", " ").title()
                     tg_msg = (
                         f"🎁 <b>3D BIRTHDAY SURPRISE LINK GENERATED!</b> ✨💖\n\n"
                         f"• 👤 <b>Creator:</b> <code>{username_key}</code>\n"
                         f"• 👸 <b>Celebrant:</b> {data.get('name', 'My Love')} ({data.get('nickname', '')})\n"
                         f"• 🎨 <b>Theme:</b> {data.get('theme', 'rose-glamour')}\n"
+                        f"• 🖋️ <b>Font Style:</b> <code>{font_name}</code>\n"
                         f"• 🔗 <b>Live Link:</b> {short_link}\n"
                         f"• ⏳ <b>Retention:</b> 48 Hours\n\n"
                         f"<i>Whenever the celebrant opens this link or answers chat questions, alerts will arrive here in real time!</i>\n"

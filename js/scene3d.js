@@ -1826,8 +1826,28 @@ class BirthdayScene {
     this.scene.add(this.standBoardGroup);
   }
 
-  drawStandBoardTexture(name = 'My Love', age = '') {
+  getFontFamily(fontId) {
+    const map = {
+      'dancing-script': "'Dancing Script', cursive",
+      'great-vibes': "'Great Vibes', cursive",
+      'cinzel': "'Cinzel', serif",
+      'playfair': "'Playfair Display', serif",
+      'outfit': "'Outfit', sans-serif",
+      'pacifico': "'Pacifico', cursive",
+      'parisienne': "'Parisienne', cursive",
+      'alex-brush': "'Alex Brush', cursive",
+      'sacramento': "'Sacramento', cursive",
+      'marcellus': "'Marcellus', serif",
+      'montserrat': "'Montserrat', sans-serif",
+      'press-start': "'Press Start 2P', monospace"
+    };
+    return map[fontId] || "'Outfit', sans-serif";
+  }
+
+  drawStandBoardTexture(name = 'My Love', age = '', font = null) {
     if (!this.boardCanvas) return;
+    if (font) this.celebrantFont = font;
+    const fontFam = this.getFontFamily(this.celebrantFont);
     const ctx = this.boardCanvas.getContext('2d');
 
     // Romantic velvet wine & rose gradient
@@ -1871,14 +1891,18 @@ class BirthdayScene {
     const nameUpper = (name || 'MY LOVE').toUpperCase();
     const parts = nameUpper.split(' ');
     ctx.fillStyle = '#ffd700';
+    ctx.save();
+    ctx.shadowColor = '#ffd700';
+    ctx.shadowBlur = 12;
     if (parts.length > 1) {
-      ctx.font = '900 44px Outfit, sans-serif';
+      ctx.font = `900 44px ${fontFam}`;
       ctx.fillText(parts[0], 256, 415);
       ctx.fillText(parts.slice(1).join(' '), 256, 480);
     } else {
-      ctx.font = '900 48px Outfit, sans-serif';
+      ctx.font = `900 48px ${fontFam}`;
       ctx.fillText(nameUpper, 256, 440);
     }
+    ctx.restore();
 
     ctx.fillStyle = '#ffb3c1';
     ctx.font = '700 30px Outfit, sans-serif';
@@ -1891,8 +1915,9 @@ class BirthdayScene {
     if (this.boardTex) this.boardTex.needsUpdate = true;
   }
 
-  drawDefaultPhotoTexture(customImg = null, name = 'My Love', age = '') {
+  drawDefaultPhotoTexture(customImg = null, name = 'My Love', age = '', font = null) {
     if (!this.photoCanvas) return;
+    if (font) this.celebrantFont = font;
     const ctx = this.photoCanvas.getContext('2d');
     const w = 512, h = 680;
 
@@ -2052,7 +2077,8 @@ class BirthdayScene {
     ctx.shadowColor = '#ffd700';
     ctx.shadowBlur = 18;
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 36px "Cinzel", "Playfair Display", Georgia, serif';
+    const royalFontFam = this.getFontFamily(this.celebrantFont);
+    ctx.font = `bold 38px ${royalFontFam}`;
     ctx.fillText((name || 'MY QUEEN').toUpperCase(), w / 2, 455);
     ctx.restore();
 
@@ -2081,13 +2107,14 @@ class BirthdayScene {
 
   clearUserPhoto() {
     this.currentCustomPhotoImg = null;
-    this.drawDefaultPhotoTexture(null, 'Birthday Star', '');
+    this.drawDefaultPhotoTexture(null, 'Birthday Star', '', this.celebrantFont);
     if (this.photoTexture) this.photoTexture.needsUpdate = true;
   }
 
-  updateCelebrantInfo3D(name, age) {
-    this.drawStandBoardTexture(name, age);
-    this.drawDefaultPhotoTexture(this.currentCustomPhotoImg, name, age);
+  updateCelebrantInfo3D(name, age, font = null) {
+    if (font) this.celebrantFont = font;
+    this.drawStandBoardTexture(name, age, this.celebrantFont);
+    this.drawDefaultPhotoTexture(this.currentCustomPhotoImg, name, age, this.celebrantFont);
     if (this.photoTexture) this.photoTexture.needsUpdate = true;
     if (this.boardTex) this.boardTex.needsUpdate = true;
     this.createNumericCandles(parseInt(age) || 22);

@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let celebrantAge = '';
   let customWish = 'Happy Birthday to the most amazing, gorgeous, and loving girl in the whole world! Thank you for bringing endless joy, warmth, and magic into my life. Every single day with you is my favorite day. May all your sweetest dreams come true today and forever!';
   let activeTheme = 'rose-glamour';
+  let celebrantFont = 'outfit'; // New: selected name font style
 
   // Security: the session token proves the client authenticated with the API.
   // null = not authenticated. Set after successful login, cleared on logout.
@@ -1551,6 +1552,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (d.age) { celebrantAge = d.age; if (inputAge) inputAge.value = d.age; }
             if (d.wish) { customWish = d.wish; if (inputWish) inputWish.value = d.wish; }
             if (d.theme) activeTheme = d.theme;
+            if (d.font) celebrantFont = d.font;
             if (d.memories && Array.isArray(d.memories) && d.memories.length > 0) {
               userMemoriesPhotos = d.memories;
             }
@@ -1602,6 +1604,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (params.has('theme')) {
       activeTheme = params.get('theme');
+    }
+    if (params.has('font')) {
+      celebrantFont = params.get('font');
     }
 
     // Check shared photo in URL hash/param
@@ -1686,7 +1691,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Real-time update to 3D Stand Board, Numeric Candles & Photo Frame
     if (scene && scene.updateCelebrantInfo3D) {
-      scene.updateCelebrantInfo3D(celebrantName, celebrantAge);
+      scene.updateCelebrantInfo3D(celebrantName, celebrantAge, celebrantFont);
     }
   }
 
@@ -2723,6 +2728,76 @@ document.addEventListener('DOMContentLoaded', () => {
   const creatorInputNickname = document.getElementById('creator-input-nickname');
   const creatorInputAge = document.getElementById('creator-input-age');
   const creatorInputTheme = document.getElementById('creator-input-theme');
+  const creatorInputFont = document.getElementById('creator-input-font');
+
+  // Font ID → CSS family string (mirrors scene3d.js getFontFamily)
+  function getFontFamilyCss(fontId) {
+    const map = {
+      'dancing-script': "'Dancing Script', cursive",
+      'great-vibes': "'Great Vibes', cursive",
+      'cinzel': "'Cinzel', serif",
+      'playfair': "'Playfair Display', serif",
+      'outfit': "'Outfit', sans-serif",
+      'pacifico': "'Pacifico', cursive",
+      'parisienne': "'Parisienne', cursive",
+      'alex-brush': "'Alex Brush', cursive",
+      'sacramento': "'Sacramento', cursive",
+      'marcellus': "'Marcellus', serif",
+      'montserrat': "'Montserrat', sans-serif",
+      'press-start': "'Press Start 2P', monospace"
+    };
+    return map[fontId] || "'Outfit', sans-serif";
+  }
+
+  // Font ID → human-readable description
+  function getFontDesc(fontId) {
+    const desc = {
+      'outfit': 'Outfit — Modern Bold Luxury',
+      'dancing-script': 'Dancing Script — Romantic Calligraphy',
+      'great-vibes': 'Great Vibes — Royal Signature',
+      'cinzel': 'Cinzel — Imperial Palace Gold',
+      'playfair': 'Playfair Display — Vintage Serif',
+      'pacifico': 'Pacifico — Sweet Heart Brush',
+      'parisienne': 'Parisienne — French Romance',
+      'alex-brush': 'Alex Brush — Princess Script',
+      'sacramento': 'Sacramento — Delicate Love Letter',
+      'marcellus': 'Marcellus — Heritage Roman',
+      'montserrat': 'Montserrat — Ultra Bold Elegant',
+      'press-start': 'Press Start 2P — Retro 8-Bit'
+    };
+    return desc[fontId] || 'Outfit — Modern Bold Luxury';
+  }
+
+  // Update live preview card when font dropdown changes
+  function updateFontLivePreview() {
+    const sample = document.getElementById('font-live-preview-sample');
+    const descEl = document.getElementById('font-live-preview-desc');
+    if (!sample) return;
+    const nameText = (creatorInputName && creatorInputName.value.trim()) || 'MY LOVE';
+    sample.textContent = nameText.toUpperCase();
+    sample.style.fontFamily = getFontFamilyCss(celebrantFont);
+    if (descEl) descEl.textContent = getFontDesc(celebrantFont);
+  }
+
+  if (creatorInputFont) {
+    creatorInputFont.addEventListener('change', () => {
+      celebrantFont = creatorInputFont.value || 'outfit';
+      updateFontLivePreview();
+      // Live update 3D scene
+      if (scene && scene.updateCelebrantInfo3D) {
+        scene.updateCelebrantInfo3D(
+          creatorInputName ? creatorInputName.value.trim() || 'My Love' : 'My Love',
+          creatorInputAge ? creatorInputAge.value : '',
+          celebrantFont
+        );
+      }
+    });
+  }
+
+  // Update preview when name changes too
+  if (creatorInputName) {
+    creatorInputName.addEventListener('input', () => updateFontLivePreview());
+  }
   const creatorInputWish = document.getElementById('creator-input-wish');
   const creatorInputPhoto = document.getElementById('creator-input-photo');
   const creatorPhotoStatus = document.getElementById('creator-photo-status');
@@ -2837,6 +2912,7 @@ document.addEventListener('DOMContentLoaded', () => {
       nickname: creatorInputNickname ? creatorInputNickname.value : '',
       age: creatorInputAge ? creatorInputAge.value : '',
       theme: creatorInputTheme ? creatorInputTheme.value : 'rose-glamour',
+      font: creatorInputFont ? creatorInputFont.value : celebrantFont,
       wish: creatorInputWish ? creatorInputWish.value : '',
       photoUrl: creatorInputPhotoUrl ? creatorInputPhotoUrl.value : '',
       mode: selectedCreatorMode,
@@ -2868,6 +2944,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (creatorInputNickname && data.nickname) creatorInputNickname.value = data.nickname;
     if (creatorInputAge && data.age) creatorInputAge.value = data.age;
     if (creatorInputTheme && data.theme) creatorInputTheme.value = data.theme;
+    if (data.font) {
+      celebrantFont = data.font;
+      if (creatorInputFont) creatorInputFont.value = data.font;
+      updateFontLivePreview();
+    }
     if (creatorInputWish && data.wish) creatorInputWish.value = data.wish;
     if (creatorInputPhotoUrl && data.photoUrl) {
       creatorInputPhotoUrl.value = data.photoUrl;
@@ -4036,6 +4117,7 @@ document.addEventListener('DOMContentLoaded', () => {
       celebrantAge = ageVal;
       customWish = wishVal;
       activeTheme = themeVal;
+      celebrantFont = (creatorInputFont ? creatorInputFont.value : celebrantFont) || 'outfit';
       updateCelebrantInfo();
       applyTheme(themeVal);
 
@@ -4070,6 +4152,7 @@ document.addEventListener('DOMContentLoaded', () => {
         nickname: nickVal,
         age: ageVal,
         theme: themeVal,
+        font: celebrantFont,
         wish: wishVal,
         photo: currentPhotoDataUrl || '',
         memories: allMemoriesUrls,
@@ -4130,6 +4213,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (nickVal) fallbackParams.set('nickname', nickVal);
         if (ageVal) fallbackParams.set('age', ageVal);
         fallbackParams.set('theme', themeVal);
+        fallbackParams.set('font', celebrantFont);
         fallbackParams.set('wish', wishVal);
         if (currentPhotoDataUrl && currentPhotoDataUrl.startsWith('http')) fallbackParams.set('photo', currentPhotoDataUrl);
         fallbackParams.set('exp', expAt.toString());
