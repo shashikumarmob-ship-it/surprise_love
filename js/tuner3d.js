@@ -7,20 +7,20 @@
 (function () {
   'use strict';
 
-  // Default values snapshot
+  // Default values snapshot (User Approved Best Config)
   const defaultSettings = {
-    exposure: 1.55,
-    ambientLight: 1.45,
-    keyLight: 2.4,
-    cakeSpotLight: 2.0,
+    exposure: 2.5,
+    ambientLight: 0,
+    keyLight: 0,
+    cakeSpotLight: 0,
     cakeGlowLight: 3.2,
-    stageFloorColor: '#321e42',
+    stageFloorColor: '#22129b',
     stageOuterRing: '#ffd700',
-    stageInnerRing: '#ffa0b8',
+    stageInnerRing: '#480a0a',
     tableTopColor: '#fcf5ea',
     tableRunnerColor: '#ffd700',
     tableLegsColor: '#5a3d28',
-    cakeBaseColor: '#ffe6ea',
+    cakeBaseColor: '#1f0005',
     cakeTopColor: '#ff9bb2',
     cakeFrostingColor: '#ff4d79',
     cakePlateColor: '#ffd700',
