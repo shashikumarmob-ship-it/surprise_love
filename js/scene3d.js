@@ -31,6 +31,7 @@ class BirthdayScene {
     // Decorative Arches
     this.decorGroup = new THREE.Group();
     this.garlandLights = [];
+    this.diwaliBulbs = [];
 
     // Interactive Balloons
     this.tableBalloons = [];
@@ -829,44 +830,66 @@ class BirthdayScene {
       this.decorGroup.add(letterGroup);
     });
 
-    // 2. Decorative Ghalar / Bunting Garland Arch & Side Cascades down to the Floor
-    const flagGeo = new THREE.ConeGeometry(0.28, 0.5, 3);
-    const flagColors = [0xff0055, 0xffd700, 0x00f2fe, 0x00e676, 0xb721ff, 0xff8c00];
+    // 2. Decorative Ghalar / Bunting Garland Arch & Side Cascades down to the Floor (Bright Glowing Fairy Lights)
+    const flagGeo = new THREE.ConeGeometry(0.30, 0.54, 4); // Crystalline 4-sided glowing hanging lantern
+    const flagColors = [0xff0055, 0xffd700, 0x00f2fe, 0x00e676, 0xb721ff, 0xff8c00, 0xff3399, 0xffea00];
 
-    // 2A. Top Arch Garland
+    // 2A. Top Arch Garland (Fully Illuminated)
     for (let i = 0; i < 32; i++) {
       const t = i / 31;
       const angle = startAngle + t * (endAngle - startAngle);
       const x = Math.cos(angle) * (archRadius - 0.5);
       const y = archCenterY + Math.sin(angle) * 3.2 - 0.4;
       const z = -4.8;
+      const flagColor = flagColors[i % flagColors.length];
 
       const flagMat = new THREE.MeshStandardMaterial({
-        color: flagColors[i % flagColors.length],
-        roughness: 0.3
+        color: flagColor,
+        emissive: flagColor,
+        emissiveIntensity: 2.2,
+        roughness: 0.1,
+        metalness: 0.1
       });
       const flag = new THREE.Mesh(flagGeo, flagMat);
       flag.position.set(x, y, z);
       flag.rotation.x = Math.PI; // point down
       this.decorGroup.add(flag);
 
-      // Glowing fairy light orb
+      // Glowing inner light core
+      const flagCore = new THREE.Mesh(
+        new THREE.SphereGeometry(0.12, 10, 10),
+        new THREE.MeshBasicMaterial({ color: 0xffffff })
+      );
+      flagCore.position.set(x, y - 0.15, z);
+      this.decorGroup.add(flagCore);
+
+      // Glowing fairy light orb between flags
       if (i % 2 === 0) {
+        const orbMat = new THREE.MeshBasicMaterial({ color: flagColor });
         const lightOrb = new THREE.Mesh(
-          new THREE.SphereGeometry(0.12, 12, 12),
-          new THREE.MeshBasicMaterial({ color: flagColors[i % flagColors.length] })
+          new THREE.SphereGeometry(0.18, 14, 14),
+          orbMat
         );
         lightOrb.position.set(x, y - 0.45, z + 0.1);
         this.decorGroup.add(lightOrb);
       }
+
+      if (this.diwaliBulbs) {
+        this.diwaliBulbs.push({
+          mat: flagMat,
+          baseColor: flagColor,
+          phase: Math.random() * Math.PI * 2,
+          speed: 2.0 + Math.random() * 2.5
+        });
+      }
     }
 
-    // 2B. Full Backdrop Garland Curtain (Cascading from arch all the way to floor across entire width)
+    // 2B. Full Backdrop Garland Curtain (Cascading from arch down to floor - All Lights Switched ON)
     const garlandColumns = [
       -9.2, -7.8, -6.4, -5.0, -3.6, -2.2, -0.8, 0.8, 2.2, 3.6, 5.0, 6.4, 7.8, 9.2
     ];
 
-    const stringMat = new THREE.LineBasicMaterial({ color: 0xffd700, opacity: 0.7, transparent: true });
+    const stringMat = new THREE.LineBasicMaterial({ color: 0xffd700, opacity: 0.85, transparent: true });
 
     garlandColumns.forEach((colX, colIdx) => {
       // Calculate top Y based on the semicircle arch height at this X
@@ -878,17 +901,20 @@ class BirthdayScene {
       const stringPoints = [new THREE.Vector3(colX, topY, -4.8), new THREE.Vector3(colX, 0.1, -4.8)];
       this.decorGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(stringPoints), stringMat));
 
-      // Flags and Glowing Fairy Lights cascading down to floor
+      // Flags and Glowing Fairy Lights cascading down to floor (All Fully Lit & Glowing)
       for (let y = topY - 0.3; y >= 0.2; y -= 0.52) {
         const flagIndex = Math.floor((y + Math.abs(colX)) * 4);
         const flagColor = flagColors[(flagIndex + colIdx) % flagColors.length];
 
         const flagMat = new THREE.MeshStandardMaterial({
           color: flagColor,
-          roughness: 0.3
+          emissive: flagColor,
+          emissiveIntensity: 2.2,
+          roughness: 0.1,
+          metalness: 0.1
         });
 
-        // Main hanging flag
+        // Main hanging glowing lantern
         const flag = new THREE.Mesh(flagGeo, flagMat);
         flag.position.set(colX, y, -4.8);
         flag.rotation.x = Math.PI; // point down
@@ -897,11 +923,20 @@ class BirthdayScene {
         // Glowing Fairy Light Orb between flags
         if (Math.abs(y * 10) % 2 < 1.2) {
           const lightOrb = new THREE.Mesh(
-            new THREE.SphereGeometry(0.12, 12, 12),
+            new THREE.SphereGeometry(0.16, 14, 14),
             new THREE.MeshBasicMaterial({ color: flagColor })
           );
           lightOrb.position.set(colX, y - 0.24, -4.7);
           this.decorGroup.add(lightOrb);
+        }
+
+        if (this.diwaliBulbs) {
+          this.diwaliBulbs.push({
+            mat: flagMat,
+            baseColor: flagColor,
+            phase: Math.random() * Math.PI * 2,
+            speed: 2.0 + Math.random() * 2.5
+          });
         }
       }
     });
@@ -1023,7 +1058,7 @@ class BirthdayScene {
      ========================================================= */
   createCornerPolesAndDiwaliLights() {
     this.polesGroup = new THREE.Group();
-    this.diwaliBulbs = [];
+    this.diwaliBulbs = this.diwaliBulbs || [];
 
     const polePositions = [
       { x: -11.5, z: 11.5 },   // Front-Left
@@ -1108,10 +1143,10 @@ class BirthdayScene {
       [polePositions[1], polePositions[3]]  // Diagonal Front-Right to Back-Left
     ];
 
-    const cableMat = new THREE.LineBasicMaterial({ color: 0x222222 });
-    const bulbGeo = new THREE.SphereGeometry(0.18, 16, 16);
-    const capGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.09, 12);
-    const capMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8 });
+    const cableMat = new THREE.LineBasicMaterial({ color: 0x333333 });
+    const bulbGeo = new THREE.SphereGeometry(0.25, 16, 16);
+    const capGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.10, 12);
+    const capMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.85, roughness: 0.2 });
 
     cableSpans.forEach((span, spanIdx) => {
       const pA = new THREE.Vector3(span[0].x, poleHeight + 0.8, span[0].z);
@@ -1135,20 +1170,30 @@ class BirthdayScene {
         const bulbMat = new THREE.MeshStandardMaterial({
           color: col,
           emissive: col,
-          emissiveIntensity: 0.9,
-          roughness: 0.1,
-          metalness: 0.1
+          emissiveIntensity: 3.2,
+          roughness: 0.05,
+          metalness: 0.0,
+          transparent: true,
+          opacity: 0.95
         });
 
         const bulbGroup = new THREE.Group();
         bulbGroup.position.set(pos.x, pos.y, pos.z);
 
         const bulbMesh = new THREE.Mesh(bulbGeo, bulbMat);
-        bulbMesh.position.y = -0.16;
+        bulbMesh.position.y = -0.22;
         bulbGroup.add(bulbMesh);
 
+        // Glowing hot-white inner filament core (gives authentic brilliant light bulb appearance)
+        const filament = new THREE.Mesh(
+          new THREE.SphereGeometry(0.12, 10, 10),
+          new THREE.MeshBasicMaterial({ color: 0xffffff })
+        );
+        filament.position.y = -0.22;
+        bulbGroup.add(filament);
+
         const socketCap = new THREE.Mesh(capGeo, capMat);
-        socketCap.position.y = -0.04;
+        socketCap.position.y = -0.05;
         bulbGroup.add(socketCap);
 
         this.polesGroup.add(bulbGroup);
@@ -1793,13 +1838,22 @@ class BirthdayScene {
       const bulbMat = new THREE.MeshStandardMaterial({
         color: col,
         emissive: col,
-        emissiveIntensity: 0.9,
-        roughness: 0.1
+        emissiveIntensity: 3.0,
+        roughness: 0.05,
+        metalness: 0.0
       });
 
       const bulbMesh = new THREE.Mesh(bulbGeo, bulbMat);
       bulbMesh.position.set(bx, by, 0.18);
       this.standBoardGroup.add(bulbMesh);
+
+      // Glowing hot-white inner filament core
+      const filament = new THREE.Mesh(
+        new THREE.SphereGeometry(0.08, 10, 10),
+        new THREE.MeshBasicMaterial({ color: 0xffffff })
+      );
+      filament.position.set(bx, by, 0.18);
+      this.standBoardGroup.add(filament);
 
       // Add into dynamic diwaliBulbs animation array
       if (this.diwaliBulbs) {
@@ -4706,11 +4760,12 @@ class BirthdayScene {
       }
     }
 
-    // 4. Multi-Colored Diwali Fairy Light Bulbs Twinkle
+    // 4. Multi-Colored Diwali & Garland Fairy Light Bulbs Twinkle (Bright, Glowing, Radiant)
     if (this.diwaliBulbs) {
+      const baseMult = (this.fairyBulbsMultiplier !== undefined ? this.fairyBulbsMultiplier : 1.0);
       this.diwaliBulbs.forEach(bulb => {
         const twinkle = Math.sin(time * bulb.speed + bulb.phase);
-        bulb.mat.emissiveIntensity = 1.0 + Math.max(0, twinkle) * 1.5;
+        bulb.mat.emissiveIntensity = (3.2 + Math.max(0, twinkle) * 2.2) * baseMult;
       });
     }
 

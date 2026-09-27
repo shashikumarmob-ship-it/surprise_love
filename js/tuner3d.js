@@ -249,9 +249,10 @@
 
         // Corner Poles & Bulbs
         case 'fairyBulbsLight':
+          s.fairyBulbsMultiplier = numVal;
           if (s.diwaliBulbs) {
             s.diwaliBulbs.forEach((b) => {
-              if (b.mesh && b.mesh.material) b.mesh.material.emissiveIntensity = numVal;
+              if (b.mat) b.mat.emissiveIntensity = 3.2 * numVal;
             });
           }
           break;
