@@ -502,10 +502,16 @@ class UserStore:
         user["scheduled_delete_at"] = None
         return self.save_user(user)
 
-    def run_scheduled_deletions(self) -> list[str]:
+    def run_scheduled_deletions(self, before_delete_callback=None) -> list[str]:
         """
         Check all users and delete those whose scheduled_delete_at has passed.
         Returns list of deleted usernames. Call this in a background thread loop.
+
+        before_delete_callback(username), if given, is called BEFORE the
+        user's local file is removed — use this to clean up anything that
+        depends on data stored in the user record (e.g. deleting the user's
+        photo messages from Telegram, which needs the message_id list that
+        would otherwise be gone the instant this function deletes the file).
         """
         deleted = []
         now = time.time()
@@ -516,6 +522,11 @@ class UserStore:
             sched = user.get("scheduled_delete_at")
             if sched and now >= sched:
                 print(f"[UserStore] Auto-deleting expired user: {uname}")
+                if before_delete_callback:
+                    try:
+                        before_delete_callback(uname)
+                    except Exception as e:
+                        print(f"[UserStore] before_delete_callback error for {uname}: {e}")
                 self.delete_user(uname)
                 deleted.append(uname)
         return deleted

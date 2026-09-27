@@ -111,7 +111,12 @@ body {
   z-index: 1200;
   overflow-y: auto;
   background: radial-gradient(circle at 50% 15%, #2a0b22 0%, #12030f 60%, #060105 100%);
-  display: flex;
+  /* Default to hidden: prevents a 1-frame flash of the landing screen on
+     direct/shared surprise links or restored sessions before the early
+     route-shield or app.js decides which screen to show. The route
+     shield / route-* classes explicitly re-enable display:flex when this
+     is really the screen to show (see ZERO-FLICKER ROUTE SHIELD rules). */
+  display: none;
   align-items: center;
   justify-content: center;
   padding: 30px 16px;

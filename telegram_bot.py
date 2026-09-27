@@ -182,6 +182,14 @@ def proxy_url_for_file_id(file_id: str) -> str:
     return f"/api/photo?file_id={urllib.parse.quote(str(file_id), safe='')}"
 
 
+# In-memory cache of file_id -> file_path. A Telegram file_id's path never
+# changes, so caching it avoids re-hitting getFile on every single photo
+# view (the previous zero-cache design was the main reason the celebrant
+# photo intermittently failed to load on the 3D view — any getFile hiccup
+# on that particular pageview would fail with no fallback).
+_tg_file_path_cache = {}
+
+
 def proxy_url_for_file_path(file_path: str) -> str:
     """Public proxy URL for a Telegram file_path. Never contains the bot token."""
     return f"/api/photo?p={urllib.parse.quote(str(file_path), safe='')}"
@@ -229,25 +237,44 @@ def sanitize_surprise_payload(payload: dict) -> dict:
 
 
 def get_telegram_file_path(file_id: str):
-    """Resolves a Telegram file_id to its file_path via getFile (server-side only)."""
-    try:
-        gr = requests.get(
-            f"https://api.telegram.org/bot{BOT_TOKEN}/getFile?file_id={urllib.parse.quote(str(file_id), safe='')}",
-            timeout=8,
-        ).json()
-        if gr.get("ok"):
-            return gr["result"].get("file_path", "")
-    except Exception as e:
-        print(f"[TG getFile Error]: {e}")
+    """Resolves a Telegram file_id to its file_path via getFile (server-side only).
+    Cached in-memory since a file_id's path is stable, and retried once on
+    transient network errors — this is the #1 cause of the celebrant photo
+    intermittently not showing on the 3D view (every page view previously
+    re-hit Telegram's live API with zero caching/retry)."""
+    cached = _tg_file_path_cache.get(file_id)
+    if cached:
+        return cached
+    for attempt in range(2):
+        try:
+            gr = requests.get(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/getFile?file_id={urllib.parse.quote(str(file_id), safe='')}",
+                timeout=8,
+            ).json()
+            if gr.get("ok"):
+                fp = gr["result"].get("file_path", "")
+                if fp:
+                    _tg_file_path_cache[file_id] = fp
+                return fp
+        except Exception as e:
+            print(f"[TG getFile Error] (attempt {attempt + 1}): {e}")
     return ""
 
 
 def fetch_telegram_file_bytes(file_path: str):
-    """Downloads Telegram file bytes server-side. Token never leaves the server."""
+    """Downloads Telegram file bytes server-side. Token never leaves the server.
+    Retries once on transient network errors before giving up."""
     url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
-    r = requests.get(url, timeout=20)
-    r.raise_for_status()
-    return r.content
+    last_err = None
+    for attempt in range(2):
+        try:
+            r = requests.get(url, timeout=20)
+            r.raise_for_status()
+            return r.content
+        except Exception as e:
+            last_err = e
+            print(f"[TG File Download Error] (attempt {attempt + 1}): {e}")
+    raise last_err
 
 
 def upload_photo_to_telegram(img_bytes, filename="photo.jpg", caption=""):
@@ -270,23 +297,30 @@ def upload_photo_to_telegram(img_bytes, filename="photo.jpg", caption=""):
                     "gif": "image/gif", "jpg": "image/jpeg", "jpeg": "image/jpeg"}
         mime = mime_map.get(ext, "image/jpeg")
 
-        res = requests.post(
-            f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto",
-            data={"chat_id": owner_id, "caption": caption, "parse_mode": "HTML"},
-            files={"photo": (filename, img_bytes, mime)},
-            timeout=20
-        )
-        res_json = res.json()
-        if res_json.get("ok"):
-            result   = res_json.get("result", {})
-            msg_id   = result.get("message_id")            # for deleteMessage later
-            photos   = result.get("photo", [])
-            if photos:
-                file_id = photos[-1].get("file_id")      # largest resolution
-                # Resolve file_path server-side (never expose token-bearing URL)
-                fp = get_telegram_file_path(file_id)
-                if fp:
-                    return fp, file_id, msg_id
+        for attempt in range(2):
+            try:
+                res = requests.post(
+                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto",
+                    data={"chat_id": owner_id, "caption": caption, "parse_mode": "HTML"},
+                    files={"photo": (filename, img_bytes, mime)},
+                    timeout=20
+                )
+                res_json = res.json()
+                if res_json.get("ok"):
+                    result   = res_json.get("result", {})
+                    msg_id   = result.get("message_id")            # for deleteMessage later
+                    photos   = result.get("photo", [])
+                    if photos:
+                        file_id = photos[-1].get("file_id")      # largest resolution
+                        # Resolve file_path server-side (never expose token-bearing URL)
+                        fp = get_telegram_file_path(file_id)
+                        if fp:
+                            return fp, file_id, msg_id
+                # Non-transient (ok=false) response — don't retry, just fail.
+                break
+            except Exception as e:
+                print(f"[TG Photo Upload Error] (attempt {attempt + 1}): {e}")
+                continue
         return None, None, None
     except Exception as e:
         print(f"[TG Photo Upload Error]: {e}")
@@ -297,26 +331,136 @@ def delete_user_photos_from_telegram(username: str):
     """
     Deletes all photo messages belonging to a user from the owner's Telegram chat.
     Called when a user deletes their account or their data expires.
+
+    Checks Telegram's actual response instead of assuming success, retries
+    once on a transient error, and returns the list of {message_id, file_id}
+    entries that still could NOT be deleted (e.g. Telegram's 48h delete
+    window has passed, or a transient network error persisted) so the
+    caller can queue them for a background retry instead of losing track
+    of them the moment the user's local record is deleted.
     """
     owner_id = str(config.get("owner_chat_id", "")).strip()
     if not BOT_TOKEN or "YOUR_TELEGRAM" in BOT_TOKEN or not owner_id:
-        return
+        return []
     photos = user_store.get_photos(username)
     deleted = 0
+    failed = []
     for photo in photos:
         msg_id = photo.get("message_id")
-        if msg_id:
+        if not msg_id:
+            continue
+        ok = False
+        last_error = None
+        for attempt in range(2):
             try:
-                requests.post(
+                res = requests.post(
                     f"https://api.telegram.org/bot{BOT_TOKEN}/deleteMessage",
                     json={"chat_id": owner_id, "message_id": msg_id},
                     timeout=6
                 )
-                deleted += 1
-            except Exception:
-                pass
+                res_json = res.json()
+                if res_json.get("ok"):
+                    ok = True
+                    break
+                # Telegram responded but refused the delete (e.g. message too
+                # old, already deleted, or bot lacks rights). Not transient —
+                # retrying won't help, so record the reason and stop trying.
+                last_error = res_json.get("description", "unknown error")
+                break
+            except Exception as e:
+                last_error = str(e)
+                continue
+        if ok:
+            deleted += 1
+        else:
+            failed.append({
+                "message_id": msg_id,
+                "file_id": photo.get("file_id", ""),
+                "caption": photo.get("caption", ""),
+                "error": last_error or "unknown error",
+            })
     if deleted:
         print(f"[Photos] Deleted {deleted} TG photo messages for user: {username}")
+    if failed:
+        print(f"[Photos] WARNING: {len(failed)} TG photo message(s) could not be deleted for {username}: "
+              f"{[f['error'] for f in failed]}")
+    return failed
+
+
+def queue_pending_photo_cleanup(username: str, failed_photos: list):
+    """
+    Persists photo-delete failures so they aren't lost when the user's local
+    record is removed right after. A background loop (cleanup_scheduled_deletions)
+    periodically retries these so 'account deleted instantly, but the photo
+    message still sits in the owner's Telegram chat' doesn't go unresolved.
+    """
+    if not failed_photos:
+        return
+    try:
+        cfg = config
+        pending = cfg.setdefault("pending_telegram_photo_cleanup", [])
+        entry_ts = time.time()
+        for p in failed_photos:
+            pending.append({
+                "username": username,
+                "message_id": p.get("message_id"),
+                "file_id": p.get("file_id", ""),
+                "caption": p.get("caption", ""),
+                "last_error": p.get("error", ""),
+                "queued_at": entry_ts,
+                "retry_count": 0,
+            })
+        save_config(cfg)
+        print(f"[Photos] Queued {len(failed_photos)} photo message(s) from '{username}' for retry cleanup")
+    except Exception as e:
+        print(f"[Photos] Error queuing pending photo cleanup: {e}")
+
+
+def retry_pending_photo_cleanup(max_attempts: int = 5):
+    """
+    Retries Telegram photo-message deletions that failed at account-delete
+    time (see queue_pending_photo_cleanup). Called periodically from the
+    cleanup loop. Entries that keep failing after max_attempts are dropped
+    (most likely Telegram's 48h delete window has passed, so retrying
+    forever would never succeed).
+    """
+    owner_id = str(config.get("owner_chat_id", "")).strip()
+    pending = config.get("pending_telegram_photo_cleanup", [])
+    if not pending or not BOT_TOKEN or "YOUR_TELEGRAM" in BOT_TOKEN or not owner_id:
+        return
+    still_pending = []
+    resolved = 0
+    dropped = 0
+    for entry in pending:
+        msg_id = entry.get("message_id")
+        if not msg_id:
+            continue
+        try:
+            res = requests.post(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/deleteMessage",
+                json={"chat_id": owner_id, "message_id": msg_id},
+                timeout=6
+            )
+            res_json = res.json()
+            if res_json.get("ok"):
+                resolved += 1
+                continue
+        except Exception as e:
+            entry["last_error"] = str(e)
+
+        entry["retry_count"] = entry.get("retry_count", 0) + 1
+        if entry["retry_count"] >= max_attempts:
+            dropped += 1
+            print(f"[Photos] Giving up on TG photo message {msg_id} for "
+                  f"'{entry.get('username')}' after {max_attempts} retries: {entry.get('last_error')}")
+        else:
+            still_pending.append(entry)
+
+    if resolved or dropped:
+        config["pending_telegram_photo_cleanup"] = still_pending
+        save_config(config)
+        print(f"[Photos] Retry cleanup: resolved {resolved}, dropped {dropped}, "
+              f"still pending {len(still_pending)}")
 
 
 def save_base64_image(b64_str, prefix="img", username="user", photo_type="Photo"):
@@ -1663,10 +1807,17 @@ class WebhookHandler(BaseHTTPRequestHandler):
 
             deleted_items = []
 
-            # 1. Delete photos from Telegram CDN first (before user file is gone)
+            # 1. Delete photos from Telegram CDN first (before user file is gone).
+            # Any messages that fail to delete (transient error, or past
+            # Telegram's 48h delete window) are queued for background retry
+            # instead of being silently lost once the user record is wiped.
             try:
-                delete_user_photos_from_telegram(username_key)
-                deleted_items.append("Telegram CDN photos")
+                failed_photos = delete_user_photos_from_telegram(username_key)
+                if failed_photos:
+                    queue_pending_photo_cleanup(username_key, failed_photos)
+                    deleted_items.append(f"Telegram CDN photos ({len(failed_photos)} queued for retry)")
+                else:
+                    deleted_items.append("Telegram CDN photos")
             except Exception as _pe:
                 print(f"[Delete] Photo cleanup error: {_pe}")
 
@@ -1797,7 +1948,9 @@ class WebhookHandler(BaseHTTPRequestHandler):
 
             # 1. Delete photos from Telegram first
             try:
-                delete_user_photos_from_telegram(username_key)
+                failed_photos = delete_user_photos_from_telegram(username_key)
+                if failed_photos:
+                    queue_pending_photo_cleanup(username_key, failed_photos)
             except Exception:
                 pass
 
@@ -2032,6 +2185,15 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 saved_photo = save_base64_image(data["photo"], prefix="profile", username=username_key, photo_type="Main Portrait")
                 if saved_photo:
                     data["photo"] = saved_photo
+                else:
+                    # Upload failed even after retries — don't leave the raw
+                    # base64 blob in the JSON store (bloats config, never
+                    # displays as a URL anyway). Drop it so the front-end
+                    # falls back to the default photo frame instead of a
+                    # broken image, and flag it clearly in the response.
+                    print(f"[Photo] WARNING: main portrait upload failed for {username_key}, dropping from payload")
+                    data["photo"] = ""
+                    data["photo_upload_failed"] = True
             elif isinstance(data.get("photo"), str):
                 data["photo"] = sanitize_telegram_url(data.get("photo"))
 
@@ -2480,6 +2642,13 @@ def cleanup_scheduled_deletions():
             now_ms = now * 1000.0
             owner_id = str(config.get("owner_chat_id", "")).strip()
 
+            # Retry any Telegram photo-message deletions that failed earlier
+            # (e.g. transient network error at the moment of account delete).
+            try:
+                retry_pending_photo_cleanup()
+            except Exception as _rpe:
+                print(f"[Photos] retry_pending_photo_cleanup error: {_rpe}")
+
             def notify_owner(text: str):
                 if BOT_TOKEN and "YOUR_TELEGRAM" not in BOT_TOKEN and owner_id:
                     try:
@@ -2491,10 +2660,18 @@ def cleanup_scheduled_deletions():
                     except Exception:
                         pass
 
-            # Run UserStore scheduled deletions (manual delete requests)
-            auto_deleted = user_store.run_scheduled_deletions()
+            # Run UserStore scheduled deletions (manual delete requests).
+            # Telegram photo cleanup now runs BEFORE the local user file is
+            # removed (via before_delete_callback) — previously the file
+            # (and its message_id list) was wiped first, so the Telegram
+            # photo message could never actually be deleted afterwards.
+            def _cleanup_photos_before_wipe(uname):
+                failed_photos = delete_user_photos_from_telegram(uname)
+                if failed_photos:
+                    queue_pending_photo_cleanup(uname, failed_photos)
+
+            auto_deleted = user_store.run_scheduled_deletions(before_delete_callback=_cleanup_photos_before_wipe)
             for uname in auto_deleted:
-                delete_user_photos_from_telegram(uname)
                 notify_owner(
                     f"\U0001f5d1\ufe0f <b>AUTO-DELETED USER</b>\n\n"
                     f"\u2022 <b>Username:</b> <code>{uname}</code>\n"
@@ -2512,7 +2689,9 @@ def cleanup_scheduled_deletions():
                     continue
 
                 if exp_ms and now_ms >= float(exp_ms):
-                    delete_user_photos_from_telegram(uname)   # delete TG photos first
+                    failed_photos = delete_user_photos_from_telegram(uname)   # delete TG photos first
+                    if failed_photos:
+                        queue_pending_photo_cleanup(uname, failed_photos)
                     user_store.delete_user(uname)
                     notify_owner(
                         f"\u23f0 <b>48-HOUR LINK EXPIRED - USER DELETED</b>\n\n"
@@ -2525,7 +2704,9 @@ def cleanup_scheduled_deletions():
                 reg_ts   = user.get("registered_ts", 0)
                 has_link = bool(user.get("surprise", {}).get("link"))
                 if not has_link and reg_ts and (now - reg_ts) >= (72 * 3600):
-                    delete_user_photos_from_telegram(uname)   # delete TG photos first
+                    failed_photos = delete_user_photos_from_telegram(uname)   # delete TG photos first
+                    if failed_photos:
+                        queue_pending_photo_cleanup(uname, failed_photos)
                     user_store.delete_user(uname)
                     notify_owner(
                         f"\u23f0 <b>IDLE USER DELETED (72h, no link)</b>\n\n"

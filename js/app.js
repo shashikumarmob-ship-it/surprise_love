@@ -85,7 +85,10 @@ document.addEventListener('DOMContentLoaded', () => {
         curtainContainer.classList.remove('opened');
       }
       if (portalCreatorDashboard) portalCreatorDashboard.classList.add('hidden');
-      if (portalLandingScreen) portalLandingScreen.classList.remove('hidden');
+      if (portalLandingScreen) {
+        portalLandingScreen.classList.remove('hidden');
+        portalLandingScreen.style.display = 'flex';
+      }
       document.documentElement.classList.add('route-portal-landing');
       document.documentElement.classList.remove('route-surprise-curtain', 'route-creator-dashboard');
     }
@@ -1643,6 +1646,36 @@ document.addEventListener('DOMContentLoaded', () => {
     return canvas.toDataURL('image/jpeg', quality);
   }
 
+  // Loads the celebrant's main photo into the 3D scene with automatic
+  // retries + cache-busting. The /api/photo proxy calls Telegram's live
+  // API on every request (no server-side cache), so a transient network
+  // hiccup or Telegram rate-limit can make the image intermittently fail
+  // to load even though the upload itself succeeded — without a retry,
+  // this used to silently leave the 3D photo frame blank/default with no
+  // way to recover on that view.
+  function loadCelebrantPhotoWithRetry(url, attempt = 1, maxAttempts = 4) {
+    if (!url) return;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      if (scene && scene.updateUserPhoto) scene.updateUserPhoto(img);
+    };
+    img.onerror = () => {
+      if (attempt < maxAttempts) {
+        // Exponential-ish backoff: 0.8s, 1.6s, 3.2s
+        const delay = 800 * Math.pow(2, attempt - 1);
+        setTimeout(() => loadCelebrantPhotoWithRetry(url, attempt + 1, maxAttempts), delay);
+      } else {
+        console.warn('[Photo] Failed to load celebrant photo after retries:', url);
+        // Fall back to the default frame instead of leaving it stuck blank.
+        if (scene && scene.clearUserPhoto) scene.clearUserPhoto();
+      }
+    };
+    // Cache-bust each retry so a failed/partial response isn't served from cache.
+    const sep = url.includes('?') ? '&' : '?';
+    img.src = attempt === 1 ? url : `${url}${sep}_retry=${attempt}_${Date.now()}`;
+  }
+
   async function parseUrlParams() {
     const params = new URLSearchParams(window.location.search || window.location.hash.replace(/^#/, '?'));
 
@@ -1697,12 +1730,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateMemoriesPhoto(d.photo || null, userMemoriesPhotos);
 
             if (serverPhoto) {
-              const img = new Image();
-              img.crossOrigin = 'anonymous';
-              img.onload = () => {
-                if (scene && scene.updateUserPhoto) scene.updateUserPhoto(img);
-              };
-              img.src = serverPhoto;
+              loadCelebrantPhotoWithRetry(serverPhoto);
             }
             if (d.upi) {
               updateUpiOrderDisplay(d.upi);
@@ -1760,12 +1788,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateMemoriesPhoto(sharedPhoto, userMemoriesPhotos);
 
     if (sharedPhoto) {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        if (scene && scene.updateUserPhoto) scene.updateUserPhoto(img);
-      };
-      img.src = resolvePhotoUrl(sharedPhoto);
+      loadCelebrantPhotoWithRetry(resolvePhotoUrl(sharedPhoto));
     } else {
       if (scene && scene.clearUserPhoto) {
         scene.clearUserPhoto();
@@ -3260,8 +3283,32 @@ document.addEventListener('DOMContentLoaded', () => {
     .catch(() => {});
   }
 
+  // Removes any surprise-link/preview/demo query params from the URL so a
+  // stale link param doesn't force the 3D curtain open over login/logout/
+  // dashboard routing. Keeps the same page, just cleans the query string.
+  function clearSurpriseLinkParamsFromUrl() {
+    try {
+      const url = new URL(window.location.href);
+      ['s', 'surprise', 'name', 'preview', 'demo', 'exp', 'u', 'safarnama'].forEach(p => url.searchParams.delete(p));
+      if (window.location.hash) url.hash = '';
+      window.history.replaceState({}, document.title, url.pathname + (url.search ? url.search : ''));
+    } catch(e) {}
+  }
+
   // --- Helper: Open dashboard after successful login/register ---
   function openDashboardForUser(uName) {
+    // A fresh login/register is always the CREATOR opening their dashboard,
+    // never a recipient viewing a surprise link — strip any leftover
+    // surprise-link params (?s=, ?preview=, etc.) so the 3D curtain route
+    // doesn't hijack the view on this load or the next page refresh.
+    clearSurpriseLinkParamsFromUrl();
+    if (curtainContainer) {
+      curtainContainer.style.display = 'none';
+      curtainContainer.classList.remove('opened');
+    }
+    document.documentElement.classList.add('route-creator-dashboard');
+    document.documentElement.classList.remove('route-surprise-curtain', 'route-portal-landing');
+
     currentPortalUser = uName.toLowerCase();
     if (loggedUserName) loggedUserName.textContent = uName;
     if (portalLoginModal) portalLoginModal.classList.remove('show');
@@ -4513,9 +4560,18 @@ document.addEventListener('DOMContentLoaded', () => {
        try {
          localStorage.removeItem('birthday_portal_session');
        } catch(e) {}
+       currentPortalUser = null;
+       // Strip any surprise-link params (?s=, ?preview=, etc.) so a leftover
+       // link param doesn't force the 3D curtain open instead of landing.
+       clearSurpriseLinkParamsFromUrl();
+       if (curtainContainer) {
+         curtainContainer.style.display = 'none';
+         curtainContainer.classList.remove('opened');
+       }
+       document.documentElement.classList.add('route-portal-landing');
+       document.documentElement.classList.remove('route-surprise-curtain', 'route-creator-dashboard');
        if (portalCreatorDashboard) portalCreatorDashboard.classList.add('hidden');
        if (portalLandingScreen) portalLandingScreen.classList.remove('hidden');
-       if (curtainContainer) curtainContainer.style.display = 'none';
        if (generatedLinkBox) generatedLinkBox.classList.add('hidden');
        window.scrollTo({ top: 0, behavior: 'smooth' });
      });
@@ -4622,7 +4678,10 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }, 400);
       } else {
-        if (portalLandingScreen) portalLandingScreen.classList.remove('hidden');
+        if (portalLandingScreen) {
+          portalLandingScreen.classList.remove('hidden');
+          portalLandingScreen.style.display = 'flex';
+        }
         if (portalCreatorDashboard) portalCreatorDashboard.classList.add('hidden');
       }
     }
