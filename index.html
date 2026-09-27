@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="responsive.css?v=1">
 
   <!-- High Priority Background Preload of 3D Cake Model on Link Open -->
-  <link rel="preload" href="cake.glb" as="fetch" crossorigin="anonymous">
+  <link rel="preload" href="cake.glb" as="fetch">
 
   <!-- External Libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -30,54 +30,81 @@
     window.CakePreloader = {
       status: 'idle',
       gltf: null,
+      error: null,
       progress: 0,
       callbacks: [],
+      errorCallbacks: [],
       startPreload() {
         if (this.status === 'loading' || this.status === 'loaded') return;
         this.status = 'loading';
         console.log('🎂 [CakePreloader] Immediate background cake load started on link open...');
-        const tryLoad = () => {
-          if (typeof THREE !== 'undefined' && typeof THREE.GLTFLoader !== 'undefined') {
-            try {
-              const cakeUrl = new URL('cake.glb', window.location.href).href;
-              const loader = new THREE.GLTFLoader();
-              loader.load(
-                cakeUrl,
-                (gltf) => {
-                  console.log('✅ [CakePreloader] 3D cake.glb ready in background!');
-                  this.gltf = gltf;
-                  this.status = 'loaded';
-                  this.progress = 100;
-                  this.callbacks.forEach(cb => {
-                    try { cb(gltf); } catch (e) { console.error(e); }
-                  });
-                  this.callbacks = [];
-                },
-                (xhr) => {
-                  if (xhr.lengthComputable && xhr.total > 0) {
-                    this.progress = Math.round((xhr.loaded / xhr.total) * 100);
-                  }
-                },
-                (err) => {
-                  console.warn('⚠️ [CakePreloader] Background GLB error (will use procedural fallback):', err);
-                  this.status = 'error';
-                }
-              );
-            } catch(e) {
-              this.status = 'error';
-            }
-          } else {
-            // THREE not yet loaded, retry in 30ms
-            setTimeout(tryLoad, 30);
+
+        const candidateUrls = ['cake.glb', './cake.glb', '/cake.glb'];
+        try {
+          const resolved = new URL('cake.glb', window.location.href).href;
+          if (!candidateUrls.includes(resolved)) candidateUrls.push(resolved);
+        } catch(e) {}
+
+        let candidateIndex = 0;
+
+        const tryLoadWithCandidate = () => {
+          if (typeof THREE === 'undefined' || typeof THREE.GLTFLoader === 'undefined') {
+            setTimeout(tryLoadWithCandidate, 30);
+            return;
           }
+
+          const currentUrl = candidateUrls[candidateIndex];
+          console.log(`🎂 [CakePreloader] Trying to load cake model from: ${currentUrl}`);
+          const loader = new THREE.GLTFLoader();
+
+          loader.load(
+            currentUrl,
+            (gltf) => {
+              console.log('✅ [CakePreloader] 3D cake.glb ready in background!');
+              this.gltf = gltf;
+              this.status = 'loaded';
+              this.progress = 100;
+              this.callbacks.forEach(cb => {
+                try { cb(gltf); } catch (e) { console.error('Cake callback error:', e); }
+              });
+              this.callbacks = [];
+              this.errorCallbacks = [];
+            },
+            (xhr) => {
+              if (xhr.lengthComputable && xhr.total > 0) {
+                this.progress = Math.round((xhr.loaded / xhr.total) * 100);
+              }
+            },
+            (err) => {
+              console.warn(`⚠️ [CakePreloader] Candidate failed (${currentUrl}):`, err);
+              candidateIndex++;
+              if (candidateIndex < candidateUrls.length) {
+                tryLoadWithCandidate();
+              } else {
+                console.warn('⚠️ [CakePreloader] All preload URLs failed, will try direct scene loader:', err);
+                this.status = 'error';
+                this.error = err;
+                this.errorCallbacks.forEach(ecb => {
+                  try { ecb(err); } catch(e) { console.error(e); }
+                });
+                this.errorCallbacks = [];
+              }
+            }
+          );
         };
-        tryLoad();
+
+        tryLoadWithCandidate();
       },
-      onLoaded(cb) {
+      onLoaded(cb, errCb) {
         if (this.status === 'loaded' && this.gltf) {
-          cb(this.gltf);
+          try { cb(this.gltf); } catch(e) { console.error(e); }
+        } else if (this.status === 'error') {
+          if (errCb) {
+            try { errCb(this.error); } catch(e) { console.error(e); }
+          }
         } else {
           this.callbacks.push(cb);
+          if (errCb) this.errorCallbacks.push(errCb);
         }
       }
     };

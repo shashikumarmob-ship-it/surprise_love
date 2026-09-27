@@ -2144,14 +2144,18 @@ class BirthdayScene {
     this.isCakeGlbLoaded = false;
     this.cakeGlbTopY = 5.37;
 
-    // 1. Build procedural fallback cake IMMEDIATELY so table is NEVER empty while downloading
-    this.buildProceduralCakeFallback(theme);
-
-    // 2. Numeric Candles "22"
+    // 1. Numeric Candles (positioned at glbTopY = 5.37)
     this.createNumericCandles(22);
     this.scene.add(this.cakeGroup);
 
-    // 3. Apply GLB model once ready (swaps out procedural fallback automatically)
+    // 2. Candidate paths for loading cake.glb
+    const candidateUrls = ['cake.glb', './cake.glb', '/cake.glb'];
+    try {
+      const resolved = new URL('cake.glb', window.location.href).href;
+      if (!candidateUrls.includes(resolved)) candidateUrls.push(resolved);
+    } catch(e) {}
+
+    // 3. Apply GLB model once ready (swaps out any temporary procedural fallback)
     const applyGlbModel = (gltf) => {
       if (this.cakeGlbModel || !gltf || !gltf.scene) return;
       const model = gltf.scene;
@@ -2168,6 +2172,7 @@ class BirthdayScene {
             if (child.material.roughness !== undefined) {
               child.material.roughness = Math.min(child.material.roughness, 0.6);
             }
+            child.material.needsUpdate = true;
           }
         }
       });
@@ -2184,12 +2189,16 @@ class BirthdayScene {
       const posY = plateSurfaceY + 0.9515 * cakeScale;
       model.position.set(0, posY, 0);
 
-      // Remove temporary procedural fallback elements now that real GLB is here
+      // Remove temporary procedural fallback elements if they were ever added
       if (this.proceduralCakeElements && this.proceduralCakeElements.length > 0) {
         this.proceduralCakeElements.forEach((el) => {
           if (el.parent) el.parent.remove(el);
+          if (el.geometry) el.geometry.dispose();
+          if (el.material) el.material.dispose();
         });
         this.proceduralCakeElements = [];
+        this.tier1Mesh = null;
+        this.tier2Mesh = null;
       }
 
       this.cakeGroup.add(model);
@@ -2202,22 +2211,59 @@ class BirthdayScene {
         this.cakeGlowLight.position.set(0, glbTopY + 1.0, 0);
       }
 
-      console.log('✅ cake.glb loaded & mounted onto 3D scene successfully!');
+      console.log('✅ [BirthdayScene] cake.glb loaded & mounted onto 3D scene successfully!');
     };
 
-    // Use background preloader if available (started when page first opened)
-    if (window.CakePreloader) {
-      window.CakePreloader.onLoaded(applyGlbModel);
-    } else {
-      // Fallback: direct loader (no preloader available)
-      if (typeof THREE.GLTFLoader !== 'undefined') {
-        const loader = new THREE.GLTFLoader();
-        let cakeUrl = 'cake.glb';
-        try { cakeUrl = new URL('cake.glb', window.location.href).href; } catch(e) {}
-        loader.load(cakeUrl, applyGlbModel, undefined, (err) => {
-          console.warn('[Cake GLB Loader Error]: Falling back to procedural cake', err);
-        });
+    // Direct multi-candidate loader fallback
+    const tryDirectLoad = (idx = 0) => {
+      if (this.isCakeGlbLoaded || this.cakeGlbModel) return;
+      if (typeof THREE === 'undefined' || typeof THREE.GLTFLoader === 'undefined') {
+        setTimeout(() => tryDirectLoad(idx), 40);
+        return;
       }
+      if (idx >= candidateUrls.length) {
+        console.warn('⚠️ [CakeScene] All candidate URLs for cake.glb failed. Using procedural fallback as last resort.');
+        this.buildProceduralCakeFallback(theme);
+        return;
+      }
+      const targetUrl = candidateUrls[idx];
+      console.log(`🎂 [CakeScene] Direct loading cake.glb from: ${targetUrl}`);
+      const loader = new THREE.GLTFLoader();
+      loader.load(
+        targetUrl,
+        (gltf) => {
+          applyGlbModel(gltf);
+        },
+        undefined,
+        (err) => {
+          console.warn(`⚠️ [CakeScene] Failed to direct load ${targetUrl}:`, err);
+          tryDirectLoad(idx + 1);
+        }
+      );
+    };
+
+    // Connect to CakePreloader with active fallback on error or timeout
+    if (window.CakePreloader) {
+      if (window.CakePreloader.status === 'loaded' && window.CakePreloader.gltf) {
+        applyGlbModel(window.CakePreloader.gltf);
+      } else {
+        window.CakePreloader.onLoaded(
+          applyGlbModel,
+          (err) => {
+            console.warn('⚠️ [CakeScene] Preloader reported error, trying direct load:', err);
+            tryDirectLoad(0);
+          }
+        );
+        // Safety timeout: if preloader takes longer than 3.5s, trigger direct attempt
+        setTimeout(() => {
+          if (!this.isCakeGlbLoaded && !this.cakeGlbModel) {
+            console.log('⏳ [CakeScene] Preloader safety timeout: initiating direct load...');
+            tryDirectLoad(0);
+          }
+        }, 3500);
+      }
+    } else {
+      tryDirectLoad(0);
     }
   }
 
@@ -3808,6 +3854,9 @@ class BirthdayScene {
       gsap.to(this.camera.position, { x: grandCam.pos.x, y: grandCam.pos.y, z: grandCam.pos.z, duration, ease: 'power2.inOut' });
       gsap.to(this.controls.target, { x: grandCam.target.x, y: grandCam.target.y, z: grandCam.target.z, duration, ease: 'power2.inOut' });
     } else if (viewName === 'cake') {
+      if (!this.isClothRemoved && typeof this.liftAndRemoveCloth === 'function') {
+        this.liftAndRemoveCloth();
+      }
       gsap.to(this.camera.position, { x: 0.00, y: 7.31, z: 18.45, duration, ease: 'power2.inOut' });
       gsap.to(this.controls.target, { x: 0.00, y: 2.80, z: 0.00, duration, ease: 'power2.inOut' });
     } else if (viewName === 'gift') {
