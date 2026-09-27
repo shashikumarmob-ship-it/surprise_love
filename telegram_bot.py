@@ -1291,10 +1291,13 @@ class WebhookHandler(BaseHTTPRequestHandler):
         self._set_cors()
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(b)))
+        if "model/" in content_type or "image/" in content_type or "video/" in content_type or "audio/" in content_type or "font/" in content_type:
+            self.send_header("Cache-Control", "public, max-age=604800")
         self.send_header("Connection", "close")
         self.end_headers()
-        self.wfile.write(b)
-        self.wfile.flush()
+        if self.command != "HEAD":
+            self.wfile.write(b)
+            self.wfile.flush()
 
     def _verify_api_auth(self):
         """
@@ -2131,6 +2134,9 @@ class WebhookHandler(BaseHTTPRequestHandler):
             return
 
         self._send_json(404, {"status": "not_found"})
+
+    def do_HEAD(self):
+        self.do_GET()
 
     def do_GET(self):
         if self.path == "/api/get_env":

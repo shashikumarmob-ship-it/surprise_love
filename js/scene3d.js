@@ -2203,15 +2203,24 @@ class BirthdayScene {
 
       this.cakeGroup.add(model);
 
-      // Position candles right on top of the GLB cake
+      // Position candles right on top of the GLB cake and make them visible
       const glbTopY = plateSurfaceY + 1.8995 * cakeScale;
       this.repositionCandles(glbTopY);
+      if (this.candles) this.candles.forEach(c => c.visible = true);
 
       if (this.cakeGlowLight) {
         this.cakeGlowLight.position.set(0, glbTopY + 1.0, 0);
       }
 
       console.log('✅ [BirthdayScene] cake.glb loaded & mounted onto 3D scene successfully!');
+
+      // If user had already popped balloons while cake was downloading, unveil now!
+      if (this.pendingUnveilCallbacks && this.pendingUnveilCallbacks.length > 0) {
+        this.pendingUnveilCallbacks.forEach(cb => {
+          try { cb(); } catch(e) { console.error(e); }
+        });
+        this.pendingUnveilCallbacks = [];
+      }
     };
 
     // Direct multi-candidate loader fallback
@@ -2242,7 +2251,7 @@ class BirthdayScene {
       );
     };
 
-    // Connect to CakePreloader with active fallback on error or timeout
+    // Connect to CakePreloader with active fallback on error (no duplicate timeout!)
     if (window.CakePreloader) {
       if (window.CakePreloader.status === 'loaded' && window.CakePreloader.gltf) {
         applyGlbModel(window.CakePreloader.gltf);
@@ -2254,13 +2263,6 @@ class BirthdayScene {
             tryDirectLoad(0);
           }
         );
-        // Safety timeout: if preloader takes longer than 3.5s, trigger direct attempt
-        setTimeout(() => {
-          if (!this.isCakeGlbLoaded && !this.cakeGlbModel) {
-            console.log('⏳ [CakeScene] Preloader safety timeout: initiating direct load...');
-            tryDirectLoad(0);
-          }
-        }, 3500);
       }
     } else {
       tryDirectLoad(0);
@@ -2362,6 +2364,7 @@ class BirthdayScene {
       digitGroup.add(candleLight);
 
       digitGroup.position.set(startX + i * spacing, this.cakeGlbTopY || 5.37, 0);
+      digitGroup.visible = Boolean(this.isCakeGlbLoaded);
       this.cakeGroup.add(digitGroup);
 
       this.candles.push(digitGroup);
@@ -2411,58 +2414,76 @@ class BirthdayScene {
     this.scene.add(this.clothCover);
   }
 
-  // Lift and Dissolve the Cloth Cover
+  // Lift and Dissolve the Cloth Cover (Waits for cake.glb if still downloading)
   liftAndRemoveCloth(onCompleteCallback) {
     if (this.isClothRemoved || !this.clothCover) return;
-    this.isClothRemoved = true;
 
-    if (window.birthdayAudio) window.birthdayAudio.playGiftOpen();
+    const performUnveil = () => {
+      if (this.isClothRemoved || !this.clothCover) return;
+      this.isClothRemoved = true;
 
-    // Zoom Camera into the Cake Table (Focusing nicely on cake.glb)
-    gsap.to(this.camera.position, {
-      x: 0.00,
-      y: 8.20,
-      z: 19.50,
-      duration: 1.6,
-      ease: 'power2.inOut'
-    });
-    gsap.to(this.controls.target, {
-      x: 0.00,
-      y: 3.50,
-      z: 0.00,
-      duration: 1.6,
-      ease: 'power2.inOut'
-    });
+      if (window.birthdayAudio) window.birthdayAudio.playGiftOpen();
 
-    // Reveal the 4-5 Party Friends cheering behind the cake
-    this.revealPartyFriends();
-
-    // Trigger Magical Cake Aura & Fairy Dust Sparkle burst
-    this.burstCakeAuraVFX();
-
-    // Lift cloth upwards and fade away
-    gsap.to(this.clothCover.position, {
-      y: 13.5,
-      duration: 1.8,
-      ease: 'power2.out'
-    });
-    gsap.to(this.clothCover.rotation, {
-      y: Math.PI * 0.7,
-      duration: 1.8
-    });
-    gsap.to(this.clothCover.material, {
-      opacity: 0,
-      transparent: true,
-      duration: 1.8,
-      onComplete: () => {
-        this.scene.remove(this.clothCover);
-        if (onCompleteCallback) onCompleteCallback();
+      // Ensure candles are visible on top of cake
+      if (this.candles && this.candles.length > 0) {
+        this.candles.forEach(c => c.visible = true);
       }
-    });
 
-    // Confetti splash
-    if (window.confetti) {
-      window.confetti({ particleCount: 60, spread: 80, origin: { y: 0.6 } });
+      // Zoom Camera into the Cake Table (Focusing nicely on cake.glb)
+      gsap.to(this.camera.position, {
+        x: 0.00,
+        y: 8.20,
+        z: 19.50,
+        duration: 1.6,
+        ease: 'power2.inOut'
+      });
+      gsap.to(this.controls.target, {
+        x: 0.00,
+        y: 3.50,
+        z: 0.00,
+        duration: 1.6,
+        ease: 'power2.inOut'
+      });
+
+      // Reveal the 4-5 Party Friends cheering behind the cake
+      this.revealPartyFriends();
+
+      // Trigger Magical Cake Aura & Fairy Dust Sparkle burst
+      this.burstCakeAuraVFX();
+
+      // Lift cloth upwards and fade away
+      gsap.to(this.clothCover.position, {
+        y: 13.5,
+        duration: 1.8,
+        ease: 'power2.out'
+      });
+      gsap.to(this.clothCover.rotation, {
+        y: Math.PI * 0.7,
+        duration: 1.8
+      });
+      gsap.to(this.clothCover.material, {
+        opacity: 0,
+        transparent: true,
+        duration: 1.8,
+        onComplete: () => {
+          this.scene.remove(this.clothCover);
+          if (onCompleteCallback) onCompleteCallback();
+        }
+      });
+
+      // Confetti splash
+      if (window.confetti) {
+        window.confetti({ particleCount: 60, spread: 80, origin: { y: 0.6 } });
+      }
+    };
+
+    // If cake.glb is already mounted, unveil immediately!
+    if (this.isCakeGlbLoaded || this.cakeGlbModel) {
+      performUnveil();
+    } else {
+      console.log('⏳ [Cloth] cake.glb is still downloading. Keeping cloth cover until cake is mounted...');
+      this.pendingUnveilCallbacks = this.pendingUnveilCallbacks || [];
+      this.pendingUnveilCallbacks.push(performUnveil);
     }
   }
 
