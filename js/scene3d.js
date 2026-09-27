@@ -543,16 +543,20 @@ class BirthdayScene {
   }
 
   setLeftPoleHalogenIntensity(val) {
-    const num = parseFloat(val);
+    const num = parseFloat(val) || 0.0;
     if (this.leftPoleHalogenLight) {
       this.leftPoleHalogenLight.intensity = num;
     }
     if (this.leftPoleHalogenLens) {
+      this.leftPoleHalogenLens.visible = num > 0.01;
       this.leftPoleHalogenLens.material.opacity = num > 0.01 ? Math.min(1.0, 0.35 + (num / 10.0) * 0.65) : 0.0;
     }
+    if (this.leftPoleHalogenBulb) {
+      this.leftPoleHalogenBulb.visible = num > 0.01;
+    }
     if (this.leftPoleHalogenBeam) {
-      this.leftPoleHalogenBeam.material.opacity = Math.min(0.28, (num / 4.0) * 0.08);
       this.leftPoleHalogenBeam.visible = num > 0.05;
+      this.leftPoleHalogenBeam.material.opacity = Math.min(0.28, (num / 4.0) * 0.08);
     }
   }
 
@@ -1137,84 +1141,95 @@ class BirthdayScene {
     // =========================================================
     // FRONT-LEFT POLE: STUDIO WHITE HALOGEN FLOODLIGHT
     // =========================================================
-    const halogenGroup = new THREE.Group();
-    halogenGroup.position.set(-11.5, 8.8, 11.5);
-
-    // Swivel mounting arm attaching to pole
+    // Swivel mounting arm attaching fixture to front-left pole (-11.5, 8.8, 11.5)
     const armMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.9, roughness: 0.2 });
-    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.8, 12), armMat);
+    const clamp = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.35, 16), armMat);
+    clamp.position.set(-11.5, 8.8, 11.5);
+    this.polesGroup.add(clamp);
+
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.0, 12), armMat);
+    arm.position.set(-11.15, 8.8, 11.15);
     arm.rotation.z = Math.PI / 2;
-    arm.position.set(0.4, 0, -0.4);
-    halogenGroup.add(arm);
+    arm.rotation.y = Math.PI / 4;
+    this.polesGroup.add(arm);
 
-    // Studio Halogen Housing Group aiming at stage center
-    const housingGroup = new THREE.Group();
-    housingGroup.position.set(0.8, 0, -0.8);
+    const pivot = new THREE.Mesh(new THREE.SphereGeometry(0.18, 14, 14), armMat);
+    pivot.position.set(-10.8, 8.8, 10.8);
+    this.polesGroup.add(pivot);
 
-    // Outer Anodized Aluminum Barrel
+    // Studio Halogen Housing Group placed at world fixture position (-10.8, 8.8, 10.8)
+    const halogenLampGroup = new THREE.Group();
+    halogenLampGroup.position.set(-10.8, 8.8, 10.8);
+    this.polesGroup.add(halogenLampGroup);
+
+    // Aim the housing local +Z axis directly down at the stage & cake center (0, 1.8, 0)
+    halogenLampGroup.lookAt(0, 1.8, 0);
+
+    // Outer Anodized Aluminum Barrel (narrow at back -Z, wide opening at front +Z)
     const barrelMat = new THREE.MeshStandardMaterial({
       color: 0x181818,
       metalness: 0.92,
       roughness: 0.25
     });
     const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.52, 0.85, 24), barrelMat);
-    barrel.rotation.x = Math.PI / 2;
-    housingGroup.add(barrel);
+    barrel.rotation.x = -Math.PI / 2;
+    barrel.position.set(0, 0, 0);
+    halogenLampGroup.add(barrel);
 
     // Golden/Chrome Trim Rim
     const rimMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.95, roughness: 0.1 });
     const rim = new THREE.Mesh(new THREE.TorusGeometry(0.52, 0.04, 12, 24), rimMat);
-    rim.position.z = 0.42;
-    housingGroup.add(rim);
+    rim.position.set(0, 0, 0.425);
+    halogenLampGroup.add(rim);
 
     // Inner Parabolic Chrome Reflector Dish
     const dishMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, metalness: 0.98, roughness: 0.08 });
-    const dish = new THREE.Mesh(new THREE.ConeGeometry(0.46, 0.35, 24, 1, true), dishMat);
+    const dish = new THREE.Mesh(new THREE.ConeGeometry(0.48, 0.38, 24, 1, true), dishMat);
     dish.rotation.x = -Math.PI / 2;
-    dish.position.z = 0.2;
-    housingGroup.add(dish);
+    dish.position.set(0, 0, 0.22);
+    halogenLampGroup.add(dish);
 
-    // Glowing White Halogen Lamp Bulb (Intensely Bright Core)
+    // Glowing White Halogen Lamp Bulb (hidden by default when intensity is 0)
     const halogenBulbMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
     const hBulb = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.28, 12), halogenBulbMat);
-    hBulb.position.z = 0.25;
-    housingGroup.add(hBulb);
+    hBulb.rotation.x = Math.PI / 2;
+    hBulb.position.set(0, 0, 0.25);
+    hBulb.visible = false;
+    halogenLampGroup.add(hBulb);
+    this.leftPoleHalogenBulb = hBulb;
 
-    // Front Frosted Glass Lens
+    // Front Frosted Glass Lens (hidden / 0 opacity by default)
     const lensMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       transparent: true,
-      opacity: 0.95
+      opacity: 0.0
     });
     const lens = new THREE.Mesh(new THREE.CircleGeometry(0.48, 24), lensMat);
-    lens.position.z = 0.43;
-    housingGroup.add(lens);
+    lens.position.set(0, 0, 0.43);
+    lens.visible = false;
+    halogenLampGroup.add(lens);
     this.leftPoleHalogenLens = lens;
 
-    // Soft Volumetric Cone of Light
-    const beamGeo = new THREE.CylinderGeometry(0.48, 3.6, 14, 16, 1, true);
+    // Soft Volumetric Cone of Light pointing along +Z straight to cake (hidden by default)
+    const beamGeo = new THREE.CylinderGeometry(0.48, 4.0, 16.0, 24, 1, true);
     const beamMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       transparent: true,
-      opacity: 0.08,
+      opacity: 0.0,
       side: THREE.DoubleSide,
       depthWrite: false
     });
     const beam = new THREE.Mesh(beamGeo, beamMat);
     beam.rotation.x = -Math.PI / 2;
-    beam.position.z = 7.0;
-    housingGroup.add(beam);
+    beam.position.set(0, 0, 8.43);
+    beam.visible = false;
+    halogenLampGroup.add(beam);
     this.leftPoleHalogenBeam = beam;
 
-    // Aim the housing directly at the stage & cake center (0, 2.0, 0)
-    housingGroup.lookAt(0, 2.0, 0);
-    halogenGroup.add(housingGroup);
-    this.polesGroup.add(halogenGroup);
-
-    // Actual Three.js Spotlight Source
-    this.leftPoleHalogenLight = new THREE.SpotLight(0xffffff, 4.0, 55, Math.PI / 4.2, 0.4, 1.2);
-    this.leftPoleHalogenLight.position.set(-10.7, 8.8, 10.7);
-    this.leftPoleHalogenLight.target.position.set(0, 2.0, 0);
+    // Actual Three.js Spotlight Source (default intensity: 0.0)
+    this.leftPoleHalogenLight = new THREE.SpotLight(0xffffff, 0.0, 55, Math.PI / 4.5, 0.4, 1.2);
+    this.leftPoleHalogenLight.position.set(-10.8, 8.8, 10.8);
+    this.leftPoleHalogenLight.target.position.set(0, 1.8, 0);
     this.leftPoleHalogenLight.castShadow = true;
     this.leftPoleHalogenLight.shadow.bias = -0.001;
     this.scene.add(this.leftPoleHalogenLight);

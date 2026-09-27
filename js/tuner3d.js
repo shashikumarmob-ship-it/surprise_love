@@ -51,7 +51,7 @@
     tableLegsColor: '#5a3d28',
 
     // 🏮 5. Corner Pillars & Fairy Bulbs Controls
-    leftPoleHalogen: 4.0,
+    leftPoleHalogen: 0.0,
     fairyBulbsLight: 0.90,
     poleGoldMetalness: 0.85,
     poleBodyColor: '#ffffff',
