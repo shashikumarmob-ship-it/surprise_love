@@ -101,6 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const giftModal = document.getElementById('gift-modal');
   const closeGiftModal = document.getElementById('close-gift-modal');
+  const btnGiftGoToOrders = document.getElementById('btn-gift-go-to-orders');
   const btnGiftReplay = document.getElementById('btn-gift-replay-fireworks');
 
   // Romantic Modals & Buttons
@@ -1271,8 +1272,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnDrawerOrderHub = document.getElementById('btn-drawer-order-hub');
   const orderFilterPills = document.querySelectorAll('.order-filter-pill');
 
-  function openFullScreenOrderHub() {
-    if (romanticChatScreen) romanticChatScreen.classList.add('hidden');
+  let orderOpenedFromChat = false;
+  function openFullScreenOrderHub(fromChat = false) {
+    orderOpenedFromChat = fromChat;
+    if (fromChat && romanticChatScreen) romanticChatScreen.classList.add('hidden');
     if (orderHubFullscreenPage) {
       orderHubFullscreenPage.classList.remove('hidden');
       orderHubFullscreenPage.scrollTop = 0;
@@ -1287,11 +1290,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function closeFullScreenOrderHub() {
     if (orderHubFullscreenPage) orderHubFullscreenPage.classList.add('hidden');
-    if (romanticChatScreen) romanticChatScreen.classList.remove('hidden');
+    if (orderOpenedFromChat && romanticChatScreen) {
+      romanticChatScreen.classList.remove('hidden');
+      orderOpenedFromChat = false;
+    }
   }
 
   if (btnGoToOrder) {
-    btnGoToOrder.addEventListener('click', openFullScreenOrderHub);
+    btnGoToOrder.addEventListener('click', () => openFullScreenOrderHub(true));
   }
 
   if (btnDrawerOrderHub) {
@@ -2263,11 +2269,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  closeGiftModal.addEventListener('click', () => giftModal.classList.remove('show'));
-  btnGiftReplay.addEventListener('click', () => {
-    giftModal.classList.remove('show');
-    scene.start3SecondFirecrackers();
-  });
+  if (closeGiftModal) {
+    closeGiftModal.addEventListener('click', () => giftModal.classList.remove('show'));
+  }
+  if (btnGiftGoToOrders) {
+    btnGiftGoToOrders.addEventListener('click', () => {
+      giftModal.classList.remove('show');
+      openFullScreenOrderHub(false);
+    });
+  }
+  if (btnGiftReplay) {
+    btnGiftReplay.addEventListener('click', () => {
+      giftModal.classList.remove('show');
+      openFullScreenOrderHub(false);
+    });
+  }
 
   shareBtn.addEventListener('click', () => {
     closeMenuDrawer();
