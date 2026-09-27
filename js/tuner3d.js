@@ -51,6 +51,7 @@
     tableLegsColor: '#5a3d28',
 
     // 🏮 5. Corner Pillars & Fairy Bulbs Controls
+    leftPoleHalogen: 4.0,
     fairyBulbsLight: 0.90,
     poleGoldMetalness: 0.85,
     poleBodyColor: '#ffffff',
@@ -248,6 +249,13 @@
           break;
 
         // Corner Poles & Bulbs
+        case 'leftPoleHalogen':
+          if (s.setLeftPoleHalogenIntensity) {
+            s.setLeftPoleHalogenIntensity(numVal);
+          } else if (s.leftPoleHalogenLight) {
+            s.leftPoleHalogenLight.intensity = numVal;
+          }
+          break;
         case 'fairyBulbsLight':
           s.fairyBulbsMultiplier = numVal;
           if (s.diwaliBulbs) {
@@ -322,6 +330,7 @@
     const map = {
       exposure: { id: 'slider-exposure', numId: 'num-exposure' },
       cakeGlowLight: { id: 'slider-cakeglow', numId: 'num-cakeglow' },
+      leftPoleHalogen: { id: 'slider-halogen', numId: 'num-halogen' },
       ambientLight: { id: 'slider-ambient', numId: 'num-ambient' },
       keyLight: { id: 'slider-keylight', numId: 'num-keylight' },
       cakeSpotLight: { id: 'slider-cakespot', numId: 'num-cakespot' },
@@ -399,6 +408,7 @@
           <div class="tuner-group-title">🌐 Global Master Scene</div>
           <p class="tuner-hint">Control master camera exposure and overall lighting for the entire universe.</p>
           ${makeSliderHTML('📷 Camera Tone Exposure', 'exposure', 0.1, 6.0, 0.05, currentSettings.exposure)}
+          ${makeSliderHTML('💡 Front-Left Pole White Halogen', 'leftPoleHalogen', 0.0, 15.0, 0.1, currentSettings.leftPoleHalogen)}
           ${makeSliderHTML('🌟 Master Ambient Light', 'ambientLight', 0.0, 10.0, 0.05, currentSettings.ambientLight)}
           ${makeSliderHTML('☀️ Main Sun / Key Light', 'keyLight', 0.0, 15.0, 0.1, currentSettings.keyLight)}
           ${makeSliderHTML('🌸 Warm Stage Fill Light', 'fillLight', 0.0, 10.0, 0.1, currentSettings.fillLight)}
@@ -474,9 +484,10 @@
 
       case 'poles':
         html = `
-          <div class="tuner-group-title">🏮 Corner Poles & Fairy Bulbs</div>
-          <p class="tuner-hint">Independent controls for 4 grand pillars, hanging fairy cables & glowing bulbs.</p>
-          ${makeSliderHTML('💡 Fairy Bulbs Glow Intensity', 'fairyBulbsLight', 0.0, 15.0, 0.1, currentSettings.fairyBulbsLight)}
+          <div class="tuner-group-title">🏮 Corner Poles & Halogen Light</div>
+          <p class="tuner-hint">Independent controls for front-left white halogen spotlight, 4 pillars & fairy bulbs.</p>
+          ${makeSliderHTML('💡 Front-Left Pole White Halogen', 'leftPoleHalogen', 0.0, 15.0, 0.1, currentSettings.leftPoleHalogen)}
+          ${makeSliderHTML('🏮 Fairy Bulbs Glow Intensity', 'fairyBulbsLight', 0.0, 15.0, 0.1, currentSettings.fairyBulbsLight)}
           ${makeSliderHTML('🥇 Gold Pillar Finials Metalness', 'poleGoldMetalness', 0.0, 1.0, 0.05, currentSettings.poleGoldMetalness)}
           <div style="margin-top: 10px;">
             ${makeColorHTML('Corner Column Body', 'poleBodyColor', currentSettings.poleBodyColor)}
@@ -573,9 +584,10 @@
       });
     });
 
-    // Connect the 6 Horizontal Quick Master Sliders
+    // Connect the Horizontal Quick Master Sliders
     const masterSliders = [
       { id: 'slider-exposure', key: 'exposure', numId: 'num-exposure' },
+      { id: 'slider-halogen', key: 'leftPoleHalogen', numId: 'num-halogen' },
       { id: 'slider-cakeglow', key: 'cakeGlowLight', numId: 'num-cakeglow' },
       { id: 'slider-ambient', key: 'ambientLight', numId: 'num-ambient' },
       { id: 'slider-keylight', key: 'keyLight', numId: 'num-keylight' },
