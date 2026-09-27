@@ -395,6 +395,192 @@ class BirthdayScene {
     return true;
   }
 
+  initFirecrackerAudioBoost() {
+    if (this.fcAudioBoosted || !this.fcVideo) return;
+    try {
+      if (window.birthdayAudio) {
+        window.birthdayAudio.init();
+        if (window.birthdayAudio.ctx) {
+          const source = window.birthdayAudio.ctx.createMediaElementSource(this.fcVideo);
+          const boostGain = window.birthdayAudio.ctx.createGain();
+          boostGain.gain.setValueAtTime(2.2, window.birthdayAudio.ctx.currentTime); // 2.2x Volume Boost
+          source.connect(boostGain);
+          boostGain.connect(window.birthdayAudio.ctx.destination);
+          this.fcAudioBoosted = true;
+        }
+      }
+    } catch(e) {}
+  }
+
+  playGreenScreenFirecrackers(duration = null, onVideoComplete = null) {
+    if (!this.fcVideo || !this.fcCanvas) {
+      if (onVideoComplete) onVideoComplete();
+      return;
+    }
+
+    this.initFirecrackerAudioBoost();
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const clientW = this.fcCanvas.clientWidth || Math.min(window.innerWidth * 0.9, 960);
+    const clientH = this.fcCanvas.clientHeight || Math.min(window.innerHeight * 0.68, 620);
+    this.fcCanvas.width = Math.round(clientW * dpr);
+    this.fcCanvas.height = Math.round(clientH * dpr);
+
+    if (this.fcUseWebGL && this.fcGL) {
+      this.fcGL.viewport(0, 0, this.fcCanvas.width, this.fcCanvas.height);
+      this.fcGL.clearColor(0.0, 0.0, 0.0, 0.0);
+      this.fcGL.clear(this.fcGL.COLOR_BUFFER_BIT);
+    } else if (this.fcCtx) {
+      this.fcCtx.clearRect(0, 0, this.fcCanvas.width, this.fcCanvas.height);
+    }
+
+    this.fcCanvas.style.display = 'block';
+    this.fcCanvas.style.opacity = '1';
+    this.fcCanvas.classList.add('active');
+
+    this.onFcComplete = onVideoComplete;
+    this.fcVideo.volume = 1.0;
+    this.fcVideo.muted = false;
+
+    // Reset video time to 0 for instant burst
+    try {
+      this.fcVideo.currentTime = 0;
+    } catch(e) {}
+
+    const startProcessing = () => {
+      this.isFcPlaying = true;
+      const startTime = Date.now();
+
+      const processChromaFrame = () => {
+        if (!this.isFcPlaying) return;
+
+        const isEnded = this.fcVideo.ended || (this.fcVideo.duration > 0 && this.fcVideo.currentTime >= this.fcVideo.duration - 0.25 && (Date.now() - startTime > 2000));
+        const isTimeUp = duration && (Date.now() - startTime > duration * 1000);
+
+        if (isEnded || isTimeUp) {
+          this.stopGreenScreenFirecrackers();
+          return;
+        }
+
+        if (this.fcVideo.readyState >= 2 && !this.fcVideo.paused && !this.fcVideo.seeking) {
+          if (this.fcUseWebGL && this.fcGL) {
+            // GPU WebGL Render (0% CPU, 60 FPS silky smooth)
+            try {
+              const gl = this.fcGL;
+              gl.viewport(0, 0, this.fcCanvas.width, this.fcCanvas.height);
+              gl.clear(gl.COLOR_BUFFER_BIT);
+              gl.bindTexture(gl.TEXTURE_2D, this.fcTexture);
+              gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.fcVideo);
+              gl.useProgram(this.fcProgram);
+              gl.uniform1f(this.fcTimeUniform, (Date.now() - startTime) * 0.003);
+              gl.drawArrays(gl.TRIANGLES, 0, 6);
+            } catch(e) {}
+          } else if (this.fcCtx && this.fcBufferCtx) {
+            // Fast 2D fallback with optimized 480x270 buffer
+            try {
+              const bw = this.fcBufferCanvas.width;
+              const bh = this.fcBufferCanvas.height;
+              this.fcBufferCtx.drawImage(this.fcVideo, 0, 0, bw, bh);
+              const frame = this.fcBufferCtx.getImageData(0, 0, bw, bh);
+              const d32 = new Uint32Array(frame.data.buffer);
+              const totalPixels = d32.length;
+
+              for (let i = 0; i < totalPixels; i++) {
+                const pixel = d32[i];
+                const r = pixel & 0xFF;
+                const g = (pixel >> 8) & 0xFF;
+                const b = (pixel >> 16) & 0xFF;
+                const maxRB = (r > b) ? r : b;
+                const greenDiff = g - maxRB;
+
+                if (g > 45 && greenDiff > 8) {
+                  if (greenDiff > 22) {
+                    d32[i] = 0; // Transparent
+                  } else {
+                    const alpha = Math.round((1 - (greenDiff - 8) / 14) * 255);
+                    d32[i] = (alpha << 24) | (b << 16) | (maxRB << 8) | r;
+                  }
+                }
+              }
+              this.fcBufferCtx.putImageData(frame, 0, 0);
+              this.fcCtx.clearRect(0, 0, this.fcCanvas.width, this.fcCanvas.height);
+              this.fcCtx.drawImage(this.fcBufferCanvas, 0, 0, this.fcCanvas.width, this.fcCanvas.height);
+            } catch(e) {
+              this.fcCtx.drawImage(this.fcVideo, 0, 0, this.fcCanvas.width, this.fcCanvas.height);
+            }
+          }
+        }
+
+        this.fcAnimFrame = requestAnimationFrame(processChromaFrame);
+      };
+
+      this.fcAnimFrame = requestAnimationFrame(processChromaFrame);
+    };
+
+    // Smooth buffering check before playback
+    const startPlaybackWithBuffer = () => {
+      const playPromise = this.fcVideo.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          startProcessing();
+        }).catch(() => {
+          this.fcVideo.muted = true;
+          this.fcVideo.play().then(() => {
+            startProcessing();
+          }).catch(e => {
+            console.warn('Firecrackers video play fallback:', e);
+            if (onVideoComplete) onVideoComplete();
+          });
+        });
+      } else {
+        startProcessing();
+      }
+    };
+
+    if (this.fcVideo.readyState >= 2) {
+      startPlaybackWithBuffer();
+    } else {
+      let fired = false;
+      const onReady = () => {
+        if (fired) return;
+        fired = true;
+        this.fcVideo.removeEventListener('canplay', onReady);
+        startPlaybackWithBuffer();
+      };
+      this.fcVideo.addEventListener('canplay', onReady, { once: true });
+      setTimeout(() => {
+        if (!fired) {
+          fired = true;
+          startPlaybackWithBuffer();
+        }
+      }, 500);
+    }
+  }
+
+  stopGreenScreenFirecrackers() {
+    this.isFcPlaying = false;
+    if (this.fcAnimFrame) cancelAnimationFrame(this.fcAnimFrame);
+    if (this.fcVideo) {
+      this.fcVideo.pause();
+      try { this.fcVideo.currentTime = 0; } catch(e) {}
+    }
+    if (this.fcCanvas) {
+      this.fcCanvas.classList.remove('active');
+      this.fcCanvas.style.opacity = '0';
+      this.fcCanvas.style.display = 'none';
+      if (this.fcUseWebGL && this.fcGL) {
+        this.fcGL.clear(this.fcGL.COLOR_BUFFER_BIT);
+      } else if (this.fcCtx) {
+        this.fcCtx.clearRect(0, 0, this.fcCanvas.width, this.fcCanvas.height);
+      }
+    }
+    if (this.onFcComplete) {
+      const cb = this.onFcComplete;
+      this.onFcComplete = null;
+      cb();
+    }
+  }
+
 
   /* =========================================================
      AUTO DEVICE DETECTION & ADAPTIVE RESPONSIVE LAYOUT ENGINE
