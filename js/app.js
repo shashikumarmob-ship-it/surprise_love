@@ -1271,6 +1271,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnOrderFooter3D = document.getElementById('btn-order-footer-3d');
   const btnDrawerOrderHub = document.getElementById('btn-drawer-order-hub');
   const orderFilterPills = document.querySelectorAll('.order-filter-pill');
+  const orderUpiBanner = document.getElementById('order-upi-banner');
+  const orderUpiDisplay = document.getElementById('order-upi-display');
+  const btnCopyUpi = document.getElementById('btn-copy-upi');
+  const copyUpiStatusText = document.getElementById('copy-upi-status-text');
+  let creatorUpiId = '';
+
+  function updateUpiOrderDisplay(upi) {
+    const cleanUpi = (upi || '').trim();
+    creatorUpiId = cleanUpi;
+    if (orderUpiDisplay) {
+      orderUpiDisplay.textContent = cleanUpi || 'yourlove@upi';
+    }
+    const creatorInputUpiEl = document.getElementById('creator-input-upi');
+    const inputUpiEl = document.getElementById('input-upi');
+    if (creatorInputUpiEl && cleanUpi) creatorInputUpiEl.value = cleanUpi;
+    if (inputUpiEl && cleanUpi) inputUpiEl.value = cleanUpi;
+  }
 
   let orderOpenedFromChat = false;
   function openFullScreenOrderHub(fromChat = false) {
@@ -1294,6 +1311,48 @@ document.addEventListener('DOMContentLoaded', () => {
       romanticChatScreen.classList.remove('hidden');
       orderOpenedFromChat = false;
     }
+  }
+
+  // Copy UPI to Clipboard with Haptic & Sound Feedback
+  if (btnCopyUpi) {
+    btnCopyUpi.addEventListener('click', async () => {
+      const upiToCopy = (creatorUpiId && creatorUpiId.trim())
+        ? creatorUpiId.trim()
+        : (orderUpiDisplay ? orderUpiDisplay.textContent.trim() : '');
+      if (!upiToCopy) return;
+
+      const triggerCopiedUi = () => {
+        btnCopyUpi.classList.add('copied');
+        if (copyUpiStatusText) copyUpiStatusText.textContent = 'Copied! ✅';
+        if (window.birthdayAudio) {
+          try { window.birthdayAudio.playGiftOpen(); } catch(e) {}
+        }
+        if (navigator.vibrate) {
+          try { navigator.vibrate(60); } catch(e) {}
+        }
+        setTimeout(() => {
+          btnCopyUpi.classList.remove('copied');
+          if (copyUpiStatusText) copyUpiStatusText.textContent = 'Copy UPI';
+        }, 2200);
+      };
+
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(upiToCopy);
+          triggerCopiedUi();
+        } else {
+          throw new Error('Clipboard API unavailable');
+        }
+      } catch (err) {
+        const tempInput = document.createElement('input');
+        tempInput.value = upiToCopy;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempInput);
+        triggerCopiedUi();
+      }
+    });
   }
 
   if (btnGoToOrder) {
@@ -1596,6 +1655,9 @@ document.addEventListener('DOMContentLoaded', () => {
               };
               img.src = serverPhoto;
             }
+            if (d.upi) {
+              updateUpiOrderDisplay(d.upi);
+            }
             updateCelebrantInfo();
             applyTheme(activeTheme);
             trackRecipientActivity('link_opened', 'Opened magical birthday surprise link 🚀', '🚀');
@@ -1623,6 +1685,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (params.has('font')) {
       celebrantFont = params.get('font');
+    }
+    if (params.has('upi')) {
+      updateUpiOrderDisplay(params.get('upi'));
     }
 
     // Check shared photo in URL hash/param
@@ -1893,6 +1958,9 @@ document.addEventListener('DOMContentLoaded', () => {
     params.set('theme', activeTheme || 'midnight-gold');
     if (includePhoto && currentPhotoDataUrl) {
       params.set('photo', currentPhotoDataUrl);
+    }
+    if (creatorUpiId) {
+      params.set('upi', creatorUpiId);
     }
     url.hash = params.toString();
     return url.toString();
@@ -2170,6 +2238,11 @@ document.addEventListener('DOMContentLoaded', () => {
       celebrantName = inputName ? (inputName.value.trim() || 'Birthday Star') : 'Birthday Star';
       celebrantAge = inputAge ? (inputAge.value.trim() || '') : '';
       customWish = inputWish ? (inputWish.value.trim() || 'Happy Birthday!') : 'Happy Birthday!';
+
+      const inputUpiEl = document.getElementById('input-upi');
+      if (inputUpiEl && inputUpiEl.value.trim()) {
+        updateUpiOrderDisplay(inputUpiEl.value.trim());
+      }
 
       updateCelebrantInfo();
       if (currentPhotoDataUrl) updateMemoriesPhoto(currentPhotoDataUrl);
@@ -2755,6 +2828,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const creatorInputAge = document.getElementById('creator-input-age');
   const creatorInputTheme = document.getElementById('creator-input-theme');
   const creatorInputFont = document.getElementById('creator-input-font');
+  const creatorInputUpi = document.getElementById('creator-input-upi');
+  const inputUpi = document.getElementById('input-upi');
+
+  if (creatorInputUpi) {
+    creatorInputUpi.addEventListener('input', () => {
+      creatorUpiId = creatorInputUpi.value.trim();
+      updateUpiOrderDisplay(creatorUpiId);
+      if (currentPortalUser) saveUserFormData(currentPortalUser);
+    });
+  }
 
   // Font ID → CSS family string (mirrors scene3d.js getFontFamily)
   function getFontFamilyCss(fontId) {
@@ -2996,6 +3079,7 @@ document.addEventListener('DOMContentLoaded', () => {
       font: creatorInputFont ? creatorInputFont.value : celebrantFont,
       wish: creatorInputWish ? creatorInputWish.value : '',
       photoUrl: creatorInputPhotoUrl ? creatorInputPhotoUrl.value : '',
+      upi: (creatorInputUpi && creatorInputUpi.value.trim()) || creatorUpiId || '',
       mode: selectedCreatorMode,
       safarnama: userSafarnamaChapters,
       questions: userCustomQuestions,
@@ -3037,6 +3121,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (creatorInputWish && data.wish) creatorInputWish.value = data.wish;
     if (creatorInputPhotoUrl && data.photoUrl) {
       creatorInputPhotoUrl.value = data.photoUrl;
+    }
+    if (data.upi) {
+      updateUpiOrderDisplay(data.upi);
     }
     if (data.photoUrl) {
       currentPhotoDataUrl = data.photoUrl;
@@ -4243,6 +4330,7 @@ document.addEventListener('DOMContentLoaded', () => {
         memories: allMemoriesUrls,
         safarnama: userSafarnamaChapters || [],
         questions: userCustomQuestions || [],
+        upi: (creatorInputUpi ? creatorInputUpi.value.trim() : '') || creatorUpiId || '',
         exp: expAt,
         gen_at: genAt
       };
@@ -4300,6 +4388,9 @@ document.addEventListener('DOMContentLoaded', () => {
         fallbackParams.set('theme', themeVal);
         fallbackParams.set('font', celebrantFont);
         fallbackParams.set('wish', wishVal);
+        if (creatorUpiId || (creatorInputUpi && creatorInputUpi.value.trim())) {
+          fallbackParams.set('upi', (creatorInputUpi ? creatorInputUpi.value.trim() : '') || creatorUpiId);
+        }
         if (currentPhotoDataUrl && currentPhotoDataUrl.startsWith('http')) fallbackParams.set('photo', currentPhotoDataUrl);
         fallbackParams.set('exp', expAt.toString());
         const fallbackLink = `${currentUrl.origin}${currentUrl.pathname}?${fallbackParams.toString()}`;

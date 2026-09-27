@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
   <!-- App Stylesheet -->
-  <link rel="stylesheet" href="style.css?v=28">
+  <link rel="stylesheet" href="style.css?v=29">
   <link rel="stylesheet" href="responsive.css?v=1">
 
 
@@ -728,6 +728,21 @@
             <div class="memories-previews-grid" id="memories-previews-grid" style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 14px;">
               <!-- Populated by JS -->
             </div>
+          </div>
+
+          <!-- ===== ENTER YOUR UPI ID (FOR TREATS & GIFTS) ===== -->
+          <div class="form-field full-width upi-setup-container">
+            <label style="font-size: 1.05rem; font-weight: 700; color: #ffd700; display: flex; align-items: center; gap: 8px;">
+              <i class="fa-solid fa-qrcode" style="color: #ffd700;"></i> 💳 Enter Your UPI ID (For Birthday Treats & Orders)
+            </label>
+            <p style="font-size: 0.82rem; color: rgba(255,255,255,0.78); margin: 4px 0 10px; line-height: 1.4;">
+              Add your UPI ID so when your celebrant visits the <strong>"Go to Orders"</strong> store, they can 1-tap copy it and pay for their birthday cake, snacks, or gifts!
+            </p>
+            <div class="creator-upi-input-wrap">
+              <span class="creator-upi-prefix"><i class="fa-solid fa-indian-rupee-sign"></i></span>
+              <input type="text" id="creator-input-upi" placeholder="e.g. yourname@okhdfcbank or 9876543210@paytm" class="creator-url-input creator-upi-field">
+            </div>
+            <span class="upi-field-hint">💡 Recipient will see: <em>"Go to order and pay through UPI, which you copy above"</em></span>
           </div>
         </div>
 
@@ -1810,6 +1825,11 @@
           </div>
         </div>
 
+        <div class="form-group">
+          <label for="input-upi"><i class="fa-solid fa-qrcode"></i> Your UPI ID (For Birthday Treats & Orders)</label>
+          <input type="text" id="input-upi" placeholder="e.g. yourname@okhdfcbank" style="width: 100%; font-size: 0.88rem; padding: 10px 14px; border-radius: 10px; border: 1.5px solid rgba(255,215,0,0.4); background: rgba(255,215,0,0.06); color: #fff; font-weight: 600;">
+        </div>
+
         <div class="form-actions">
           <button type="submit" class="btn-primary"><i class="fa-solid fa-check"></i> Save & Celebrate 💖</button>
         </div>
@@ -2038,6 +2058,32 @@
         <div class="order-hub-badge"><i class="fa-solid fa-gift"></i> BIRTHDAY SURPRISE TREATS & GIFTS</div>
         <h2>Order Her Favorites 🛍️🍰</h2>
         <p class="order-hub-subtitle">Tap any item below to search & order directly from Zomato, Swiggy, Blinkit, Amazon, Flipkart, Meesho & Shopsy!</p>
+      </div>
+
+      <!-- ===== CREATOR'S UPI PAYMENT & GIFT BANNER ===== -->
+      <div class="order-upi-banner" id="order-upi-banner">
+        <div class="upi-banner-badge"><i class="fa-solid fa-gift"></i> BIRTHDAY TREAT FROM YOUR LOVE 💖</div>
+        <div class="upi-banner-body">
+          <div class="upi-icon-badge">
+            <i class="fa-solid fa-indian-rupee-sign"></i>
+          </div>
+          <div class="upi-info-col">
+            <h3 class="upi-main-heading">Order Anything Your Heart Desires! 🍰✨</h3>
+            <p class="upi-instruction-text">
+              <i class="fa-solid fa-circle-arrow-right"></i> <strong>Go to order and pay through UPI, which you copy above:</strong>
+            </p>
+            <div class="upi-copy-chip">
+              <span class="upi-id-label">UPI ID:</span>
+              <code class="upi-id-code" id="order-upi-display">yourlove@upi</code>
+              <button type="button" class="btn-copy-upi-pill" id="btn-copy-upi" title="Copy UPI ID">
+                <i class="fa-regular fa-copy"></i> <span id="copy-upi-status-text">Copy UPI</span>
+              </button>
+            </div>
+            <p class="upi-note-sub">
+              💡 Tap any item below to open Zomato, Swiggy, or Blinkit — then paste this UPI ID during payment!
+            </p>
+          </div>
+        </div>
       </div>
 
       <!-- App Filter Pills -->
@@ -2540,7 +2586,7 @@
   <script src="js/audio.js?v=26"></script>
   <script src="js/heartbeat-loader.js?v=1"></script>
   <script src="js/scene3d.js?v=33"></script>
-  <script src="js/app.js?v=29"></script>
+  <script src="js/app.js?v=30"></script>
   <script src="js/tuner3d.js?v=9"></script>
 </body>
 </html>
