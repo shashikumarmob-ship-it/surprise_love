@@ -18,6 +18,7 @@
     // 🎂 1. Cake & Plate Controls
     cakeGlowLight: 4.2,
     cakeSpotLight: 0.0,
+    cakeRotationSpeed: 0.22,
     cakeEmissiveGlow: 0.40,
     cakeRimLight: 1.5,
     cakeFrostingRoughness: 0.38,
@@ -127,6 +128,13 @@
             s.setCakeRimLightIntensity(numVal);
           } else if (s.cakeRimLight) {
             s.cakeRimLight.intensity = numVal;
+          }
+          break;
+        case 'cakeRotationSpeed':
+          if (s.setCakeRotationSpeed) {
+            s.setCakeRotationSpeed(numVal);
+          } else {
+            s.cakeRotationSpeed = numVal;
           }
           break;
         case 'cakePlateMetalness':
@@ -445,6 +453,7 @@
         html = `
           <div class="tuner-group-title">🎂 Cake & Plate Controls</div>
           <p class="tuner-hint">Independent lighting, internal self-emissive glow & 4K edge silhouette for the cake.</p>
+          ${makeSliderHTML('🔄 Cake Rotation Speed', 'cakeRotationSpeed', 0.0, 1.0, 0.02, currentSettings.cakeRotationSpeed)}
           ${makeSliderHTML('🔮 Cake Self-Emissive Glow', 'cakeEmissiveGlow', 0.0, 2.0, 0.05, currentSettings.cakeEmissiveGlow)}
           ${makeSliderHTML('🌟 4K Cake Edge Rim Light', 'cakeRimLight', 0.0, 5.0, 0.1, currentSettings.cakeRimLight)}
           ${makeSliderHTML('✨ Cake Table Glow Light', 'cakeGlowLight', 0.0, 15.0, 0.1, currentSettings.cakeGlowLight)}

@@ -22,6 +22,7 @@ class BirthdayScene {
     this.candleLights = [];
     this.candlesLit = false;
     this.currentAge = 22;
+    this.cakeRotationSpeed = 0.22;
 
     // Table & Cloth Cover
     this.tableGroup = new THREE.Group();
@@ -585,6 +586,10 @@ class BirthdayScene {
     if (this.cakeRimLight) {
       this.cakeRimLight.intensity = num;
     }
+  }
+
+  setCakeRotationSpeed(val) {
+    this.cakeRotationSpeed = parseFloat(val) !== undefined ? parseFloat(val) : 0.22;
   }
 
   setLeftPoleHalogenIntensity(val) {
@@ -4876,9 +4881,10 @@ class BirthdayScene {
     requestAnimationFrame(this.animate.bind(this));
     const time = this.clock.getElapsedTime();
 
-    // 1. Cake & Slices Gentle Rotation
+    // 1. Cake & Slices Rotation (Elevated speed for lively presentation)
     if (this.cakeGroup) {
-      this.cakeGroup.rotation.y = time * 0.08;
+      const rotSpeed = this.cakeRotationSpeed !== undefined ? this.cakeRotationSpeed : 0.22;
+      this.cakeGroup.rotation.y = time * rotSpeed;
     }
 
     // 2. Candle Flames Flicker (When Lit)
