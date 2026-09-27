@@ -542,8 +542,8 @@ class BirthdayScene {
     this.rightStageLight.position.set(12, 6, 2);
     this.scene.add(this.rightStageLight);
 
-    // 9. Dedicated 4K Cake Edge & Rim Backlight (Crisp silhouette highlights)
-    this.cakeRimLight = new THREE.DirectionalLight(0xffb3c6, 1.5);
+    // 9. Dedicated 4K Cake Edge & Rim Backlight (Default 0.0)
+    this.cakeRimLight = new THREE.DirectionalLight(0xffb3c6, 0.0);
     this.cakeRimLight.position.set(0, 4.5, -6.0);
     this.cakeRimLight.target.position.set(0, 2.5, 0);
     this.scene.add(this.cakeRimLight);
@@ -556,10 +556,17 @@ class BirthdayScene {
     if (this.cakeGlbModel) {
       this.cakeGlbModel.traverse((child) => {
         if (child.isMesh && child.material) {
-          if (!child.material.emissive || child.material.emissive.getHex() === 0x000000) {
-            if (child.material.color) child.material.emissive = child.material.color.clone();
+          if (num > 0.001) {
+            if (child.material.map) {
+              child.material.emissiveMap = child.material.map;
+            }
+            child.material.emissive.set(0xffffff);
+            child.material.emissiveIntensity = num;
+          } else {
+            child.material.emissive.set(0x000000);
+            child.material.emissiveIntensity = 0.0;
           }
-          child.material.emissiveIntensity = num;
+          child.material.needsUpdate = true;
         }
       });
     }
@@ -2400,24 +2407,34 @@ class BirthdayScene {
       this.cakeGlbModel = model;
       this.isCakeGlbLoaded = true;
 
-      // Enable shadow casting/receiving and enhance material on all meshes with inner glow & velvet texture
+      // Enable shadow casting/receiving and restore cake's 100% original textured colors
       model.traverse((child) => {
         if (child.isMesh) {
           child.castShadow = true;
           child.receiveShadow = true;
           if (child.material) {
             child.material.side = THREE.DoubleSide;
-            // Velvet cream roughness - prevents blinding specular blowout from halogen
-            child.material.roughness = this.cakeRoughnessValue !== undefined ? this.cakeRoughnessValue : 0.38;
-            child.material.metalness = 0.04;
+            // Pure white base color ensures the texture map's real colors shine unhindered
+            if (child.material.color) child.material.color.set(0xffffff);
 
-            // Internal Self-Emissive Glow:
-            // Radiates rich vibrant color from within so details and edges never fade
-            if (!child.material.emissive || child.material.emissive.getHex() === 0x000000) {
-              const baseCol = child.material.color ? child.material.color.clone() : new THREE.Color(0xff4d79);
-              child.material.emissive = baseCol;
+            // Zero emissive by default - eliminates the flat white wash completely
+            if (child.material.emissive) {
+              child.material.emissive.set(0x000000);
+              child.material.emissiveIntensity = 0.0;
             }
-            child.material.emissiveIntensity = this.cakeEmissiveValue !== undefined ? this.cakeEmissiveValue : 0.40;
+
+            // Natural pastry roughness - eliminates white mirror glare
+            if (child.material.roughness !== undefined) {
+              child.material.roughness = 0.85;
+            }
+            if (child.material.metalness !== undefined) {
+              child.material.metalness = 0.05;
+            }
+
+            // Boost normal map for crisp 4K edge contours and frosting swirls
+            if (child.material.normalMap) {
+              child.material.normalScale.set(1.4, 1.4);
+            }
             child.material.needsUpdate = true;
           }
         }
