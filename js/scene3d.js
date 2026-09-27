@@ -85,9 +85,9 @@ class BirthdayScene {
         cakeBase: 0xfbf6e2,
         cakeTop: 0x3d1c06,
         frosting: 0xffd700,
-        plate: 0x221a2e,
-        plateTrim: 0xffd700,
-        giftBox: 0x1f143d,
+        plate: 0xffd700,
+        plateTrim: 0xffffff,
+        giftBox: 0x2a1a4d,
         giftRibbon: 0xffd700,
         balloons: [0xffd700, 0x00e676, 0x00b0ff, 0xffd700, 0x00e676, 0x00b0ff],
         lightGlow: 0xffaa00
@@ -96,8 +96,8 @@ class BirthdayScene {
         cakeBase: 0xffe6ea,
         cakeTop: 0xff9bb2,
         frosting: 0xff4d79,
-        plate: 0x2d1120,
-        plateTrim: 0xff758c,
+        plate: 0xffd700,
+        plateTrim: 0xffe6ea,
         giftBox: 0xff4d79,
         giftRibbon: 0xffffff,
         balloons: [0xff758c, 0xff7eb3, 0xffcad4, 0xffffff, 0xf72585, 0xb5179e],
@@ -107,8 +107,8 @@ class BirthdayScene {
         cakeBase: 0x162447,
         cakeTop: 0x1f4068,
         frosting: 0x00f2fe,
-        plate: 0x0b1021,
-        plateTrim: 0x00f2fe,
+        plate: 0x00f2fe,
+        plateTrim: 0xffffff,
         giftBox: 0x0f3460,
         giftRibbon: 0x00f2fe,
         balloons: [0x00f2fe, 0x4facfe, 0x43e97b, 0xfa709a, 0xfee140, 0x7f00ff],
@@ -118,7 +118,7 @@ class BirthdayScene {
         cakeBase: 0x301b52,
         cakeTop: 0x562382,
         frosting: 0xc471ed,
-        plate: 0x180b2b,
+        plate: 0xffd700,
         plateTrim: 0x21d4fd,
         giftBox: 0x6b11ff,
         giftRibbon: 0x21d4fd,
@@ -129,7 +129,7 @@ class BirthdayScene {
         cakeBase: 0xfff0f5,
         cakeTop: 0xe6e6fa,
         frosting: 0xfbc2eb,
-        plate: 0x2a2438,
+        plate: 0xffd700,
         plateTrim: 0xa6c1ee,
         giftBox: 0xfbc2eb,
         giftRibbon: 0xa6c1ee,
@@ -523,16 +523,21 @@ class BirthdayScene {
     this.scene.add(this.fillLight);
 
     // 5. Front Center Stage Spotlight - Direct illumination onto Cake & Stage
-    this.stageFrontLight = new THREE.DirectionalLight(0xfff2e6, 1.8);
+    this.stageFrontLight = new THREE.DirectionalLight(0xfff6ee, 1.8);
     this.stageFrontLight.position.set(0, 18, 22);
     this.scene.add(this.stageFrontLight);
 
-    // 6. Warm Golden Cake Table Point Light (Illuminates the Cake, Cloth & Table)
-    this.cakeGlowLight = new THREE.PointLight(0xffd700, 3.2, 28);
+    // 6. Dedicated Warm Cake Spotlight (Directly illuminates the Cake face, tiers & candles)
+    this.cakeSpotLight = new THREE.DirectionalLight(0xfffae6, 2.0);
+    this.cakeSpotLight.position.set(0, 11, 12);
+    this.scene.add(this.cakeSpotLight);
+
+    // 7. Warm Golden Cake Table Point Light (Illuminates the Cake, Cloth & Table)
+    this.cakeGlowLight = new THREE.PointLight(0xffe28a, 3.2, 28);
     this.cakeGlowLight.position.set(0, 5.0, 0);
     this.scene.add(this.cakeGlowLight);
 
-    // 7. Left & Right Stage Accent Lights (Illuminates Board & Photo Frame)
+    // 8. Left & Right Stage Accent Lights (Illuminates Board & Photo Frame)
     this.leftStageLight = new THREE.PointLight(0xff758c, 2.2, 22);
     this.leftStageLight.position.set(-12, 6, 2);
     this.scene.add(this.leftStageLight);
@@ -718,12 +723,13 @@ class BirthdayScene {
   }
 
   createFloorAndStage() {
-    // Large polished party hall floor - lighter, luxurious velvet stage
+    // Large polished party hall floor - warm luminous royal velvet stage
     const stageGeo = new THREE.CylinderGeometry(15, 16, 0.4, 64);
     const stageMat = new THREE.MeshStandardMaterial({
-      color: 0x1d1238,
-      roughness: 0.18,
-      metalness: 0.55,
+      color: 0x321e42,
+      roughness: 0.22,
+      metalness: 0.45,
+      emissive: 0x12081c
     });
     this.stage = new THREE.Mesh(stageGeo, stageMat);
     this.stage.position.y = -0.2;
@@ -740,8 +746,8 @@ class BirthdayScene {
 
     // Glowing inner stage circle (illuminates center table area)
     const innerRingGeo = new THREE.TorusGeometry(7.5, 0.08, 16, 80);
-    const innerRingMat = new THREE.MeshBasicMaterial({ color: 0xff758c });
-    const innerRing = new THREE.Mesh(innerRingGeo, innerRingMat);
+    this.innerRingMat = new THREE.MeshBasicMaterial({ color: 0xffa0b8 });
+    const innerRing = new THREE.Mesh(innerRingGeo, this.innerRingMat);
     innerRing.rotation.x = Math.PI / 2;
     innerRing.position.y = -0.01;
     this.scene.add(innerRing);
@@ -1170,11 +1176,12 @@ class BirthdayScene {
   createPartyTable() {
     this.tableGroup = new THREE.Group();
 
-    // Table Top (Round / Oval banquet table)
+    // Table Top (Round banquet table with elegant warm ivory silk cloth)
     const tableTopMat = new THREE.MeshStandardMaterial({
-      color: 0x2b1810,
-      roughness: 0.4,
-      metalness: 0.2
+      color: 0xfcf5ea,
+      roughness: 0.35,
+      metalness: 0.08,
+      emissive: 0x1f1610
     });
     const tableTop = new THREE.Mesh(new THREE.CylinderGeometry(4.6, 4.6, 0.25, 48), tableTopMat);
     tableTop.position.y = 1.0;
@@ -1182,17 +1189,23 @@ class BirthdayScene {
     tableTop.receiveShadow = true;
     this.tableGroup.add(tableTop);
 
-    // Decorative Gold Table Cloth Trim
+    // Decorative Royal Gold Table Cloth Trim
     const runnerMat = new THREE.MeshStandardMaterial({
       color: 0xffd700,
-      roughness: 0.3,
-      metalness: 0.7
+      roughness: 0.2,
+      metalness: 0.85,
+      emissive: 0x221800
     });
     const runner = new THREE.Mesh(new THREE.CylinderGeometry(4.62, 4.62, 0.08, 48), runnerMat);
     runner.position.y = 1.1;
     this.tableGroup.add(runner);
 
-    // 4 Carved Table Legs
+    // 4 Carved Gold-Accented Table Legs
+    const legMat = new THREE.MeshStandardMaterial({
+      color: 0x5a3d28,
+      roughness: 0.35,
+      metalness: 0.35
+    });
     const legGeo = new THREE.CylinderGeometry(0.18, 0.12, 1.0, 16);
     const legPositions = [
       { x: 2.8, z: 2.8 },
@@ -1201,7 +1214,7 @@ class BirthdayScene {
       { x: -2.8, z: -2.8 }
     ];
     legPositions.forEach(p => {
-      const leg = new THREE.Mesh(legGeo, tableTopMat);
+      const leg = new THREE.Mesh(legGeo, legMat);
       leg.position.set(p.x, 0.5, p.z);
       leg.castShadow = true;
       this.tableGroup.add(leg);
@@ -1216,7 +1229,7 @@ class BirthdayScene {
   createPartyFriends() {
     this.friendsGroup = new THREE.Group();
     this.partyFriends = [];
-
+    return; // Cake presentation remains clean, elegant and royal without obstruction
     const friendConfigs = [
       { x: -4.4, z: -2.0, shirtColor: 0xff0055, hatColor: 0xffd700, skinColor: 0xfcd5b5 },
       { x: -2.2, z: -2.8, shirtColor: 0x00e676, hatColor: 0x00f2fe, skinColor: 0xf3c19d },
@@ -1639,12 +1652,14 @@ class BirthdayScene {
     this.drawDefaultPhotoTexture(null, 'Birthday Star', '');
 
     this.photoTexture = new THREE.CanvasTexture(this.photoCanvas);
+    if (typeof THREE.sRGBEncoding !== 'undefined') {
+      this.photoTexture.encoding = THREE.sRGBEncoding;
+    }
     this.photoTexture.needsUpdate = true;
 
-    const photoMat = new THREE.MeshStandardMaterial({
-      map: this.photoTexture,
-      roughness: 0.22,
-      metalness: 0.10
+    // Use MeshBasicMaterial for 100% true-to-life, crisp photo fidelity without light washout or glare
+    const photoMat = new THREE.MeshBasicMaterial({
+      map: this.photoTexture
     });
 
     this.photoPlane = new THREE.Mesh(new THREE.PlaneGeometry(2.06, 2.76), photoMat);
@@ -1746,10 +1761,11 @@ class BirthdayScene {
     this.drawStandBoardTexture('Birthday Star', '');
 
     this.boardTex = new THREE.CanvasTexture(this.boardCanvas);
-    const boardFaceMat = new THREE.MeshStandardMaterial({
-      map: this.boardTex,
-      roughness: 0.25,
-      metalness: 0.15
+    if (typeof THREE.sRGBEncoding !== 'undefined') {
+      this.boardTex.encoding = THREE.sRGBEncoding;
+    }
+    const boardFaceMat = new THREE.MeshBasicMaterial({
+      map: this.boardTex
     });
 
     const boardPlane = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.9), boardFaceMat);
