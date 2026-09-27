@@ -10,15 +10,15 @@
   // Default baseline settings (User-Approved Golden Settings)
   const defaultSettings = {
     // 🌐 Global Lighting & Camera Tone
-    exposure: 2.5,
-    ambientLight: 0.0,
+    exposure: 6.0,
+    ambientLight: 0.15,
     keyLight: 0.0,
     fillLight: 0.0,
 
     // 🎂 1. Cake & Plate Controls
-    cakeGlowLight: 3.2,
+    cakeGlowLight: 4.2,
     cakeSpotLight: 0.0,
-    cakeFrostingRoughness: 0.25,
+    cakeFrostingRoughness: 0.0,
     cakePlateMetalness: 0.90,
     cakeBaseColor: '#1f0005',
     cakeTopColor: '#ff9bb2',
@@ -36,7 +36,7 @@
     // 🎪 3. Stage & Velvet Floor Controls
     stageFrontLight: 0.0,
     stageFloorEmissive: 0.0,
-    stageFloorRoughness: 0.50,
+    stageFloorRoughness: 0.0,
     stageRingMetalness: 0.90,
     stageFloorColor: '#22129b',
     stageOuterRing: '#ffd700',
@@ -58,7 +58,7 @@
 
     // 📜 6. Birthday Standee Board Controls
     boardSpotLight: 0.0,
-    boardGoldMetalness: 0.85,
+    boardGoldMetalness: 0.0,
     boardFrameGold: '#ffd700'
   };
 

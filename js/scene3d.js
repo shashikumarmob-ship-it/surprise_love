@@ -159,7 +159,7 @@ class BirthdayScene {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 2.5;
+    this.renderer.toneMappingExposure = 6.0;
     this.container.appendChild(this.renderer.domElement);
 
     this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
@@ -497,8 +497,8 @@ class BirthdayScene {
   }
 
   setupLighting() {
-    // 1. Ambient Light (User Selected: 0.0 for pure dramatic spotlight contrast)
-    this.ambientLight = new THREE.AmbientLight(0xfff6ee, 0.0);
+    // 1. Ambient Light (User Selected: 0.15)
+    this.ambientLight = new THREE.AmbientLight(0xfff6ee, 0.15);
     this.scene.add(this.ambientLight);
 
     // 2. Hemisphere Studio Light
@@ -526,8 +526,8 @@ class BirthdayScene {
     this.cakeSpotLight.position.set(0, 11, 12);
     this.scene.add(this.cakeSpotLight);
 
-    // 7. Warm Golden Cake Table Point Light (Hero Spotlight: 3.2 Intensity)
-    this.cakeGlowLight = new THREE.PointLight(0xffd700, 3.2, 28);
+    // 7. Warm Golden Cake Table Point Light (Hero Spotlight: 4.2 Intensity)
+    this.cakeGlowLight = new THREE.PointLight(0xffd700, 4.2, 28);
     this.cakeGlowLight.position.set(0, 5.0, 0);
     this.scene.add(this.cakeGlowLight);
 
@@ -721,9 +721,9 @@ class BirthdayScene {
     const stageGeo = new THREE.CylinderGeometry(15, 16, 0.4, 64);
     const stageMat = new THREE.MeshStandardMaterial({
       color: 0x22129b,
-      roughness: 0.22,
-      metalness: 0.45,
-      emissive: 0x100840
+      roughness: 0.0,
+      metalness: 0.90,
+      emissive: 0x000000
     });
     this.stage = new THREE.Mesh(stageGeo, stageMat);
     this.stage.position.y = -0.2;
@@ -1173,7 +1173,7 @@ class BirthdayScene {
     // Table Top (Round banquet table with elegant warm ivory silk cloth)
     const tableTopMat = new THREE.MeshStandardMaterial({
       color: 0xfcf5ea,
-      roughness: 0.35,
+      roughness: 0.60,
       metalness: 0.08,
       emissive: 0x1f1610
     });
@@ -1721,7 +1721,7 @@ class BirthdayScene {
     // Gold/Wood Ornate Frame
     const frameMat = new THREE.MeshStandardMaterial({
       color: 0xffd700,
-      metalness: 0.85,
+      metalness: 0.0,
       roughness: 0.2
     });
     const boardFrame = new THREE.Mesh(new THREE.BoxGeometry(2.5, 3.2, 0.15), frameMat);
@@ -2120,7 +2120,7 @@ class BirthdayScene {
 
     this.standMat = new THREE.MeshStandardMaterial({
       color: theme.plate,
-      metalness: 0.85,
+      metalness: 0.90,
       roughness: 0.18
     });
 
@@ -2145,7 +2145,7 @@ class BirthdayScene {
     });
     this.frostingMat = new THREE.MeshStandardMaterial({
       color: theme.frosting,
-      roughness: 0.3,
+      roughness: 0.0,
       metalness: 0.15
     });
 
@@ -2180,7 +2180,7 @@ class BirthdayScene {
           if (child.material) {
             child.material.side = THREE.DoubleSide;
             if (child.material.roughness !== undefined) {
-              child.material.roughness = Math.min(child.material.roughness, 0.6);
+              child.material.roughness = 0.0;
             }
             child.material.needsUpdate = true;
           }
