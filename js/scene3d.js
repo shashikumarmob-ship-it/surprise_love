@@ -857,12 +857,8 @@ class BirthdayScene {
       const z = -4.8;
       const flagColor = flagColors[i % flagColors.length];
 
-      const flagMat = new THREE.MeshStandardMaterial({
-        color: flagColor,
-        emissive: flagColor,
-        emissiveIntensity: 2.2,
-        roughness: 0.1,
-        metalness: 0.1
+      const flagMat = new THREE.MeshBasicMaterial({
+        color: flagColor
       });
       const flag = new THREE.Mesh(flagGeo, flagMat);
       flag.position.set(x, y, z);
@@ -886,15 +882,6 @@ class BirthdayScene {
         );
         lightOrb.position.set(x, y - 0.45, z + 0.1);
         this.decorGroup.add(lightOrb);
-      }
-
-      if (this.diwaliBulbs) {
-        this.diwaliBulbs.push({
-          mat: flagMat,
-          baseColor: flagColor,
-          phase: Math.random() * Math.PI * 2,
-          speed: 2.0 + Math.random() * 2.5
-        });
       }
     }
 
@@ -920,12 +907,8 @@ class BirthdayScene {
         const flagIndex = Math.floor((y + Math.abs(colX)) * 4);
         const flagColor = flagColors[(flagIndex + colIdx) % flagColors.length];
 
-        const flagMat = new THREE.MeshStandardMaterial({
-          color: flagColor,
-          emissive: flagColor,
-          emissiveIntensity: 2.2,
-          roughness: 0.1,
-          metalness: 0.1
+        const flagMat = new THREE.MeshBasicMaterial({
+          color: flagColor
         });
 
         // Main hanging glowing lantern
@@ -934,23 +917,22 @@ class BirthdayScene {
         flag.rotation.x = Math.PI; // point down
         this.decorGroup.add(flag);
 
+        // Glowing white core inside lantern
+        const flagCore = new THREE.Mesh(
+          new THREE.SphereGeometry(0.10, 10, 10),
+          new THREE.MeshBasicMaterial({ color: 0xffffff })
+        );
+        flagCore.position.set(colX, y - 0.12, -4.75);
+        this.decorGroup.add(flagCore);
+
         // Glowing Fairy Light Orb between flags
         if (Math.abs(y * 10) % 2 < 1.2) {
           const lightOrb = new THREE.Mesh(
-            new THREE.SphereGeometry(0.16, 14, 14),
+            new THREE.SphereGeometry(0.18, 14, 14),
             new THREE.MeshBasicMaterial({ color: flagColor })
           );
           lightOrb.position.set(colX, y - 0.24, -4.7);
           this.decorGroup.add(lightOrb);
-        }
-
-        if (this.diwaliBulbs) {
-          this.diwaliBulbs.push({
-            mat: flagMat,
-            baseColor: flagColor,
-            phase: Math.random() * Math.PI * 2,
-            speed: 2.0 + Math.random() * 2.5
-          });
         }
       }
     });
@@ -1135,74 +1117,107 @@ class BirthdayScene {
     });
 
     // =========================================================
-    // FRONT-LEFT POLE: STUDIO WHITE HALOGEN FLOODLIGHT
+    // FRONT-LEFT POLE: STUDIO WHITE HALOGEN FLOODLIGHT (PROMINENT & HIGH-VISIBILITY)
+    // Mounted at y = 6.2 for direct view on front-left pole
     // =========================================================
     const halogenGroup = new THREE.Group();
-    halogenGroup.position.set(-11.5, 8.8, 11.5);
+    halogenGroup.position.set(-11.5, 6.2, 11.5);
 
-    // Swivel mounting arm attaching to pole
-    const armMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.9, roughness: 0.2 });
-    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.8, 12), armMat);
-    arm.rotation.z = Math.PI / 2;
-    arm.position.set(0.4, 0, -0.4);
+    // Sturdy Heavy-Duty Pole Clamp (Chrome & Gold ring gripping the white pole)
+    const clampMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.95, roughness: 0.15 });
+    const clamp = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.45, 24), clampMat);
+    halogenGroup.add(clamp);
+
+    // Articulated Swivel Mounting Bracket Arm extending towards stage
+    const armMat = new THREE.MeshStandardMaterial({ color: 0x2b2b2b, metalness: 0.9, roughness: 0.2 });
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.2, 16), armMat);
+    arm.rotation.z = Math.PI / 2.8;
+    arm.position.set(0.65, 0.2, -0.65);
     halogenGroup.add(arm);
 
     // Studio Halogen Housing Group aiming at stage center
     const housingGroup = new THREE.Group();
-    housingGroup.position.set(0.8, 0, -0.8);
+    housingGroup.position.set(1.15, 0.35, -1.15);
 
-    // Outer Anodized Aluminum Barrel
-    const barrelMat = new THREE.MeshStandardMaterial({
-      color: 0x181818,
+    // Main Heavy-Duty Matte-Black Studio Floodlight Canister
+    const canisterMat = new THREE.MeshStandardMaterial({
+      color: 0x141414,
       metalness: 0.92,
-      roughness: 0.25
+      roughness: 0.3
     });
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.52, 0.85, 24), barrelMat);
-    barrel.rotation.x = Math.PI / 2;
-    housingGroup.add(barrel);
+    const canister = new THREE.Mesh(new THREE.CylinderGeometry(0.70, 0.88, 1.35, 24), canisterMat);
+    canister.rotation.x = Math.PI / 2;
+    canister.castShadow = true;
+    housingGroup.add(canister);
 
-    // Golden/Chrome Trim Rim
+    // Rear Cooling Fins / Heat Sink Grid
+    const finMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.85, roughness: 0.4 });
+    for (let f = 0; f < 3; f++) {
+      const fin = new THREE.Mesh(new THREE.TorusGeometry(0.72 - f * 0.05, 0.04, 8, 24), finMat);
+      fin.position.z = -0.35 - f * 0.18;
+      housingGroup.add(fin);
+    }
+
+    // Rear Grip Handle
+    const handleMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.9, roughness: 0.2 });
+    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.05, 8, 16, Math.PI), handleMat);
+    handle.rotation.y = Math.PI / 2;
+    handle.position.set(0, 0, -0.72);
+    housingGroup.add(handle);
+
+    // Front Chrome/Gold Bezel Rim
     const rimMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.95, roughness: 0.1 });
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.52, 0.04, 12, 24), rimMat);
-    rim.position.z = 0.42;
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.88, 0.08, 16, 28), rimMat);
+    rim.position.z = 0.68;
     housingGroup.add(rim);
 
-    // Inner Parabolic Chrome Reflector Dish
-    const dishMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, metalness: 0.98, roughness: 0.08 });
-    const dish = new THREE.Mesh(new THREE.ConeGeometry(0.46, 0.35, 24, 1, true), dishMat);
+    // Deep Inner Chrome Parabolic Reflector Dish
+    const dishMat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.98, roughness: 0.05 });
+    const dish = new THREE.Mesh(new THREE.ConeGeometry(0.82, 0.55, 24, 1, true), dishMat);
     dish.rotation.x = -Math.PI / 2;
-    dish.position.z = 0.2;
+    dish.position.z = 0.35;
     housingGroup.add(dish);
 
-    // Glowing White Halogen Lamp Bulb (Intensely Bright Core)
+    // Glowing White Halogen Capsule (Intense Bright Xenon Bulb)
     const halogenBulbMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const hBulb = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.28, 12), halogenBulbMat);
-    hBulb.position.z = 0.25;
+    const hBulb = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.45, 16), halogenBulbMat);
+    hBulb.position.z = 0.42;
     housingGroup.add(hBulb);
 
-    // Front Frosted Glass Lens
+    // Front Ultra-Bright Frosted Halogen Glass Lens (Pure Glowing White)
     const lensMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       transparent: true,
-      opacity: 0.95
+      opacity: 0.98
     });
-    const lens = new THREE.Mesh(new THREE.CircleGeometry(0.48, 24), lensMat);
-    lens.position.z = 0.43;
+    const lens = new THREE.Mesh(new THREE.CircleGeometry(0.85, 28), lensMat);
+    lens.position.z = 0.69;
     housingGroup.add(lens);
     this.leftPoleHalogenLens = lens;
 
-    // Soft Volumetric Cone of Light
-    const beamGeo = new THREE.CylinderGeometry(0.48, 3.6, 14, 16, 1, true);
+    // Glowing Corona / Halo Ring around the lens
+    const coronaMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.55,
+      side: THREE.DoubleSide
+    });
+    const corona = new THREE.Mesh(new THREE.RingGeometry(0.85, 1.45, 28), coronaMat);
+    corona.position.z = 0.70;
+    housingGroup.add(corona);
+
+    // Soft Volumetric Light Beam Cone shooting across the stage
+    const beamGeo = new THREE.CylinderGeometry(0.85, 5.5, 22, 20, 1, true);
     const beamMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       transparent: true,
-      opacity: 0.08,
+      opacity: 0.12,
       side: THREE.DoubleSide,
       depthWrite: false
     });
     const beam = new THREE.Mesh(beamGeo, beamMat);
     beam.rotation.x = -Math.PI / 2;
-    beam.position.z = 7.0;
+    beam.position.z = 11.0;
     housingGroup.add(beam);
     this.leftPoleHalogenBeam = beam;
 
@@ -1211,9 +1226,9 @@ class BirthdayScene {
     halogenGroup.add(housingGroup);
     this.polesGroup.add(halogenGroup);
 
-    // Actual Three.js Spotlight Source
-    this.leftPoleHalogenLight = new THREE.SpotLight(0xffffff, 4.0, 55, Math.PI / 4.2, 0.4, 1.2);
-    this.leftPoleHalogenLight.position.set(-10.7, 8.8, 10.7);
+    // Actual Three.js Spotlight Source (High Intensity White Halogen)
+    this.leftPoleHalogenLight = new THREE.SpotLight(0xffffff, 5.0, 60, Math.PI / 3.8, 0.35, 1.2);
+    this.leftPoleHalogenLight.position.set(-10.3, 6.5, 10.3);
     this.leftPoleHalogenLight.target.position.set(0, 2.0, 0);
     this.leftPoleHalogenLight.castShadow = true;
     this.leftPoleHalogenLight.shadow.bias = -0.001;
@@ -1243,65 +1258,76 @@ class BirthdayScene {
       [polePositions[1], polePositions[3]]  // Diagonal Front-Right to Back-Left
     ];
 
-    const cableMat = new THREE.LineBasicMaterial({ color: 0x333333 });
-    const bulbGeo = new THREE.SphereGeometry(0.25, 16, 16);
-    const capGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.10, 12);
-    const capMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.85, roughness: 0.2 });
+    const cableMat = new THREE.LineBasicMaterial({ color: 0x444444, linewidth: 2 });
+    const bulbGeo = new THREE.SphereGeometry(0.30, 16, 16);
+    const capGeo = new THREE.CylinderGeometry(0.09, 0.09, 0.12, 12);
+    const capMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.9, roughness: 0.2 });
+
+    // Anchor cables at y = 7.0 (prominently in celebration camera view)
+    const cableAnchorY = 7.0;
 
     cableSpans.forEach((span, spanIdx) => {
-      const pA = new THREE.Vector3(span[0].x, poleHeight + 0.8, span[0].z);
-      const pB = new THREE.Vector3(span[1].x, poleHeight + 0.8, span[1].z);
+      const pA = new THREE.Vector3(span[0].x, cableAnchorY, span[0].z);
+      const pB = new THREE.Vector3(span[1].x, cableAnchorY, span[1].z);
 
       const midPoint = new THREE.Vector3().addVectors(pA, pB).multiplyScalar(0.5);
-      midPoint.y -= (spanIdx < 4 ? 1.8 : 2.5); // graceful hanging sag
+      midPoint.y -= (spanIdx < 4 ? 1.4 : 1.9); // graceful hanging sag down to y = 5.6 and 5.1
 
       const curve = new THREE.QuadraticBezierCurve3(pA, midPoint, pB);
-      const points = curve.getPoints(30);
+      const points = curve.getPoints(32);
 
       const cableLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), cableMat);
       this.polesGroup.add(cableLine);
 
-      const bulbCount = spanIdx < 4 ? 18 : 22;
+      const bulbCount = spanIdx < 4 ? 16 : 20;
       for (let b = 1; b < bulbCount; b++) {
         const t = b / bulbCount;
         const pos = curve.getPoint(t);
         const col = diwaliColors[(b + spanIdx * 3) % diwaliColors.length];
 
-        const bulbMat = new THREE.MeshStandardMaterial({
-          color: col,
-          emissive: col,
-          emissiveIntensity: 3.2,
-          roughness: 0.05,
-          metalness: 0.0,
-          transparent: true,
-          opacity: 0.95
-        });
-
         const bulbGroup = new THREE.Group();
         bulbGroup.position.set(pos.x, pos.y, pos.z);
 
+        // Radiant Outer Glow Halo
+        const glowMat = new THREE.MeshBasicMaterial({
+          color: col,
+          transparent: true,
+          opacity: 0.40,
+          depthWrite: false
+        });
+        const glowMesh = new THREE.Mesh(new THREE.SphereGeometry(0.48, 14, 14), glowMat);
+        glowMesh.position.y = -0.25;
+        bulbGroup.add(glowMesh);
+
+        // Glowing Glass Bulb Body (Electric Pure Luminous Color)
+        const bulbMat = new THREE.MeshBasicMaterial({
+          color: col
+        });
         const bulbMesh = new THREE.Mesh(bulbGeo, bulbMat);
-        bulbMesh.position.y = -0.22;
+        bulbMesh.position.y = -0.25;
         bulbGroup.add(bulbMesh);
 
-        // Glowing hot-white inner filament core (gives authentic brilliant light bulb appearance)
+        // Hot Tungsten White Filament Core (Intense Sparkle)
         const filament = new THREE.Mesh(
-          new THREE.SphereGeometry(0.12, 10, 10),
+          new THREE.SphereGeometry(0.14, 10, 10),
           new THREE.MeshBasicMaterial({ color: 0xffffff })
         );
-        filament.position.y = -0.22;
+        filament.position.y = -0.25;
         bulbGroup.add(filament);
 
+        // Gold Socket Cap
         const socketCap = new THREE.Mesh(capGeo, capMat);
-        socketCap.position.y = -0.05;
+        socketCap.position.y = -0.06;
         bulbGroup.add(socketCap);
 
         this.polesGroup.add(bulbGroup);
+
         this.diwaliBulbs.push({
           mat: bulbMat,
+          glowMat: glowMat,
           baseColor: col,
           phase: Math.random() * Math.PI * 2,
-          speed: 2.0 + Math.random() * 2.5
+          speed: 2.5 + Math.random() * 3.0
         });
       }
     });
@@ -1935,12 +1961,8 @@ class BirthdayScene {
       }
 
       const col = bulbColors[b % bulbColors.length];
-      const bulbMat = new THREE.MeshStandardMaterial({
-        color: col,
-        emissive: col,
-        emissiveIntensity: 3.0,
-        roughness: 0.05,
-        metalness: 0.0
+      const bulbMat = new THREE.MeshBasicMaterial({
+        color: col
       });
 
       const bulbMesh = new THREE.Mesh(bulbGeo, bulbMat);
@@ -4865,7 +4887,12 @@ class BirthdayScene {
       const baseMult = (this.fairyBulbsMultiplier !== undefined ? this.fairyBulbsMultiplier : 1.0);
       this.diwaliBulbs.forEach(bulb => {
         const twinkle = Math.sin(time * bulb.speed + bulb.phase);
-        bulb.mat.emissiveIntensity = (3.2 + Math.max(0, twinkle) * 2.2) * baseMult;
+        if (bulb.mat && bulb.mat.emissiveIntensity !== undefined) {
+          bulb.mat.emissiveIntensity = (3.2 + Math.max(0, twinkle) * 2.2) * baseMult;
+        }
+        if (bulb.glowMat) {
+          bulb.glowMat.opacity = Math.max(0.12, (0.40 + twinkle * 0.25) * Math.min(1.8, baseMult));
+        }
       });
     }
 
