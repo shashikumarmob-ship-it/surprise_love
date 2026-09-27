@@ -18,7 +18,9 @@
     // 🎂 1. Cake & Plate Controls
     cakeGlowLight: 4.2,
     cakeSpotLight: 0.0,
-    cakeFrostingRoughness: 0.0,
+    cakeEmissiveGlow: 0.40,
+    cakeRimLight: 1.5,
+    cakeFrostingRoughness: 0.38,
     cakePlateMetalness: 0.90,
     cakeBaseColor: '#1f0005',
     cakeTopColor: '#ff9bb2',
@@ -104,11 +106,27 @@
           if (s.cakeSpotLight) s.cakeSpotLight.intensity = numVal;
           break;
         case 'cakeFrostingRoughness':
-          if (s.frostingMat) s.frostingMat.roughness = numVal;
-          if (s.cakeGlbModel) {
-            s.cakeGlbModel.traverse((child) => {
-              if (child.isMesh && child.material) child.material.roughness = numVal;
-            });
+          if (s.setCakeRoughness) {
+            s.setCakeRoughness(numVal);
+          } else {
+            if (s.frostingMat) s.frostingMat.roughness = numVal;
+            if (s.cakeGlbModel) {
+              s.cakeGlbModel.traverse((child) => {
+                if (child.isMesh && child.material) child.material.roughness = numVal;
+              });
+            }
+          }
+          break;
+        case 'cakeEmissiveGlow':
+          if (s.setCakeEmissiveIntensity) {
+            s.setCakeEmissiveIntensity(numVal);
+          }
+          break;
+        case 'cakeRimLight':
+          if (s.setCakeRimLightIntensity) {
+            s.setCakeRimLightIntensity(numVal);
+          } else if (s.cakeRimLight) {
+            s.cakeRimLight.intensity = numVal;
           }
           break;
         case 'cakePlateMetalness':
@@ -354,6 +372,7 @@
       if (child.isMesh && child.material) {
         if (count === meshIndex) {
           if (child.material.color) child.material.color.set(hex);
+          if (child.material.emissive) child.material.emissive.set(hex);
         }
         count++;
       }
@@ -406,9 +425,12 @@
       case 'all':
         html = `
           <div class="tuner-group-title">🌐 Global Master Scene</div>
-          <p class="tuner-hint">Control master camera exposure and overall lighting for the entire universe.</p>
+          <p class="tuner-hint">Control master camera exposure, halogen light, cake self-glow & 4K edge rim lighting.</p>
           ${makeSliderHTML('📷 Camera Tone Exposure', 'exposure', 0.1, 6.0, 0.05, currentSettings.exposure)}
           ${makeSliderHTML('💡 Front-Left Pole White Halogen', 'leftPoleHalogen', 0.0, 15.0, 0.1, currentSettings.leftPoleHalogen)}
+          ${makeSliderHTML('🔮 Cake Self-Emissive Glow', 'cakeEmissiveGlow', 0.0, 2.0, 0.05, currentSettings.cakeEmissiveGlow)}
+          ${makeSliderHTML('🌟 4K Cake Edge Rim Light', 'cakeRimLight', 0.0, 5.0, 0.1, currentSettings.cakeRimLight)}
+          ${makeSliderHTML('🎂 Cake Table Glow Light', 'cakeGlowLight', 0.0, 15.0, 0.1, currentSettings.cakeGlowLight)}
           ${makeSliderHTML('🌟 Master Ambient Light', 'ambientLight', 0.0, 10.0, 0.05, currentSettings.ambientLight)}
           ${makeSliderHTML('☀️ Main Sun / Key Light', 'keyLight', 0.0, 15.0, 0.1, currentSettings.keyLight)}
           ${makeSliderHTML('🌸 Warm Stage Fill Light', 'fillLight', 0.0, 10.0, 0.1, currentSettings.fillLight)}
@@ -422,10 +444,12 @@
       case 'cake':
         html = `
           <div class="tuner-group-title">🎂 Cake & Plate Controls</div>
-          <p class="tuner-hint">Independent lighting and texture controls for the birthday cake & stand.</p>
+          <p class="tuner-hint">Independent lighting, internal self-emissive glow & 4K edge silhouette for the cake.</p>
+          ${makeSliderHTML('🔮 Cake Self-Emissive Glow', 'cakeEmissiveGlow', 0.0, 2.0, 0.05, currentSettings.cakeEmissiveGlow)}
+          ${makeSliderHTML('🌟 4K Cake Edge Rim Light', 'cakeRimLight', 0.0, 5.0, 0.1, currentSettings.cakeRimLight)}
           ${makeSliderHTML('✨ Cake Table Glow Light', 'cakeGlowLight', 0.0, 15.0, 0.1, currentSettings.cakeGlowLight)}
           ${makeSliderHTML('💡 Dedicated Overhead Spotlight', 'cakeSpotLight', 0.0, 15.0, 0.1, currentSettings.cakeSpotLight)}
-          ${makeSliderHTML('🍰 Cream Frosting Roughness', 'cakeFrostingRoughness', 0.0, 1.0, 0.05, currentSettings.cakeFrostingRoughness)}
+          ${makeSliderHTML('🍰 Cream Velvet Finish (Roughness)', 'cakeFrostingRoughness', 0.0, 1.0, 0.05, currentSettings.cakeFrostingRoughness)}
           ${makeSliderHTML('🥇 Golden Pedestal Plate Metalness', 'cakePlateMetalness', 0.0, 1.0, 0.05, currentSettings.cakePlateMetalness)}
           <div style="margin-top: 10px;">
             ${makeColorHTML('Cake Base Layer', 'cakeBaseColor', currentSettings.cakeBaseColor)}

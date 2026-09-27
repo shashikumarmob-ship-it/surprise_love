@@ -540,6 +540,51 @@ class BirthdayScene {
     this.rightStageLight = new THREE.PointLight(0xffd700, 0.0, 22);
     this.rightStageLight.position.set(12, 6, 2);
     this.scene.add(this.rightStageLight);
+
+    // 9. Dedicated 4K Cake Edge & Rim Backlight (Crisp silhouette highlights)
+    this.cakeRimLight = new THREE.DirectionalLight(0xffb3c6, 1.5);
+    this.cakeRimLight.position.set(0, 4.5, -6.0);
+    this.cakeRimLight.target.position.set(0, 2.5, 0);
+    this.scene.add(this.cakeRimLight);
+    this.scene.add(this.cakeRimLight.target);
+  }
+
+  setCakeEmissiveIntensity(val) {
+    const num = parseFloat(val) || 0.0;
+    this.cakeEmissiveValue = num;
+    if (this.cakeGlbModel) {
+      this.cakeGlbModel.traverse((child) => {
+        if (child.isMesh && child.material) {
+          if (!child.material.emissive || child.material.emissive.getHex() === 0x000000) {
+            if (child.material.color) child.material.emissive = child.material.color.clone();
+          }
+          child.material.emissiveIntensity = num;
+        }
+      });
+    }
+    if (this.cakeBaseMat) this.cakeBaseMat.emissiveIntensity = num;
+    if (this.cakeTopMat) this.cakeTopMat.emissiveIntensity = num;
+    if (this.frostingMat) this.frostingMat.emissiveIntensity = num;
+  }
+
+  setCakeRoughness(val) {
+    const num = parseFloat(val) || 0.38;
+    this.cakeRoughnessValue = num;
+    if (this.frostingMat) this.frostingMat.roughness = num;
+    if (this.cakeGlbModel) {
+      this.cakeGlbModel.traverse((child) => {
+        if (child.isMesh && child.material) {
+          child.material.roughness = num;
+        }
+      });
+    }
+  }
+
+  setCakeRimLightIntensity(val) {
+    const num = parseFloat(val) || 0.0;
+    if (this.cakeRimLight) {
+      this.cakeRimLight.intensity = num;
+    }
   }
 
   setLeftPoleHalogenIntensity(val) {
@@ -1226,8 +1271,8 @@ class BirthdayScene {
     halogenLampGroup.add(beam);
     this.leftPoleHalogenBeam = beam;
 
-    // Actual Three.js Spotlight Source (default intensity: 0.0)
-    this.leftPoleHalogenLight = new THREE.SpotLight(0xffffff, 0.0, 55, Math.PI / 4.5, 0.4, 1.2);
+    // Actual Three.js Spotlight Source (default intensity: 0.0, warm champagne tone prevents color bleaching)
+    this.leftPoleHalogenLight = new THREE.SpotLight(0xfff8ee, 0.0, 60, Math.PI / 4.5, 0.55, 1.2);
     this.leftPoleHalogenLight.position.set(-10.8, 8.8, 10.8);
     this.leftPoleHalogenLight.target.position.set(0, 1.8, 0);
     this.leftPoleHalogenLight.castShadow = true;
@@ -2301,21 +2346,30 @@ class BirthdayScene {
     this.cakePlateMesh = cakePlate;
     this.cakeGroup.add(cakePlate);
 
-    // Initial placeholder materials for theme updates and slice wedge
+    // Initial materials for theme updates, slice wedge & fallback
+    this.cakeEmissiveValue = 0.40;
+    this.cakeRoughnessValue = 0.38;
+
     this.cakeBaseMat = new THREE.MeshStandardMaterial({
       color: theme.cakeBase,
-      roughness: 0.45,
+      emissive: new THREE.Color(theme.cakeBase),
+      emissiveIntensity: 0.30,
+      roughness: 0.42,
       metalness: 0.05
     });
     this.cakeTopMat = new THREE.MeshStandardMaterial({
       color: theme.cakeTop,
-      roughness: 0.4,
-      metalness: 0.1
+      emissive: new THREE.Color(theme.cakeTop),
+      emissiveIntensity: 0.35,
+      roughness: 0.38,
+      metalness: 0.08
     });
     this.frostingMat = new THREE.MeshStandardMaterial({
       color: theme.frosting,
-      roughness: 0.0,
-      metalness: 0.15
+      emissive: new THREE.Color(theme.frosting),
+      emissiveIntensity: 0.40,
+      roughness: 0.35,
+      metalness: 0.10
     });
 
     this.proceduralCakeElements = [];
@@ -2341,16 +2395,24 @@ class BirthdayScene {
       this.cakeGlbModel = model;
       this.isCakeGlbLoaded = true;
 
-      // Enable shadow casting/receiving and enhance material on all meshes
+      // Enable shadow casting/receiving and enhance material on all meshes with inner glow & velvet texture
       model.traverse((child) => {
         if (child.isMesh) {
           child.castShadow = true;
           child.receiveShadow = true;
           if (child.material) {
             child.material.side = THREE.DoubleSide;
-            if (child.material.roughness !== undefined) {
-              child.material.roughness = 0.0;
+            // Velvet cream roughness - prevents blinding specular blowout from halogen
+            child.material.roughness = this.cakeRoughnessValue !== undefined ? this.cakeRoughnessValue : 0.38;
+            child.material.metalness = 0.04;
+
+            // Internal Self-Emissive Glow:
+            // Radiates rich vibrant color from within so details and edges never fade
+            if (!child.material.emissive || child.material.emissive.getHex() === 0x000000) {
+              const baseCol = child.material.color ? child.material.color.clone() : new THREE.Color(0xff4d79);
+              child.material.emissive = baseCol;
             }
+            child.material.emissiveIntensity = this.cakeEmissiveValue !== undefined ? this.cakeEmissiveValue : 0.40;
             child.material.needsUpdate = true;
           }
         }
