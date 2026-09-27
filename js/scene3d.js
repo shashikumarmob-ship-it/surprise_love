@@ -158,14 +158,8 @@ class BirthdayScene {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    // Photorealistic sRGB color pipeline for natural skin, cake and light tonality
-    if (typeof THREE.sRGBEncoding !== 'undefined') {
-      this.renderer.outputEncoding = THREE.sRGBEncoding;
-    } else if (typeof THREE.SRGBColorSpace !== 'undefined') {
-      this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    }
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 1.55;
     this.container.appendChild(this.renderer.domElement);
 
     this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
@@ -503,17 +497,17 @@ class BirthdayScene {
   }
 
   setupLighting() {
-    // 1. Ambient Light - Soft natural fill so shadows retain depth without flattening geometry
-    this.ambientLight = new THREE.AmbientLight(0xfff5ea, 0.45);
+    // 1. Ambient Light - Bright warm ambient so shadows are luminous & soft
+    this.ambientLight = new THREE.AmbientLight(0xfff6ee, 1.45);
     this.scene.add(this.ambientLight);
 
-    // 2. Hemisphere Studio Light - Soft warm ceiling bounce with rich velvet floor shadow
-    this.hemiLight = new THREE.HemisphereLight(0xffeedd, 0x1f1028, 0.5);
+    // 2. Hemisphere Studio Light - Soft sky & ground contrast
+    this.hemiLight = new THREE.HemisphereLight(0xffeedd, 0x331845, 1.3);
     this.hemiLight.position.set(0, 30, 0);
     this.scene.add(this.hemiLight);
 
-    // 3. Main Key Directional Light (Warm Chandelier / Key Light with soft shadows)
-    this.dirLight = new THREE.DirectionalLight(0xfffaee, 1.6);
+    // 3. Main Key Directional Light (Sun / Grand Chandelier)
+    this.dirLight = new THREE.DirectionalLight(0xfffaee, 2.4);
     this.dirLight.position.set(12, 24, 16);
     this.dirLight.castShadow = true;
     this.dirLight.shadow.mapSize.width = 2048;
@@ -523,27 +517,27 @@ class BirthdayScene {
     this.dirLight.shadow.bias = -0.0005;
     this.scene.add(this.dirLight);
 
-    // 4. Subtle Warm Fill Light from Left (Soft Rose-Gold accent)
-    this.fillLight = new THREE.DirectionalLight(0xff99bb, 0.65);
+    // 4. Warm Fill Light from Left (Vibrant Rose-Gold tone)
+    this.fillLight = new THREE.DirectionalLight(0xff8fb1, 1.4);
     this.fillLight.position.set(-16, 16, 8);
     this.scene.add(this.fillLight);
 
-    // 5. Front Center Stage Spotlight - Balanced gentle illumination on Cake & Stage
-    this.stageFrontLight = new THREE.DirectionalLight(0xfff2e6, 0.85);
+    // 5. Front Center Stage Spotlight - Direct illumination onto Cake & Stage
+    this.stageFrontLight = new THREE.DirectionalLight(0xfff2e6, 1.8);
     this.stageFrontLight.position.set(0, 18, 22);
     this.scene.add(this.stageFrontLight);
 
-    // 6. Warm Golden Cake Table Point Light (Soft accent glow on the cake & table)
-    this.cakeGlowLight = new THREE.PointLight(0xffd27d, 1.35, 18);
+    // 6. Warm Golden Cake Table Point Light (Illuminates the Cake, Cloth & Table)
+    this.cakeGlowLight = new THREE.PointLight(0xffd700, 3.2, 28);
     this.cakeGlowLight.position.set(0, 5.0, 0);
     this.scene.add(this.cakeGlowLight);
 
-    // 7. Left & Right Stage Accent Lights (Soft, non-blinding rim lights for Board & Photo Frame)
-    this.leftStageLight = new THREE.PointLight(0xff758c, 1.1, 20);
+    // 7. Left & Right Stage Accent Lights (Illuminates Board & Photo Frame)
+    this.leftStageLight = new THREE.PointLight(0xff758c, 2.2, 22);
     this.leftStageLight.position.set(-12, 6, 2);
     this.scene.add(this.leftStageLight);
 
-    this.rightStageLight = new THREE.PointLight(0xffd700, 1.1, 20);
+    this.rightStageLight = new THREE.PointLight(0xffd700, 2.2, 22);
     this.rightStageLight.position.set(12, 6, 2);
     this.scene.add(this.rightStageLight);
   }
@@ -2131,18 +2125,18 @@ class BirthdayScene {
     // Initial placeholder materials for theme updates and slice wedge
     this.cakeBaseMat = new THREE.MeshStandardMaterial({
       color: theme.cakeBase,
-      roughness: 0.75,
-      metalness: 0.02
+      roughness: 0.45,
+      metalness: 0.05
     });
     this.cakeTopMat = new THREE.MeshStandardMaterial({
       color: theme.cakeTop,
-      roughness: 0.70,
-      metalness: 0.03
+      roughness: 0.4,
+      metalness: 0.1
     });
     this.frostingMat = new THREE.MeshStandardMaterial({
       color: theme.frosting,
-      roughness: 0.65,
-      metalness: 0.04
+      roughness: 0.3,
+      metalness: 0.15
     });
 
     this.proceduralCakeElements = [];
@@ -2175,12 +2169,8 @@ class BirthdayScene {
           child.receiveShadow = true;
           if (child.material) {
             child.material.side = THREE.DoubleSide;
-            // Retain natural PBR properties: prevent artificial plastic sheen
             if (child.material.roughness !== undefined) {
-              child.material.roughness = Math.max(child.material.roughness, 0.65);
-            }
-            if (child.material.metalness !== undefined && child.material.metalness > 0.25) {
-              child.material.metalness = 0.05;
+              child.material.roughness = Math.min(child.material.roughness, 0.6);
             }
             child.material.needsUpdate = true;
           }
