@@ -10129,5 +10129,41 @@ body.disco-active .disco-overlay {
   line-height: 1.35;
 }
 
+/* =========================================================
+   ZERO-FLICKER ROUTE SHIELD (NO 1-SEC FLASH OF DOCS OR 3D CAKE)
+   ========================================================= */
+html.route-surprise-curtain #portal-landing-screen,
+html.route-surprise-curtain #portal-creator-dashboard,
+html.route-surprise-curtain #romantic-chat-screen,
+html.route-surprise-curtain #order-hub-fullscreen-page {
+  display: none !important;
+}
+
+html.route-surprise-curtain #curtain-container,
+html.route-surprise-curtain .curtain-container {
+  display: flex !important;
+}
+
+html.route-creator-dashboard #portal-landing-screen,
+html.route-creator-dashboard #curtain-container,
+html.route-creator-dashboard .curtain-container {
+  display: none !important;
+}
+
+html.route-creator-dashboard #portal-creator-dashboard {
+  display: block !important;
+}
+
+html.route-portal-landing #curtain-container,
+html.route-portal-landing .curtain-container,
+html.route-portal-landing #portal-creator-dashboard {
+  display: none !important;
+}
+
+html.route-portal-landing #portal-landing-screen {
+  display: flex !important;
+}
+
+
 
 

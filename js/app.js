@@ -51,6 +51,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // DOM Elements
   const curtainContainer = document.getElementById('curtain-container');
+  const portalLandingScreen = document.getElementById('portal-landing-screen');
+  const portalCreatorDashboard = document.getElementById('portal-creator-dashboard');
+
+  // --- IMMEDIATE ROUTE ENFORCEMENT (Zero Flash of Documentation / Zero Flash of 3D Cake) ---
+  (function enforceImmediateRoute() {
+    const params = new URLSearchParams(window.location.search || window.location.hash.replace(/^#/, '?'));
+    const isDirectSurpriseLink = params.has('s') || params.has('surprise') || params.has('name') || params.has('preview') || params.has('demo');
+    let savedSession = null;
+    try { savedSession = localStorage.getItem('birthday_portal_session'); } catch(e) {}
+
+    if (isDirectSurpriseLink) {
+      if (portalLandingScreen) portalLandingScreen.classList.add('hidden');
+      if (portalCreatorDashboard) portalCreatorDashboard.classList.add('hidden');
+      if (curtainContainer) {
+        curtainContainer.style.display = 'flex';
+        curtainContainer.classList.remove('opened');
+      }
+      document.documentElement.classList.add('route-surprise-curtain');
+      document.documentElement.classList.remove('route-creator-dashboard', 'route-portal-landing');
+    } else if (savedSession) {
+      if (portalLandingScreen) portalLandingScreen.classList.add('hidden');
+      if (curtainContainer) {
+        curtainContainer.style.display = 'none';
+        curtainContainer.classList.remove('opened');
+      }
+      if (portalCreatorDashboard) portalCreatorDashboard.classList.remove('hidden');
+      document.documentElement.classList.add('route-creator-dashboard');
+      document.documentElement.classList.remove('route-surprise-curtain', 'route-portal-landing');
+    } else {
+      if (curtainContainer) {
+        curtainContainer.style.display = 'none';
+        curtainContainer.classList.remove('opened');
+      }
+      if (portalCreatorDashboard) portalCreatorDashboard.classList.add('hidden');
+      if (portalLandingScreen) portalLandingScreen.classList.remove('hidden');
+      document.documentElement.classList.add('route-portal-landing');
+      document.documentElement.classList.remove('route-surprise-curtain', 'route-creator-dashboard');
+    }
+  })();
+
   const btnStartCelebration = document.getElementById('btn-start-celebration');
   const guidedStoryBar = document.getElementById('guided-story-bar');
   const mainScreenQuestCard = document.getElementById('main-screen-quest-card');
@@ -2799,7 +2839,6 @@ document.addEventListener('DOMContentLoaded', () => {
   /* =========================================================
      STEP 0: MASTER INDEX & NEON LOGIN & 3D DECK CREATOR LOGIC
      ========================================================= */
-  const portalLandingScreen = document.getElementById('portal-landing-screen');
   const btnPortalOpenLogin = document.getElementById('btn-portal-open-login');
   const btnPortalViewDemo = document.getElementById('btn-portal-view-demo');
   const portalLoginModal = document.getElementById('portal-login-modal');
@@ -2816,7 +2855,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const tabBtnReturning = document.getElementById('tab-btn-returning');
   const tabBtnNew = document.getElementById('tab-btn-new');
 
-  const portalCreatorDashboard = document.getElementById('portal-creator-dashboard');
   const loggedUserName = document.getElementById('logged-user-name');
   const deckCardGf = document.getElementById('deck-card-gf');
   const deckCardBf = document.getElementById('deck-card-bf');

@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
   <!-- App Stylesheet -->
-  <link rel="stylesheet" href="style.css?v=29">
+  <link rel="stylesheet" href="style.css?v=30">
   <link rel="stylesheet" href="responsive.css?v=1">
 
 
@@ -141,8 +141,55 @@
     window.CakePreloader.startPreload();
   </script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <!-- Instant Pre-Render Route Shield: Eliminates 1-second flash of documentation & 3D cake -->
+  <script>
+    (function() {
+      try {
+        var search = window.location.search || '';
+        var hash = window.location.hash || '';
+        var params = new URLSearchParams(search || hash.replace(/^#/, '?'));
+        var isSurpriseLink = params.has('s') || params.has('surprise') || params.has('name') || params.has('preview') || params.has('demo');
+        var session = null;
+        try { session = localStorage.getItem('birthday_portal_session'); } catch(e) {}
+
+        var style = document.createElement('style');
+        style.id = 'early-route-shield';
+
+        if (isSurpriseLink) {
+          // Direct recipient surprise link: show royal curtain IMMEDIATELY from frame 0!
+          style.textContent = [
+            '#portal-landing-screen { display: none !important; }',
+            '#portal-creator-dashboard { display: none !important; }',
+            '#curtain-container { display: flex !important; }',
+            '.curtain-container { display: flex !important; }',
+            '#romantic-chat-screen { display: none !important; }',
+            '#order-hub-fullscreen-page { display: none !important; }'
+          ].join('\n');
+          document.documentElement.classList.add('route-surprise-curtain');
+        } else if (session) {
+          // Logged-in creator session: show dashboard immediately, hide landing screen
+          style.textContent = [
+            '#portal-landing-screen { display: none !important; }',
+            '#curtain-container { display: none !important; }',
+            '.curtain-container { display: none !important; }',
+            '#portal-creator-dashboard { display: block !important; }'
+          ].join('\n');
+          document.documentElement.classList.add('route-creator-dashboard');
+        } else {
+          // Normal visitor: show landing screen, hide curtain
+          style.textContent = [
+            '#curtain-container { display: none !important; }',
+            '.curtain-container { display: none !important; }',
+            '#portal-creator-dashboard { display: none !important; }'
+          ].join('\n');
+          document.documentElement.classList.add('route-portal-landing');
+        }
+        document.head.appendChild(style);
+      } catch(e) {}
+    })();
+  </script>
 </head>
 <body class="theme-rose-glamour">
 
@@ -995,7 +1042,7 @@
   <!-- =========================================================
        STEP 1: ROYAL VELVET ROSE CURTAIN WELCOME INTRO SCREEN
        ========================================================= -->
-  <div class="curtain-container" id="curtain-container" style="display: none;">
+  <div class="curtain-container" id="curtain-container">
     <div class="curtain curtain-left" id="curtain-left">
       <div class="curtain-fold"></div>
       <div class="curtain-fold"></div>
@@ -2586,7 +2633,7 @@
   <script src="js/audio.js?v=26"></script>
   <script src="js/heartbeat-loader.js?v=1"></script>
   <script src="js/scene3d.js?v=33"></script>
-  <script src="js/app.js?v=30"></script>
+  <script src="js/app.js?v=31"></script>
   <script src="js/tuner3d.js?v=9"></script>
 </body>
 </html>
