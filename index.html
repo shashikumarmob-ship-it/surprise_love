@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
   <!-- App Stylesheet -->
-  <link rel="stylesheet" href="style.css?v=25">
+  <link rel="stylesheet" href="style.css?v=26">
   <link rel="stylesheet" href="responsive.css?v=1">
 
 
@@ -1208,7 +1208,6 @@
   <!-- =========================================================
        3D LIVE COLOR & LIGHTING STUDIO DRAWER (RIGHT PANEL)
        ========================================================= -->
-  <div class="tuner-backdrop" id="tuner-drawer-backdrop"></div>
   <aside class="tuner-drawer" id="tuner-drawer" aria-label="3D Studio Tuner">
     <!-- Drawer Header -->
     <div class="tuner-header">
@@ -1219,7 +1218,7 @@
       <button class="tuner-close-btn" id="close-tuner-btn" title="Close Studio">&times;</button>
     </div>
 
-    <!-- Drawer Body: Vertical Selector (Left) + Color Editor (Right) -->
+    <!-- Drawer Body: Vertical Selector (Left) + Color & Object Sliders (Right) -->
     <div class="tuner-body">
       <!-- Vertical Category Nav -->
       <nav class="tuner-vertical-nav" aria-label="Object Categories">
@@ -1232,20 +1231,36 @@
         <button class="tuner-nav-item" data-category="board">📜 Standee Board</button>
       </nav>
 
-      <!-- Active Category Editor Pane -->
+      <!-- Active Category Editor Pane (Dynamic Sliders & Colors for selected object) -->
       <div class="tuner-content-pane" id="tuner-category-controls">
         <!-- Dynamically rendered by js/tuner3d.js -->
       </div>
     </div>
 
-    <!-- 4 Horizontal Brightness & Lighting Sliders (Always Visible) -->
+    <!-- Horizontal Master Brightness & Lighting Sliders (Quick Access, Expanded Limits) -->
     <div class="tuner-sliders-section">
       <div class="tuner-slider-group">
         <div class="tuner-slider-header">
-          <span>🌟 Ambient Brightness</span>
+          <span>📷 Tone Mapping Exposure</span>
+          <span class="tuner-badge-num" id="num-exposure">2.50</span>
+        </div>
+        <input type="range" class="tuner-range" id="slider-exposure" min="0.1" max="6.0" step="0.05" value="2.50">
+      </div>
+
+      <div class="tuner-slider-group">
+        <div class="tuner-slider-header">
+          <span>🎂 Hero Cake Table Glow Light</span>
+          <span class="tuner-badge-num" id="num-cakeglow">3.20</span>
+        </div>
+        <input type="range" class="tuner-range" id="slider-cakeglow" min="0.0" max="15.0" step="0.1" value="3.20">
+      </div>
+
+      <div class="tuner-slider-group">
+        <div class="tuner-slider-header">
+          <span>🌟 Ambient Room Brightness</span>
           <span class="tuner-badge-num" id="num-ambient">0.00</span>
         </div>
-        <input type="range" class="tuner-range" id="slider-ambient" min="0.0" max="3.0" step="0.05" value="0.00">
+        <input type="range" class="tuner-range" id="slider-ambient" min="0.0" max="10.0" step="0.05" value="0.00">
       </div>
 
       <div class="tuner-slider-group">
@@ -1253,23 +1268,23 @@
           <span>☀️ Key Sun / Chandelier Light</span>
           <span class="tuner-badge-num" id="num-keylight">0.00</span>
         </div>
-        <input type="range" class="tuner-range" id="slider-keylight" min="0.0" max="4.0" step="0.1" value="0.00">
+        <input type="range" class="tuner-range" id="slider-keylight" min="0.0" max="15.0" step="0.1" value="0.00">
       </div>
 
       <div class="tuner-slider-group">
         <div class="tuner-slider-header">
-          <span>🎂 Cake Spotlight & Glow</span>
+          <span>💡 Dedicated Cake Top Spotlight</span>
           <span class="tuner-badge-num" id="num-cakespot">0.00</span>
         </div>
-        <input type="range" class="tuner-range" id="slider-cakespot" min="0.0" max="5.0" step="0.1" value="0.00">
+        <input type="range" class="tuner-range" id="slider-cakespot" min="0.0" max="15.0" step="0.1" value="0.00">
       </div>
 
       <div class="tuner-slider-group">
         <div class="tuner-slider-header">
-          <span>📷 Tone Mapping Exposure</span>
-          <span class="tuner-badge-num" id="num-exposure">2.50</span>
+          <span>🌸 Warm Stage Fill Light</span>
+          <span class="tuner-badge-num" id="num-filllight">0.00</span>
         </div>
-        <input type="range" class="tuner-range" id="slider-exposure" min="0.4" max="2.5" step="0.05" value="2.50">
+        <input type="range" class="tuner-range" id="slider-filllight" min="0.0" max="10.0" step="0.1" value="0.00">
       </div>
     </div>
 
@@ -2396,6 +2411,6 @@
   <script src="js/audio.js?v=26"></script>
   <script src="js/scene3d.js?v=26"></script>
   <script src="js/app.js?v=26"></script>
-  <script src="js/tuner3d.js?v=1"></script>
+  <script src="js/tuner3d.js?v=2"></script>
 </body>
 </html>
