@@ -144,8 +144,7 @@ class BirthdayScene {
   init() {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x060210);
-    // Linear fog: starts at distance 50 so the celebration area is 100% bright, zero dimming
-    this.scene.fog = new THREE.Fog(0x060210, 50, 160);
+    this.scene.fog = new THREE.FogExp2(0x060210, 0.0065);
 
     const aspect = window.innerWidth / window.innerHeight;
     this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
@@ -159,7 +158,7 @@ class BirthdayScene {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.55;
+    this.renderer.toneMappingExposure = 1.15;
     this.container.appendChild(this.renderer.domElement);
 
     this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
@@ -497,49 +496,23 @@ class BirthdayScene {
   }
 
   setupLighting() {
-    // 1. Ambient Light - Bright warm ambient so shadows are luminous & soft
-    this.ambientLight = new THREE.AmbientLight(0xfff6ee, 1.45);
+    this.ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
     this.scene.add(this.ambientLight);
 
-    // 2. Hemisphere Studio Light - Soft sky & ground contrast
-    this.hemiLight = new THREE.HemisphereLight(0xffeedd, 0x331845, 1.3);
-    this.hemiLight.position.set(0, 30, 0);
-    this.scene.add(this.hemiLight);
-
-    // 3. Main Key Directional Light (Sun / Grand Chandelier)
-    this.dirLight = new THREE.DirectionalLight(0xfffaee, 2.4);
-    this.dirLight.position.set(12, 24, 16);
+    this.dirLight = new THREE.DirectionalLight(0xfffaed, 1.5);
+    this.dirLight.position.set(12, 22, 15);
     this.dirLight.castShadow = true;
     this.dirLight.shadow.mapSize.width = 2048;
     this.dirLight.shadow.mapSize.height = 2048;
-    this.dirLight.shadow.camera.near = 0.5;
-    this.dirLight.shadow.camera.far = 80;
-    this.dirLight.shadow.bias = -0.0005;
     this.scene.add(this.dirLight);
 
-    // 4. Warm Fill Light from Left (Vibrant Rose-Gold tone)
-    this.fillLight = new THREE.DirectionalLight(0xff8fb1, 1.4);
-    this.fillLight.position.set(-16, 16, 8);
+    this.fillLight = new THREE.DirectionalLight(0x7b68ee, 0.9);
+    this.fillLight.position.set(-15, 14, -10);
     this.scene.add(this.fillLight);
 
-    // 5. Front Center Stage Spotlight - Direct illumination onto Cake & Stage
-    this.stageFrontLight = new THREE.DirectionalLight(0xfff2e6, 1.8);
-    this.stageFrontLight.position.set(0, 18, 22);
-    this.scene.add(this.stageFrontLight);
-
-    // 6. Warm Golden Cake Table Point Light (Illuminates the Cake, Cloth & Table)
-    this.cakeGlowLight = new THREE.PointLight(0xffd700, 3.2, 28);
-    this.cakeGlowLight.position.set(0, 5.0, 0);
+    this.cakeGlowLight = new THREE.PointLight(0xffd700, 1.8, 16);
+    this.cakeGlowLight.position.set(0, 4.5, 0);
     this.scene.add(this.cakeGlowLight);
-
-    // 7. Left & Right Stage Accent Lights (Illuminates Board & Photo Frame)
-    this.leftStageLight = new THREE.PointLight(0xff758c, 2.2, 22);
-    this.leftStageLight.position.set(-12, 6, 2);
-    this.scene.add(this.leftStageLight);
-
-    this.rightStageLight = new THREE.PointLight(0xffd700, 2.2, 22);
-    this.rightStageLight.position.set(12, 6, 2);
-    this.scene.add(this.rightStageLight);
   }
 
   /* =========================================================
@@ -718,33 +691,25 @@ class BirthdayScene {
   }
 
   createFloorAndStage() {
-    // Large polished party hall floor - lighter, luxurious velvet stage
+    // Large polished party hall floor
     const stageGeo = new THREE.CylinderGeometry(15, 16, 0.4, 64);
     const stageMat = new THREE.MeshStandardMaterial({
-      color: 0x1d1238,
-      roughness: 0.18,
-      metalness: 0.55,
+      color: 0x120a24,
+      roughness: 0.2,
+      metalness: 0.7,
     });
     this.stage = new THREE.Mesh(stageGeo, stageMat);
     this.stage.position.y = -0.2;
     this.stage.receiveShadow = true;
     this.scene.add(this.stage);
 
-    // Glowing outer gold stage ring
-    const ringGeo = new THREE.TorusGeometry(15.05, 0.12, 16, 100);
+    // Glowing stage ring
+    const ringGeo = new THREE.TorusGeometry(15.05, 0.08, 16, 100);
     this.stageRingMat = new THREE.MeshBasicMaterial({ color: 0xffd700 });
     const ring = new THREE.Mesh(ringGeo, this.stageRingMat);
     ring.rotation.x = Math.PI / 2;
     ring.position.y = -0.01;
     this.scene.add(ring);
-
-    // Glowing inner stage circle (illuminates center table area)
-    const innerRingGeo = new THREE.TorusGeometry(7.5, 0.08, 16, 80);
-    const innerRingMat = new THREE.MeshBasicMaterial({ color: 0xff758c });
-    const innerRing = new THREE.Mesh(innerRingGeo, innerRingMat);
-    innerRing.rotation.x = Math.PI / 2;
-    innerRing.position.y = -0.01;
-    this.scene.add(innerRing);
   }
 
   /* =========================================================
@@ -1344,24 +1309,29 @@ class BirthdayScene {
       metalness: 0.88,
       roughness: 0.24
     });
+    const velvetMat = new THREE.MeshStandardMaterial({
+      color: 0x450314, // Deep Royal Crimson Velvet Matting
+      roughness: 0.95,
+      metalness: 0.05
+    });
     const rubyMat = new THREE.MeshStandardMaterial({
       color: 0xff0040,
       emissive: 0x990022,
-      emissiveIntensity: 0.75,
+      emissiveIntensity: 0.65,
       roughness: 0.08,
       metalness: 0.25
     });
     const sapphireMat = new THREE.MeshStandardMaterial({
       color: 0x0077ff,
       emissive: 0x002288,
-      emissiveIntensity: 0.65,
+      emissiveIntensity: 0.55,
       roughness: 0.08,
       metalness: 0.25
     });
     const emeraldMat = new THREE.MeshStandardMaterial({
       color: 0x00e676,
       emissive: 0x005522,
-      emissiveIntensity: 0.65,
+      emissiveIntensity: 0.55,
       roughness: 0.08,
       metalness: 0.25
     });
@@ -1377,136 +1347,181 @@ class BirthdayScene {
 
     const centerY = 2.4;
 
-    // 1. Backing Mahogany Board (slim & clean)
-    const backPlate = new THREE.Mesh(new THREE.BoxGeometry(2.62, 3.48, 0.06), woodBackMat);
+    // 1. Backing Mahogany Board
+    const backPlate = new THREE.Mesh(new THREE.BoxGeometry(2.72, 3.52, 0.08), woodBackMat);
     backPlate.position.set(0, centerY, -0.02);
     backPlate.castShadow = true;
     backPlate.userData = { type: 'photo-frame' };
     this.photoFrameGroup.add(backPlate);
 
-    // 2. Ultra-Sleek Luxury Beveled Gold Moulding (Border width reduced from 0.26 to 0.09)
-    const borderW = 0.09;
-    const frameW = 2.62;
-    const frameH = 3.48;
-    const halfW = frameW / 2;
-    const halfH = frameH / 2;
-
-    // Top & Bottom Slim Bars
-    const topBar = new THREE.Mesh(new THREE.BoxGeometry(frameW, borderW, 0.09), royalGoldMat);
-    topBar.position.set(0, centerY + halfH - borderW / 2, 0.05);
+    // 2. Heavy Baroque Outer Gilded Frame Moulding
+    // Top & Bottom Heavy Bars
+    const topBar = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.26, 0.18), royalGoldMat);
+    topBar.position.set(0, centerY + 1.62, 0.06);
     topBar.castShadow = true;
     topBar.userData = { type: 'photo-frame' };
     this.photoFrameGroup.add(topBar);
 
-    const bottomBar = new THREE.Mesh(new THREE.BoxGeometry(frameW, borderW, 0.09), royalGoldMat);
-    bottomBar.position.set(0, centerY - halfH + borderW / 2, 0.05);
+    const bottomBar = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.26, 0.18), royalGoldMat);
+    bottomBar.position.set(0, centerY - 1.62, 0.06);
     bottomBar.castShadow = true;
     bottomBar.userData = { type: 'photo-frame' };
     this.photoFrameGroup.add(bottomBar);
 
-    // Left & Right Slim Bars
-    const leftBar = new THREE.Mesh(new THREE.BoxGeometry(borderW, frameH - borderW * 2, 0.09), royalGoldMat);
-    leftBar.position.set(-halfW + borderW / 2, centerY, 0.05);
+    // Left & Right Heavy Bars
+    const leftBar = new THREE.Mesh(new THREE.BoxGeometry(0.26, 3.24, 0.18), royalGoldMat);
+    leftBar.position.set(-1.22, centerY, 0.06);
     leftBar.castShadow = true;
     leftBar.userData = { type: 'photo-frame' };
     this.photoFrameGroup.add(leftBar);
 
-    const rightBar = new THREE.Mesh(new THREE.BoxGeometry(borderW, frameH - borderW * 2, 0.09), royalGoldMat);
-    rightBar.position.set(halfW - borderW / 2, centerY, 0.05);
+    const rightBar = new THREE.Mesh(new THREE.BoxGeometry(0.26, 3.24, 0.18), royalGoldMat);
+    rightBar.position.set(1.22, centerY, 0.06);
     rightBar.castShadow = true;
     rightBar.userData = { type: 'photo-frame' };
     this.photoFrameGroup.add(rightBar);
 
-    // Delicate Inner Bright Gold Fillet Lip
-    const lipW = 0.028;
-    const lipZ = 0.065;
-    const innerLipTop = new THREE.Mesh(new THREE.BoxGeometry(frameW - borderW * 2, lipW, 0.04), brightGoldMat);
-    innerLipTop.position.set(0, centerY + halfH - borderW - lipW / 2, lipZ);
-    this.photoFrameGroup.add(innerLipTop);
+    // Stepped Outer Gilded Chamfer Lip
+    const topOuterLip = new THREE.Mesh(new THREE.BoxGeometry(2.86, 0.1, 0.22), brightGoldMat);
+    topOuterLip.position.set(0, centerY + 1.76, 0.07);
+    topOuterLip.userData = { type: 'photo-frame' };
+    this.photoFrameGroup.add(topOuterLip);
 
-    const innerLipBottom = new THREE.Mesh(new THREE.BoxGeometry(frameW - borderW * 2, lipW, 0.04), brightGoldMat);
-    innerLipBottom.position.set(0, centerY - halfH + borderW + lipW / 2, lipZ);
-    this.photoFrameGroup.add(innerLipBottom);
+    const bottomOuterLip = new THREE.Mesh(new THREE.BoxGeometry(2.86, 0.1, 0.22), brightGoldMat);
+    bottomOuterLip.position.set(0, centerY - 1.76, 0.07);
+    bottomOuterLip.userData = { type: 'photo-frame' };
+    this.photoFrameGroup.add(bottomOuterLip);
 
-    const innerLipLeft = new THREE.Mesh(new THREE.BoxGeometry(lipW, frameH - borderW * 2, 0.04), brightGoldMat);
-    innerLipLeft.position.set(-halfW + borderW + lipW / 2, centerY, lipZ);
-    this.photoFrameGroup.add(innerLipLeft);
+    const leftOuterLip = new THREE.Mesh(new THREE.BoxGeometry(0.1, 3.62, 0.22), brightGoldMat);
+    leftOuterLip.position.set(-1.38, centerY, 0.07);
+    leftOuterLip.userData = { type: 'photo-frame' };
+    this.photoFrameGroup.add(leftOuterLip);
 
-    const innerLipRight = new THREE.Mesh(new THREE.BoxGeometry(lipW, frameH - borderW * 2, 0.04), brightGoldMat);
-    innerLipRight.position.set(halfW - borderW - lipW / 2, centerY, lipZ);
-    this.photoFrameGroup.add(innerLipRight);
+    const rightOuterLip = new THREE.Mesh(new THREE.BoxGeometry(0.1, 3.62, 0.22), brightGoldMat);
+    rightOuterLip.position.set(1.38, centerY, 0.07);
+    rightOuterLip.userData = { type: 'photo-frame' };
+    this.photoFrameGroup.add(rightOuterLip);
 
-    // 3. Four Refined Miniature Corner Rosettes with Faceted Rubies
+    // 3. Tier 2: Royal Crimson Velvet Matting Inset
+    const velvetMatting = new THREE.Mesh(new THREE.BoxGeometry(2.36, 3.12, 0.12), velvetMat);
+    velvetMatting.position.set(0, centerY, 0.06);
+    velvetMatting.userData = { type: 'photo-frame' };
+    this.photoFrameGroup.add(velvetMatting);
+
+    // 4. Tier 3: Inner Filigree Rope & Beaded Gold Moulding
+    const topInnerBead = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.08, 0.15), brightGoldMat);
+    topInnerBead.position.set(0, centerY + 1.45, 0.09);
+    topInnerBead.userData = { type: 'photo-frame' };
+    this.photoFrameGroup.add(topInnerBead);
+
+    const bottomInnerBead = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.08, 0.15), brightGoldMat);
+    bottomInnerBead.position.set(0, centerY - 1.45, 0.09);
+    bottomInnerBead.userData = { type: 'photo-frame' };
+    this.photoFrameGroup.add(bottomInnerBead);
+
+    const leftInnerBead = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.98, 0.15), brightGoldMat);
+    leftInnerBead.position.set(-1.06, centerY, 0.09);
+    leftInnerBead.userData = { type: 'photo-frame' };
+    this.photoFrameGroup.add(leftInnerBead);
+
+    const rightInnerBead = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.98, 0.15), brightGoldMat);
+    rightInnerBead.position.set(1.06, centerY, 0.09);
+    rightInnerBead.userData = { type: 'photo-frame' };
+    this.photoFrameGroup.add(rightInnerBead);
+
+    // 5. Four Sculpted Baroque Corner Rosettes with Radiant Rubies
     const cornerOffsets = [
-      { x: -halfW + 0.08, y: centerY + halfH - 0.08 }, // Top-Left
-      { x: halfW - 0.08, y: centerY + halfH - 0.08 },  // Top-Right
-      { x: -halfW + 0.08, y: centerY - halfH + 0.08 }, // Bottom-Left
-      { x: halfW - 0.08, y: centerY - halfH + 0.08 }   // Bottom-Right
+      { x: -1.26, y: centerY + 1.66 }, // Top-Left
+      { x: 1.26, y: centerY + 1.66 },  // Top-Right
+      { x: -1.26, y: centerY - 1.66 }, // Bottom-Left
+      { x: 1.26, y: centerY - 1.66 }   // Bottom-Right
     ];
 
     cornerOffsets.forEach(pos => {
       const rosetteGroup = new THREE.Group();
-      rosetteGroup.position.set(pos.x, pos.y, 0.10);
+      rosetteGroup.position.set(pos.x, pos.y, 0.16);
 
-      // Gold Fluted Disc
-      const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.04, 12), brightGoldMat);
+      // Gold Fluted Disc Medallion
+      const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.08, 16), brightGoldMat);
       disc.rotation.x = Math.PI / 2;
       rosetteGroup.add(disc);
 
-      // Center Sparkling Ruby Gemstone
-      const ruby = new THREE.Mesh(new THREE.OctahedronGeometry(0.045, 0), rubyMat);
-      ruby.position.z = 0.035;
+      // Ornate Outer Beaded Ring
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.038, 8, 16), royalGoldMat);
+      rosetteGroup.add(ring);
+
+      // Faceted Center Ruby Gemstone
+      const ruby = new THREE.Mesh(new THREE.OctahedronGeometry(0.09, 0), rubyMat);
+      ruby.position.z = 0.06;
       rosetteGroup.add(ruby);
       this.royalFrameGems.push(ruby);
+
+      // Mini corner gold bracket accents
+      const bracket1 = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.05, 0.05), brightGoldMat);
+      bracket1.position.set(pos.x > 0 ? -0.1 : 0.1, 0, 0.02);
+      rosetteGroup.add(bracket1);
+
+      const bracket2 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.18, 0.05), brightGoldMat);
+      bracket2.position.set(0, pos.y > centerY ? -0.1 : 0.1, 0.02);
+      rosetteGroup.add(bracket2);
 
       rosetteGroup.userData = { type: 'photo-frame' };
       this.photoFrameGroup.add(rosetteGroup);
     });
 
-    // 4. Side Subtle Jewel Crests (Left & Right Midpoints)
+    // 6. Side Baroque Carved Medallions with Pearl Drops (Left & Right Midpoints)
     [-1, 1].forEach(side => {
       const sideCrest = new THREE.Group();
-      sideCrest.position.set(side * (halfW + 0.03), centerY, 0.08);
+      sideCrest.position.set(side * 1.38, centerY, 0.14);
 
-      const crestPlate = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.04, 12), brightGoldMat);
+      const crestPlate = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.08, 12), brightGoldMat);
       crestPlate.rotation.x = Math.PI / 2;
       sideCrest.add(crestPlate);
 
-      const centerGem = new THREE.Mesh(new THREE.OctahedronGeometry(0.04, 0), sapphireMat);
-      centerGem.position.z = 0.03;
+      const crestRing = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.03, 8, 14), royalGoldMat);
+      sideCrest.add(crestRing);
+
+      const centerGem = new THREE.Mesh(new THREE.OctahedronGeometry(0.07, 0), sapphireMat);
+      centerGem.position.z = 0.05;
       sideCrest.add(centerGem);
       this.royalFrameGems.push(centerGem);
+
+      const pearlDrop = new THREE.Mesh(new THREE.SphereGeometry(0.08, 12, 12), pearlMat);
+      pearlDrop.position.set(0, -0.22, 0.02);
+      sideCrest.add(pearlDrop);
 
       sideCrest.userData = { type: 'photo-frame' };
       this.photoFrameGroup.add(sideCrest);
     });
 
-    // 5. MAGNIFICENT SOVEREIGN ROYAL CROWN (Aesthetic & Proportionate Crown on Top Rim)
+    // 7. MAGNIFICENT IMPERIAL ROYAL CROWN (Apex Centerpiece on Top of Frame)
     const crownGroup = new THREE.Group();
-    crownGroup.position.set(0, centerY + halfH + 0.04, 0.08);
+    crownGroup.position.set(0, centerY + 1.82, 0.12);
 
-    // Crown Base Band
-    const crownBase = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.10, 0.10), brightGoldMat);
+    // Crown Base Arch / Headband
+    const crownBase = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.14, 0.16), brightGoldMat);
     crownGroup.add(crownBase);
 
-    // Crown Band Inset Jewels (5 precious gems)
+    // Crown Band Inset Jewels (7 alternating precious gems)
     const bandGems = [
-      { x: -0.42, mat: sapphireMat },
-      { x: -0.21, mat: emeraldMat },
-      { x: 0, mat: rubyMat, scale: 1.25 }, // Center Royal Ruby
-      { x: 0.21, mat: emeraldMat },
-      { x: 0.42, mat: sapphireMat }
+      { x: -0.55, mat: sapphireMat },
+      { x: -0.37, mat: pearlMat },
+      { x: -0.18, mat: emeraldMat },
+      { x: 0, mat: rubyMat, scale: 1.3 }, // Center Royal Ruby
+      { x: 0.18, mat: emeraldMat },
+      { x: 0.37, mat: pearlMat },
+      { x: 0.55, mat: sapphireMat }
     ];
     bandGems.forEach(bg => {
-      const gemMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.038 * (bg.scale || 1.0), 0), bg.mat);
-      gemMesh.position.set(bg.x, 0, 0.06);
+      const gemMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.055 * (bg.scale || 1.0), 0), bg.mat);
+      gemMesh.position.set(bg.x, 0, 0.09);
       crownGroup.add(gemMesh);
       this.royalFrameGems.push(gemMesh);
     });
 
-    // 5 Royal Crown Peaks:
-    // Center Sovereign Peak
-    const centerPeak = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.45, 6), brightGoldMat);
+    // 5 Royal Crown Peaks / Fleur-de-lis:
+    // A. Center Sovereign Peak (Grand Apex)
+    const centerPeak = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.55, 6), brightGoldMat);
     centerPeak.position.set(0, 0.35, 0.0);
     crownGroup.add(centerPeak);
 
@@ -1906,11 +1921,11 @@ class BirthdayScene {
     const ctx = this.photoCanvas.getContext('2d');
     const w = 512, h = 680;
 
-    // Helper: Draw Delicate Royal Gold Corner Flourishes (Compact & Sleek)
-    const drawRoyalGoldCornerFlourishes = (context, pad = 12, size = 18) => {
+    // Helper: Draw Victorian Royal Gold Corner Flourishes
+    const drawRoyalGoldCornerFlourishes = (context, pad = 24, size = 44) => {
       context.save();
       context.strokeStyle = '#ffd700';
-      context.lineWidth = 1.5;
+      context.lineWidth = 3;
       context.lineCap = 'round';
 
       const corners = [
@@ -1925,25 +1940,25 @@ class BirthdayScene {
         context.translate(c.x, c.y);
         context.scale(c.sx, c.sy);
 
-        // Sleek corner bracket
+        // Outer corner bracket
         context.beginPath();
         context.moveTo(0, size);
         context.lineTo(0, 0);
         context.lineTo(size, 0);
         context.stroke();
 
-        // Delicate inner arc
+        // Inner ornate swirl
         context.beginPath();
-        context.arc(size * 0.5, size * 0.5, size * 0.4, Math.PI, Math.PI * 1.5);
+        context.arc(size * 0.45, size * 0.45, size * 0.35, Math.PI, Math.PI * 1.5);
         context.stroke();
 
-        // Tiny gold diamond at tip
+        // Little gold diamond at corner tip
         context.fillStyle = '#ffea78';
         context.beginPath();
-        context.moveTo(0, -1);
-        context.lineTo(2.5, 1.5);
-        context.lineTo(0, 4);
-        context.lineTo(-2.5, 1.5);
+        context.moveTo(0, -2);
+        context.lineTo(4, 2);
+        context.lineTo(0, 6);
+        context.lineTo(-4, 2);
         context.closePath();
         context.fill();
 
@@ -1966,35 +1981,44 @@ class BirthdayScene {
       }
       ctx.drawImage(customImg, sx, sy, sw, sh, 0, 0, w, h);
 
-      // Very subtle soft edge shadow to seat portrait cleanly inside frame
-      const vig = ctx.createRadialGradient(w / 2, h / 2, w * 0.45, w / 2, h / 2, w * 0.72);
+      // Subtle royal vignette for rich museum portrait depth
+      const vig = ctx.createRadialGradient(w / 2, h / 2, w * 0.3, w / 2, h / 2, w * 0.75);
       vig.addColorStop(0, 'rgba(0,0,0,0)');
-      vig.addColorStop(1, 'rgba(0, 0, 0, 0.16)');
+      vig.addColorStop(1, 'rgba(25, 4, 10, 0.48)');
       ctx.fillStyle = vig;
       ctx.fillRect(0, 0, w, h);
 
-      // Sleek 2.5px 24K Gold Outer Bevel Border
+      // Royal Gold Double Filigree Border
       ctx.strokeStyle = '#ffd700';
-      ctx.lineWidth = 2.5;
-      ctx.strokeRect(2, 2, w - 4, h - 4);
+      ctx.lineWidth = 10;
+      ctx.strokeRect(5, 5, w - 10, h - 10);
 
-      // Ultra-fine inner champagne pinstripe
-      ctx.strokeStyle = 'rgba(255, 234, 120, 0.70)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(6, 6, w - 12, h - 12);
+      ctx.strokeStyle = '#ffea78';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(16, 16, w - 32, h - 32);
 
-      // 4 Compact Dainty Corner Accents (non-obstructive)
-      drawRoyalGoldCornerFlourishes(ctx, 10, 16);
+      ctx.strokeStyle = 'rgba(70, 5, 20, 0.7)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(21, 21, w - 42, h - 42);
+
+      // 4 Victorian Baroque Corner Flourishes in Gold
+      drawRoyalGoldCornerFlourishes(ctx, 24, 46);
+
+      // Miniature Royal Crown Stamp on Top Center
+      ctx.fillStyle = '#ffd700';
+      ctx.font = '24px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('👑', w / 2, 44);
 
       return;
     }
 
-    // Default Royal Celebratory Portrait Card (When no photo uploaded yet)
-    // Deep Imperial Crimson-Rose Velvet Radial Gradient
-    const grad = ctx.createRadialGradient(w / 2, h / 2, 40, w / 2, h / 2, 400);
-    grad.addColorStop(0, '#5a0822');
-    grad.addColorStop(0.55, '#2e0413');
-    grad.addColorStop(1, '#120007');
+    // Default Royal Celebratory Portrait Card (No photo uploaded yet)
+    // Deep Imperial Crimson Velvet Radial Gradient
+    const grad = ctx.createRadialGradient(w / 2, h / 2, 60, w / 2, h / 2, 420);
+    grad.addColorStop(0, '#4a061c');
+    grad.addColorStop(0.55, '#280310');
+    grad.addColorStop(1, '#110006');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
 
@@ -2003,27 +2027,31 @@ class BirthdayScene {
     ctx.translate(w / 2, 230);
     for (let r = 0; r < 24; r++) {
       ctx.rotate(Math.PI / 12);
-      ctx.fillStyle = r % 2 === 0 ? 'rgba(255, 215, 0, 0.035)' : 'rgba(255, 234, 120, 0.07)';
+      ctx.fillStyle = r % 2 === 0 ? 'rgba(255, 215, 0, 0.04)' : 'rgba(255, 234, 120, 0.08)';
       ctx.beginPath();
       ctx.moveTo(0, 0);
-      ctx.lineTo(-10, 340);
-      ctx.lineTo(10, 340);
+      ctx.lineTo(-12, 340);
+      ctx.lineTo(12, 340);
       ctx.closePath();
       ctx.fill();
     }
     ctx.restore();
 
-    // Sleek Royal Gold Border
+    // Royal Gold Double Filigree Border
     ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 10;
+    ctx.strokeRect(5, 5, w - 10, h - 10);
+
+    ctx.strokeStyle = '#ffea78';
     ctx.lineWidth = 3;
-    ctx.strokeRect(4, 4, w - 8, h - 8);
+    ctx.strokeRect(16, 16, w - 32, h - 32);
 
-    ctx.strokeStyle = 'rgba(255, 234, 120, 0.75)';
-    ctx.lineWidth = 1.2;
-    ctx.strokeRect(10, 10, w - 20, h - 20);
+    ctx.strokeStyle = 'rgba(70, 5, 20, 0.7)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(21, 21, w - 42, h - 42);
 
-    // 4 Corner Flourishes in Gold
-    drawRoyalGoldCornerFlourishes(ctx, 14, 20);
+    // 4 Victorian Baroque Corner Flourishes in Gold
+    drawRoyalGoldCornerFlourishes(ctx, 24, 48);
 
     // Top Royal Header Banner
     ctx.fillStyle = '#ffea78';
@@ -2033,31 +2061,30 @@ class BirthdayScene {
 
     // Golden Imperial Crown Crest in the Center
     ctx.beginPath();
-    ctx.arc(w / 2, 240, 120, 0, Math.PI * 2);
+    ctx.arc(w / 2, 240, 130, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(255, 215, 0, 0.10)';
     ctx.fill();
     ctx.strokeStyle = 'rgba(255, 215, 0, 0.45)';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 4;
     ctx.stroke();
 
     // Large 3D Imperial Crown Icon
-    ctx.font = '92px sans-serif';
-    ctx.fillText('👑', w / 2, 272);
+    ctx.font = '96px sans-serif';
+    ctx.fillText('👑', w / 2, 275);
 
     // Celebrant Name with 24K Gold Glow
     ctx.save();
     ctx.shadowColor = '#ffd700';
     ctx.shadowBlur = 18;
     ctx.fillStyle = '#ffffff';
-    const activeFont = font || this.celebrantFont;
-    const royalFontFam = this.getFontFamily(activeFont);
+    const royalFontFam = this.getFontFamily(this.celebrantFont);
     ctx.font = `bold 38px ${royalFontFam}`;
     ctx.fillText((name || 'MY QUEEN').toUpperCase(), w / 2, 455);
     ctx.restore();
 
     // Royal Subtitle
     ctx.fillStyle = '#ffd700';
-    ctx.font = 'bold 25px "Playfair Display", Georgia, serif';
+    ctx.font = 'bold 26px "Playfair Display", Georgia, serif';
     if (age && parseInt(age) > 0) {
       ctx.fillText(`Sweet ${age}  •  Queen of My Heart`, w / 2, 505);
     } else {
@@ -2144,127 +2171,81 @@ class BirthdayScene {
     this.isCakeGlbLoaded = false;
     this.cakeGlbTopY = 5.37;
 
-    // 1. Numeric Candles (positioned at glbTopY = 5.37)
-    this.createNumericCandles(22);
-    this.scene.add(this.cakeGroup);
-
-    // 2. Candidate paths for loading cake.glb
-    const candidateUrls = ['cake.glb', './cake.glb', '/cake.glb'];
-    try {
-      const resolved = new URL('cake.glb', window.location.href).href;
-      if (!candidateUrls.includes(resolved)) candidateUrls.push(resolved);
-    } catch(e) {}
-
-    // 3. Apply GLB model once ready (swaps out any temporary procedural fallback)
-    const applyGlbModel = (gltf) => {
-      if (this.cakeGlbModel || !gltf || !gltf.scene) return;
-      const model = gltf.scene;
-      this.cakeGlbModel = model;
-      this.isCakeGlbLoaded = true;
-
-      // Enable shadow casting/receiving and enhance material on all meshes
-      model.traverse((child) => {
-        if (child.isMesh) {
-          child.castShadow = true;
-          child.receiveShadow = true;
-          if (child.material) {
-            child.material.side = THREE.DoubleSide;
-            if (child.material.roughness !== undefined) {
-              child.material.roughness = Math.min(child.material.roughness, 0.6);
-            }
-            child.material.needsUpdate = true;
-          }
-        }
-      });
-
-      // Scale & position model precisely on the cake stand:
-      // Model bounds: X [-0.752, 0.748], Y [-0.9515, 0.9480], Z [-0.752, 0.748]
-      // Height = 1.8995, Diameter = 1.50
-      // Scaling by 2.15: Height = 4.08, Diameter = 3.22 (fits on plate of radius 3.6)
-      const cakeScale = 2.15;
-      model.scale.set(cakeScale, cakeScale, cakeScale);
-
-      // Plate is at y = 1.2, top surface is at y = 1.29
-      const plateSurfaceY = 1.29;
-      const posY = plateSurfaceY + 0.9515 * cakeScale;
-      model.position.set(0, posY, 0);
-
-      // Remove temporary procedural fallback elements if they were ever added
-      if (this.proceduralCakeElements && this.proceduralCakeElements.length > 0) {
-        this.proceduralCakeElements.forEach((el) => {
-          if (el.parent) el.parent.remove(el);
-          if (el.geometry) el.geometry.dispose();
-          if (el.material) el.material.dispose();
-        });
-        this.proceduralCakeElements = [];
-        this.tier1Mesh = null;
-        this.tier2Mesh = null;
-      }
-
-      this.cakeGroup.add(model);
-
-      // Position candles right on top of the GLB cake
-      const glbTopY = plateSurfaceY + 1.8995 * cakeScale;
-      this.repositionCandles(glbTopY);
-
-      if (this.cakeGlowLight) {
-        this.cakeGlowLight.position.set(0, glbTopY + 1.0, 0);
-      }
-
-      console.log('✅ [BirthdayScene] cake.glb loaded & mounted onto 3D scene successfully!');
-    };
-
-    // Direct multi-candidate loader fallback
-    const tryDirectLoad = (idx = 0) => {
-      if (this.isCakeGlbLoaded || this.cakeGlbModel) return;
-      if (typeof THREE === 'undefined' || typeof THREE.GLTFLoader === 'undefined') {
-        setTimeout(() => tryDirectLoad(idx), 40);
-        return;
-      }
-      if (idx >= candidateUrls.length) {
-        console.warn('⚠️ [CakeScene] All candidate URLs for cake.glb failed. Using procedural fallback as last resort.');
+    // Load custom cake.glb model from workspace root
+    const loadGlbCake = () => {
+      if (typeof THREE.GLTFLoader === 'undefined') {
+        console.warn('[Cake] THREE.GLTFLoader not available, using fallback cake');
         this.buildProceduralCakeFallback(theme);
         return;
       }
-      const targetUrl = candidateUrls[idx];
-      console.log(`🎂 [CakeScene] Direct loading cake.glb from: ${targetUrl}`);
+
       const loader = new THREE.GLTFLoader();
       loader.load(
-        targetUrl,
+        'cake.glb',
         (gltf) => {
-          applyGlbModel(gltf);
+          const model = gltf.scene;
+          this.cakeGlbModel = model;
+          this.isCakeGlbLoaded = true;
+
+          // Enable shadow casting and receiving on all meshes + enhance material
+          model.traverse((child) => {
+            if (child.isMesh) {
+              child.castShadow = true;
+              child.receiveShadow = true;
+              if (child.material) {
+                child.material.side = THREE.DoubleSide;
+                if (child.material.roughness !== undefined) {
+                  child.material.roughness = Math.min(child.material.roughness, 0.6);
+                }
+              }
+            }
+          });
+
+          // Scale & position model precisely on the cake stand:
+          // Model bounds: X [-0.752, 0.748], Y [-0.9515, 0.9480], Z [-0.752, 0.748]
+          // Height = 1.8995, Diameter = 1.50
+          // Scaling by 2.15: Height = 4.08, Diameter = 3.22 (fits on plate of radius 3.6)
+          const cakeScale = 2.15;
+          model.scale.set(cakeScale, cakeScale, cakeScale);
+
+          // Plate is at y = 1.2, top surface is at y = 1.29
+          const plateSurfaceY = 1.29;
+          const posY = plateSurfaceY + 0.9515 * cakeScale;
+          model.position.set(0, posY, 0);
+
+          // Remove any temporary procedural fallback elements
+          if (this.proceduralCakeElements && this.proceduralCakeElements.length > 0) {
+            this.proceduralCakeElements.forEach((el) => {
+              if (el.parent) el.parent.remove(el);
+            });
+            this.proceduralCakeElements = [];
+          }
+
+          this.cakeGroup.add(model);
+
+          // Position candles right on top of the GLB cake
+          const glbTopY = plateSurfaceY + 1.8995 * cakeScale;
+          this.repositionCandles(glbTopY);
+
+          if (this.cakeGlowLight) {
+            this.cakeGlowLight.position.set(0, glbTopY + 1.0, 0);
+          }
+
+          console.log('✅ cake.glb loaded & mounted onto 3D scene successfully!');
         },
         undefined,
         (err) => {
-          console.warn(`⚠️ [CakeScene] Failed to direct load ${targetUrl}:`, err);
-          tryDirectLoad(idx + 1);
+          console.warn('[Cake GLB Loader Error]: Falling back to procedural cake', err);
+          this.buildProceduralCakeFallback(theme);
         }
       );
     };
 
-    // Connect to CakePreloader with active fallback on error or timeout
-    if (window.CakePreloader) {
-      if (window.CakePreloader.status === 'loaded' && window.CakePreloader.gltf) {
-        applyGlbModel(window.CakePreloader.gltf);
-      } else {
-        window.CakePreloader.onLoaded(
-          applyGlbModel,
-          (err) => {
-            console.warn('⚠️ [CakeScene] Preloader reported error, trying direct load:', err);
-            tryDirectLoad(0);
-          }
-        );
-        // Safety timeout: if preloader takes longer than 3.5s, trigger direct attempt
-        setTimeout(() => {
-          if (!this.isCakeGlbLoaded && !this.cakeGlbModel) {
-            console.log('⏳ [CakeScene] Preloader safety timeout: initiating direct load...');
-            tryDirectLoad(0);
-          }
-        }, 3500);
-      }
-    } else {
-      tryDirectLoad(0);
-    }
+    loadGlbCake();
+
+    // Numeric Candles "22"
+    this.createNumericCandles(22);
+    this.scene.add(this.cakeGroup);
   }
 
   buildProceduralCakeFallback(theme) {
@@ -3854,9 +3835,6 @@ class BirthdayScene {
       gsap.to(this.camera.position, { x: grandCam.pos.x, y: grandCam.pos.y, z: grandCam.pos.z, duration, ease: 'power2.inOut' });
       gsap.to(this.controls.target, { x: grandCam.target.x, y: grandCam.target.y, z: grandCam.target.z, duration, ease: 'power2.inOut' });
     } else if (viewName === 'cake') {
-      if (!this.isClothRemoved && typeof this.liftAndRemoveCloth === 'function') {
-        this.liftAndRemoveCloth();
-      }
       gsap.to(this.camera.position, { x: 0.00, y: 7.31, z: 18.45, duration, ease: 'power2.inOut' });
       gsap.to(this.controls.target, { x: 0.00, y: 2.80, z: 0.00, duration, ease: 'power2.inOut' });
     } else if (viewName === 'gift') {
@@ -4679,7 +4657,7 @@ class BirthdayScene {
     if (this.diwaliBulbs) {
       this.diwaliBulbs.forEach(bulb => {
         const twinkle = Math.sin(time * bulb.speed + bulb.phase);
-        bulb.mat.emissiveIntensity = 1.0 + Math.max(0, twinkle) * 1.5;
+        bulb.mat.emissiveIntensity = 0.5 + Math.max(0, twinkle) * 0.9;
       });
     }
 

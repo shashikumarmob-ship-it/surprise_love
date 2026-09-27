@@ -1357,161 +1357,6 @@ body {
   vertical-align: middle;
 }
 
-/* ── Custom Font Dropdown (replaces native select) ── */
-.font-custom-select {
-  position: relative;
-  width: 100%;
-  user-select: none;
-}
-
-/* Trigger button */
-.font-custom-trigger {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 11px 16px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1.5px solid rgba(255, 117, 140, 0.35);
-  border-radius: 12px;
-  cursor: pointer;
-  color: #fff;
-  font-size: 0.95rem;
-  transition: border-color 0.2s, background 0.2s;
-  box-sizing: border-box;
-}
-
-.font-custom-trigger:hover,
-.font-custom-trigger:focus {
-  border-color: rgba(255, 215, 0, 0.7);
-  background: rgba(255, 255, 255, 0.09);
-  outline: none;
-}
-
-.font-custom-select.open .font-custom-trigger {
-  border-color: rgba(255, 215, 0, 0.85);
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-.font-trigger-emoji {
-  font-size: 1.1rem;
-  flex-shrink: 0;
-}
-
-.font-trigger-text {
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 0.94rem;
-  color: #ffffff;
-}
-
-.font-trigger-sample {
-  color: #ffd700;
-  text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
-  font-size: 1.05rem;
-  font-weight: 600;
-  margin: 0 2px;
-}
-
-.font-trigger-arrow {
-  font-size: 0.75rem;
-  color: rgba(255, 215, 0, 0.75);
-  flex-shrink: 0;
-  transition: transform 0.25s ease;
-}
-
-.font-custom-select.open .font-trigger-arrow {
-  transform: rotate(180deg);
-}
-
-/* Dropdown list */
-.font-custom-dropdown {
-  display: none;
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  z-index: 9999;
-  background: linear-gradient(160deg, rgba(28, 6, 20, 0.98), rgba(12, 2, 9, 0.99));
-  border: 1.5px solid rgba(255, 215, 0, 0.45);
-  border-top: none;
-  border-bottom-left-radius: 12px;
-  border-bottom-right-radius: 12px;
-  max-height: 330px;
-  overflow-y: auto;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(14px);
-}
-
-.font-custom-dropdown::-webkit-scrollbar { width: 5px; }
-.font-custom-dropdown::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); }
-.font-custom-dropdown::-webkit-scrollbar-thumb { background: rgba(255, 215, 0, 0.4); border-radius: 4px; }
-
-.font-custom-select.open .font-custom-dropdown {
-  display: block;
-}
-
-/* Individual option row */
-.font-option {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  cursor: pointer;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  transition: background 0.15s;
-}
-
-.font-option:last-child { border-bottom: none; }
-
-.font-option:hover {
-  background: rgba(255, 215, 0, 0.12);
-}
-
-.font-option.selected {
-  background: rgba(255, 215, 0, 0.18);
-}
-
-.fo-emoji {
-  font-size: 1.05rem;
-  flex-shrink: 0;
-  width: 22px;
-  text-align: center;
-}
-
-.fo-name {
-  flex: 1;
-  font-size: 0.92rem;
-  color: #ffffff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* The example in parentheses written in that font */
-.fo-sample {
-  color: #ffd700;
-  text-shadow: 0 0 8px rgba(255, 215, 0, 0.45);
-  font-size: 1.05rem;
-  font-weight: 600;
-  margin: 0 2px;
-}
-
-.fo-desc {
-  font-size: 0.72rem;
-  color: #ffb3c1;
-  background: rgba(255, 117, 140, 0.15);
-  border: 1px solid rgba(255, 117, 140, 0.3);
-  padding: 2px 8px;
-  border-radius: 999px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-/* ── Restored Live Preview Card (below dropdown) ── */
 .font-live-preview-card {
   background: linear-gradient(135deg, rgba(30, 8, 22, 0.85), rgba(16, 3, 12, 0.95));
   border: 1.5px solid rgba(255, 215, 0, 0.4);
@@ -1519,7 +1364,7 @@ body {
   padding: 14px 18px;
   text-align: center;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), inset 0 0 18px rgba(255, 215, 0, 0.06);
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 .font-preview-label {
@@ -1547,36 +1392,6 @@ body {
   color: #ffd700;
   opacity: 0.9;
 }
-
-/* Portrait photo preview compact constraints */
-.creator-single-photo-preview {
-  display: flex;
-  align-items: flex-start;
-  margin-top: 10px;
-}
-
-.creator-single-photo-preview .photo-preview-card {
-  width: auto;
-  padding: 6px;
-  border-radius: 12px;
-}
-
-#main-photo-preview-img,
-.creator-single-photo-preview .memory-thumb-img {
-  width: 84px !important;
-  height: 84px !important;
-  max-width: 84px !important;
-  max-height: 84px !important;
-  object-fit: cover !important;
-  border-radius: 8px !important;
-  display: block !important;
-}
-
-/* Hide old inline row classes */
-.font-select-row, .font-select-input, .font-inline-preview,
-.font-inline-sample, .font-inline-desc { display: none; }
-
-
 
 .creator-photo-upload-box {
   display: flex;
@@ -9057,11 +8872,6 @@ body.disco-active .disco-overlay {
 }
 
 .memory-thumb-img {
-  width: 90px;
-  height: 90px;
-  object-fit: cover;
-  border-radius: 8px;
-  display: block;
   cursor: zoom-in;
   transition: transform 0.2s ease, filter 0.2s ease;
 }
