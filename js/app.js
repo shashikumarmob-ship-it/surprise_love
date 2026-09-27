@@ -630,6 +630,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (curtainContainer) {
         curtainContainer.classList.add('opened');
       }
+
+      // Remove early route shield & curtain route class so intermediate romantic screen can show
+      document.documentElement.classList.remove('route-surprise-curtain');
+      const earlyShield = document.getElementById('early-route-shield');
+      if (earlyShield) {
+        try { earlyShield.remove(); } catch(e) {}
+      }
       
       // Track activity
       trackRecipientActivity('curtains_opened', `Opened Royal Velvet Curtains & Started Celebration 💖`, '👑');
@@ -647,10 +654,11 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch(err) {}
       }
 
-      // Reveal Romantic Intermediate Chat Screen
+      // Reveal Romantic Intermediate Chat Screen (with Memories Album, Safarnama Diary & Live Chat)
       if (romanticChatScreen) {
         setTimeout(() => {
           romanticChatScreen.classList.remove('hidden');
+          romanticChatScreen.style.display = 'flex';
           initFloatingChatHearts();
           startRomanticChatJourney();
         }, 400);
@@ -1458,6 +1466,7 @@ document.addEventListener('DOMContentLoaded', () => {
         romanticChatScreen.style.transform = 'scale(0.95)';
         setTimeout(() => {
           romanticChatScreen.classList.add('hidden');
+          romanticChatScreen.style.display = 'none';
           romanticChatScreen.style.opacity = '';
           romanticChatScreen.style.transform = '';
         }, 500);

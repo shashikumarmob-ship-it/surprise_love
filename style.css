@@ -10134,14 +10134,12 @@ body.disco-active .disco-overlay {
    ZERO-FLICKER ROUTE SHIELD (NO 1-SEC FLASH OF DOCS OR 3D CAKE)
    ========================================================= */
 html.route-surprise-curtain #portal-landing-screen,
-html.route-surprise-curtain #portal-creator-dashboard,
-html.route-surprise-curtain #romantic-chat-screen,
-html.route-surprise-curtain #order-hub-fullscreen-page {
+html.route-surprise-curtain #portal-creator-dashboard {
   display: none !important;
 }
 
-html.route-surprise-curtain #curtain-container,
-html.route-surprise-curtain .curtain-container {
+html.route-surprise-curtain #curtain-container:not(.opened),
+html.route-surprise-curtain .curtain-container:not(.opened) {
   display: flex !important;
 }
 

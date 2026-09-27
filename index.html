@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
   <!-- App Stylesheet -->
-  <link rel="stylesheet" href="style.css?v=31">
+  <link rel="stylesheet" href="style.css?v=32">
   <link rel="stylesheet" href="responsive.css?v=2">
   <link rel="preload" href="firecrackers.mp4" as="video" type="video/mp4">
 
@@ -163,10 +163,8 @@
           style.textContent = [
             '#portal-landing-screen { display: none !important; }',
             '#portal-creator-dashboard { display: none !important; }',
-            '#curtain-container { display: flex !important; }',
-            '.curtain-container { display: flex !important; }',
-            '#romantic-chat-screen { display: none !important; }',
-            '#order-hub-fullscreen-page { display: none !important; }'
+            '#curtain-container:not(.opened) { display: flex !important; }',
+            '.curtain-container:not(.opened) { display: flex !important; }'
           ].join('\n');
           document.documentElement.classList.add('route-surprise-curtain');
         } else if (session) {
@@ -2634,7 +2632,7 @@
   <script src="js/audio.js?v=26"></script>
   <script src="js/heartbeat-loader.js?v=1"></script>
   <script src="js/scene3d.js?v=35"></script>
-  <script src="js/app.js?v=31"></script>
+  <script src="js/app.js?v=32"></script>
   <script src="js/tuner3d.js?v=9"></script>
 </body>
 </html>
