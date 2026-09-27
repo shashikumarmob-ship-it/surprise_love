@@ -5487,7 +5487,8 @@ body.disco-active .disco-overlay {
   left: 50%;
   transform: translateX(-50%);
   width: min(90vw, 960px);
-  height: min(68vh, 620px);
+  max-height: min(68vh, 620px);
+  aspect-ratio: 16 / 9;
   pointer-events: none;
   z-index: 880;
   opacity: 0;
