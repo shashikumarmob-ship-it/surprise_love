@@ -9513,3 +9513,418 @@ body.disco-active .disco-overlay {
   50% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.55), 0 0 30px rgba(255, 117, 140, 0.35); transform: scale(1.05); }
 }
 
+/* =========================================================
+   BIOMETRIC HEARTBEAT SCANNER & 3D REAL PRELOADER OVERLAY
+   ========================================================= */
+.heartbeat-sync-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.45s ease;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.heartbeat-sync-overlay.hidden {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.heartbeat-sync-overlay.fade-out {
+  opacity: 0;
+  transform: scale(1.04);
+  transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.heartbeat-sync-backdrop {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(38, 10, 26, 0.94) 0%, rgba(10, 3, 12, 0.98) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.heartbeat-sync-card {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 440px;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 105, 180, 0.05) 50%, rgba(0, 0, 0, 0.5) 100%);
+  border: 1.5px solid rgba(255, 130, 180, 0.35);
+  border-radius: 28px;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.8), 0 0 45px rgba(255, 45, 108, 0.25);
+  padding: 26px 22px;
+  text-align: center;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: hbCardPopIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes hbCardPopIn {
+  0% { transform: scale(0.9) translateY(24px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+/* Status Badge */
+.hb-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: rgba(255, 45, 108, 0.14);
+  border: 1px solid rgba(255, 105, 180, 0.35);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #ff9bb5;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.hb-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff2d6c;
+  box-shadow: 0 0 10px #ff2d6c;
+  animation: hbDotPulse 1.4s infinite ease-in-out;
+}
+
+@keyframes hbDotPulse {
+  0%, 100% { transform: scale(0.9); opacity: 0.7; }
+  50% { transform: scale(1.35); opacity: 1; box-shadow: 0 0 14px #ff2d6c, 0 0 22px #ff69b4; }
+}
+
+/* Title & Subtitle */
+.hb-title {
+  font-family: 'Outfit', 'Playfair Display', sans-serif;
+  font-size: 1.45rem;
+  font-weight: 800;
+  margin: 0 0 6px 0;
+  background: linear-gradient(135deg, #ffffff 0%, #ff8fb1 50%, #ffd700 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 2px 14px rgba(255, 45, 108, 0.3);
+}
+
+.hb-subtitle {
+  font-size: 0.86rem;
+  color: rgba(255, 235, 242, 0.8);
+  line-height: 1.4;
+  margin: 0 0 14px 0;
+  max-width: 350px;
+}
+
+/* Vitals & ECG Waveform Box */
+.hb-vitals-box {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(12, 4, 14, 0.65);
+  border: 1px solid rgba(255, 90, 145, 0.28);
+  border-radius: 16px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.4);
+}
+
+.hb-metric-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 65px;
+}
+
+.hb-metric-label {
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(255, 180, 205, 0.7);
+  margin-bottom: 2px;
+}
+
+.hb-metric-val {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #fff;
+  font-family: 'Outfit', sans-serif;
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.hb-metric-val small {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #ff69b4;
+}
+
+.hb-ecg-canvas-wrap {
+  flex: 1;
+  height: 48px;
+  margin: 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+#hb-ecg-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Download Progress Bar */
+.hb-download-bar-wrap {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 6px;
+}
+
+.hb-download-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #ff2d6c 0%, #ff69b4 50%, #ffd700 100%);
+  border-radius: 999px;
+  box-shadow: 0 0 12px rgba(255, 45, 108, 0.8);
+  transition: width 0.18s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+.hb-download-meta {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.74rem;
+  color: rgba(255, 220, 235, 0.75);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  margin-bottom: 14px;
+}
+
+/* Biometric Scanner Circular Pad */
+.hb-scanner-container {
+  position: relative;
+  width: 160px;
+  height: 160px;
+  margin: 8px auto 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hb-scanner-ripple {
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 45, 108, 0.35);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hb-scanner-pad.scanning ~ .hb-scanner-ripple,
+.hb-scanner-container:has(.hb-scanner-pad.scanning) .hb-scanner-ripple {
+  animation: hbScannerPulseRipple 1.6s infinite cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes hbScannerPulseRipple {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+
+.hb-scanner-ring {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hb-progress-circle-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.hb-circle-bg {
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 6;
+  fill: none;
+}
+
+.hb-circle-bar {
+  stroke: #ff2d6c;
+  stroke-width: 6.5;
+  stroke-linecap: round;
+  fill: none;
+  stroke-dasharray: 439.82;
+  stroke-dashoffset: 439.82;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  transition: stroke-dashoffset 0.15s ease-out, stroke 0.3s ease;
+  filter: drop-shadow(0 0 8px rgba(255, 45, 108, 0.85));
+}
+
+.hb-scanner-pad {
+  position: relative;
+  width: 122px;
+  height: 122px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 45, 108, 0.2) 0%, rgba(20, 5, 16, 0.95) 75%);
+  border: 2px solid rgba(255, 105, 180, 0.45);
+  box-shadow: 0 0 24px rgba(255, 45, 108, 0.3), inset 0 0 18px rgba(255, 45, 108, 0.2);
+  cursor: pointer;
+  outline: none;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hb-scanner-pad:hover {
+  transform: scale(1.03);
+  border-color: rgba(255, 130, 190, 0.8);
+  box-shadow: 0 0 32px rgba(255, 45, 108, 0.5), inset 0 0 22px rgba(255, 45, 108, 0.3);
+}
+
+.hb-scanner-pad:active,
+.hb-scanner-pad.scanning {
+  transform: scale(0.97);
+  border-color: #ffd700;
+  box-shadow: 0 0 45px rgba(255, 215, 0, 0.65), 0 0 35px rgba(255, 45, 108, 0.8), inset 0 0 25px rgba(255, 45, 108, 0.5);
+}
+
+.hb-scanner-pad.synced {
+  border-color: #2ecc71;
+  box-shadow: 0 0 50px rgba(46, 204, 113, 0.8), inset 0 0 30px rgba(46, 204, 113, 0.4);
+}
+
+/* Fingerprint SVG */
+.hb-fingerprint-svg {
+  width: 66px;
+  height: 80px;
+  stroke: rgba(255, 140, 180, 0.7);
+  transition: stroke 0.3s ease, filter 0.3s ease;
+  pointer-events: none;
+}
+
+.hb-scanner-pad.scanning .hb-fingerprint-svg {
+  stroke: #ff4d88;
+  filter: drop-shadow(0 0 8px rgba(255, 77, 136, 0.95));
+}
+
+.hb-scanner-pad.synced .hb-fingerprint-svg {
+  stroke: #2ecc71;
+  filter: drop-shadow(0 0 10px rgba(46, 204, 113, 0.95));
+}
+
+/* Laser Sweep Beam */
+.hb-scan-beam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 3.5px;
+  background: linear-gradient(90deg, transparent, #ff2d6c, #ffffff, #ffd700, transparent);
+  box-shadow: 0 0 14px #ff2d6c, 0 0 22px #ffd700;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hb-scanner-pad.scanning .hb-scan-beam {
+  opacity: 1;
+  animation: hbLaserSweep 1.3s ease-in-out infinite alternate;
+}
+
+@keyframes hbLaserSweep {
+  0% { top: 8%; opacity: 0.9; }
+  100% { top: 90%; opacity: 0.9; }
+}
+
+/* Center Heart */
+.hb-core-heart {
+  position: absolute;
+  color: #ff2d6c;
+  font-size: 1.25rem;
+  filter: drop-shadow(0 0 8px rgba(255, 45, 108, 0.8));
+  pointer-events: none;
+  transition: transform 0.2s ease, color 0.3s ease;
+}
+
+.hb-core-heart.beating {
+  animation: hbHeartBeating 0.65s infinite ease-in-out;
+}
+
+@keyframes hbHeartBeating {
+  0%, 100% { transform: scale(1); }
+  25% { transform: scale(1.32); color: #ffd700; }
+  50% { transform: scale(1.1); }
+  75% { transform: scale(1.26); color: #ff2d6c; }
+}
+
+/* Prompt Instructions */
+.hb-press-prompt {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 18px;
+  border-radius: 999px;
+  background: rgba(255, 45, 108, 0.12);
+  border: 1px solid rgba(255, 45, 108, 0.3);
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #ff9bb5;
+  margin-top: 4px;
+  transition: all 0.25s ease;
+}
+
+.hb-press-prompt.holding {
+  background: rgba(255, 215, 0, 0.18);
+  border-color: rgba(255, 215, 0, 0.65);
+  color: #ffd700;
+  box-shadow: 0 0 16px rgba(255, 215, 0, 0.3);
+}
+
+.hb-press-prompt.complete {
+  background: rgba(46, 204, 113, 0.2);
+  border-color: rgba(46, 204, 113, 0.7);
+  color: #2ecc71;
+  box-shadow: 0 0 20px rgba(46, 204, 113, 0.4);
+}
+
+/* Cancel / Back Button */
+.hb-btn-cancel {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.82rem;
+  margin-top: 14px;
+  cursor: pointer;
+  padding: 6px 14px;
+  border-radius: 8px;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.hb-btn-cancel:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+

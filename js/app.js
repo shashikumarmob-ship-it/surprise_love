@@ -1347,42 +1347,51 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // "Enter 3D Birthday World" and "Skip to 3D" buttons
   function transitionFromChatTo3D() {
-    if (romanticChatScreen) {
-      romanticChatScreen.style.opacity = '0';
-      romanticChatScreen.style.transform = 'scale(0.95)';
-      setTimeout(() => {
-        romanticChatScreen.classList.add('hidden');
-        romanticChatScreen.style.opacity = '';
-        romanticChatScreen.style.transform = '';
-      }, 500);
-    }
+    const executeTransition = () => {
+      if (romanticChatScreen) {
+        romanticChatScreen.style.opacity = '0';
+        romanticChatScreen.style.transform = 'scale(0.95)';
+        setTimeout(() => {
+          romanticChatScreen.classList.add('hidden');
+          romanticChatScreen.style.opacity = '';
+          romanticChatScreen.style.transform = '';
+        }, 500);
+      }
 
-    currentStoryStep = 'balloons';
+      currentStoryStep = 'balloons';
 
-    // Smoothly animate 3D camera to grand celebration angle
-    const grandCam = scene.getCelebrationCameraCoords();
-    gsap.to(scene.camera.position, {
-      x: grandCam.pos.x,
-      y: grandCam.pos.y,
-      z: grandCam.pos.z,
-      duration: 1.6,
-      ease: 'power2.out'
-    });
-    gsap.to(scene.controls.target, {
-      x: grandCam.target.x,
-      y: grandCam.target.y,
-      z: grandCam.target.z,
-      duration: 1.6,
-      ease: 'power2.out'
-    });
+      // Smoothly animate 3D camera to grand celebration angle
+      const grandCam = scene.getCelebrationCameraCoords();
+      gsap.to(scene.camera.position, {
+        x: grandCam.pos.x,
+        y: grandCam.pos.y,
+        z: grandCam.pos.z,
+        duration: 1.6,
+        ease: 'power2.out'
+      });
+      gsap.to(scene.controls.target, {
+        x: grandCam.target.x,
+        y: grandCam.target.y,
+        z: grandCam.target.z,
+        duration: 1.6,
+        ease: 'power2.out'
+      });
 
-    // Play music & fireworks
-    if (window.birthdayAudio) {
-      window.birthdayAudio.init();
-      window.birthdayAudio.playGiftOpen();
-    }
-    if (window.confetti) {
-      window.confetti({ particleCount: 80, spread: 100, origin: { y: 0.5 } });
+      // Play music & fireworks
+      if (window.birthdayAudio) {
+        window.birthdayAudio.init();
+        window.birthdayAudio.playGiftOpen();
+      }
+      if (window.confetti) {
+        window.confetti({ particleCount: 80, spread: 100, origin: { y: 0.5 } });
+      }
+    };
+
+    // Trigger Biometric Heartbeat Scanner & Real 3D Asset Downloader
+    if (window.HeartbeatLoader && typeof window.HeartbeatLoader.open === 'function') {
+      window.HeartbeatLoader.open(executeTransition);
+    } else {
+      executeTransition();
     }
   }
 

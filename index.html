@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
   <!-- App Stylesheet -->
-  <link rel="stylesheet" href="style.css?v=26">
+  <link rel="stylesheet" href="style.css?v=28">
   <link rel="stylesheet" href="responsive.css?v=1">
 
 
@@ -24,15 +24,18 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-  <!-- Instant Background 3D Cake Preloader: starts downloading cake.glb immediately when page opens -->
+  <!-- Instant Background 3D Cake Preloader: starts downloading cake.glb immediately with real byte progress -->
   <script>
     window.CakePreloader = {
       status: 'idle',
       gltf: null,
       error: null,
       progress: 0,
+      loadedBytes: 0,
+      totalBytes: 20524396,
       callbacks: [],
       errorCallbacks: [],
+      progressCallbacks: [],
       startPreload() {
         if (this.status === 'loading' || this.status === 'loaded') return;
         this.status = 'loading';
@@ -62,7 +65,9 @@
               console.log('✅ [CakePreloader] 3D cake.glb ready in background!');
               this.gltf = gltf;
               this.status = 'loaded';
+              this.loadedBytes = this.totalBytes || 20524396;
               this.progress = 100;
+              this.notifyProgress();
               this.callbacks.forEach(cb => {
                 try { cb(gltf); } catch (e) { console.error('Cake callback error:', e); }
               });
@@ -70,9 +75,11 @@
               this.errorCallbacks = [];
             },
             (xhr) => {
-              if (xhr.lengthComputable && xhr.total > 0) {
-                this.progress = Math.round((xhr.loaded / xhr.total) * 100);
-              }
+              const total = (xhr.lengthComputable && xhr.total > 0) ? xhr.total : (this.totalBytes || 20524396);
+              this.totalBytes = total;
+              this.loadedBytes = xhr.loaded;
+              this.progress = Math.min(100, Math.round((xhr.loaded / total) * 100));
+              this.notifyProgress();
             },
             (err) => {
               console.warn(`⚠️ [CakePreloader] Candidate failed (${currentUrl}):`, err);
@@ -105,6 +112,29 @@
           this.callbacks.push(cb);
           if (errCb) this.errorCallbacks.push(errCb);
         }
+      },
+      onProgress(cb) {
+        this.progressCallbacks.push(cb);
+        try { cb(this.getProgress()); } catch(e) {}
+      },
+      notifyProgress() {
+        const info = this.getProgress();
+        this.progressCallbacks.forEach(fn => {
+          try { fn(info); } catch(e) {}
+        });
+      },
+      getProgress() {
+        const total = this.totalBytes || 20524396;
+        const loaded = this.status === 'loaded' ? total : (this.loadedBytes || 0);
+        const pct = this.status === 'loaded' ? 100 : Math.min(100, Math.round((loaded / total) * 100));
+        return {
+          status: this.status,
+          loadedBytes: loaded,
+          totalBytes: total,
+          progress: pct,
+          loadedMB: (loaded / (1024 * 1024)).toFixed(1),
+          totalMB: (total / (1024 * 1024)).toFixed(1)
+        };
       }
     };
     // Launch background download of 3D cake instantly when page loads!
@@ -2411,14 +2441,106 @@
     </div>
   </div>
 
+  <!-- =========================================================
+       BIOMETRIC HEARTBEAT LOADER & 3D SYNC MODAL
+       Touch & Hold to sync heartbeats & download 3D assets in background
+       ========================================================= -->
+  <div class="heartbeat-sync-overlay hidden" id="heartbeat-sync-overlay">
+    <div class="heartbeat-sync-backdrop"></div>
+    <div class="heartbeat-sync-card">
+      
+      <!-- Top Status Badge -->
+      <div class="hb-status-badge">
+        <span class="hb-pulse-dot"></span>
+        <span id="hb-status-text">LOVE BIOMETRIC GATEWAY 🔐</span>
+      </div>
+
+      <h2 class="hb-title">Sync Heartbeats with Her 💕</h2>
+      <p class="hb-subtitle" id="hb-instruction">
+        Touch &amp; Hold your finger on the biometric scanner to unlock her magical 3D world ✨
+      </p>
+
+      <!-- Live Heartbeat Waveform Canvas & Live Metrics -->
+      <div class="hb-vitals-box">
+        <div class="hb-metric-item">
+          <span class="hb-metric-label">HEART RATE</span>
+          <span class="hb-metric-val"><span id="hb-bpm-val">74</span> <small>BPM</small></span>
+        </div>
+        <div class="hb-ecg-canvas-wrap">
+          <canvas id="hb-ecg-canvas" width="220" height="48"></canvas>
+        </div>
+        <div class="hb-metric-item">
+          <span class="hb-metric-label">LOVE SYNC</span>
+          <span class="hb-metric-val"><span id="hb-sync-pct">0</span><small>%</small></span>
+        </div>
+      </div>
+
+      <!-- Real Network Download Progress Info -->
+      <div class="hb-download-bar-wrap">
+        <div class="hb-download-bar-fill" id="hb-download-bar-fill"></div>
+      </div>
+      <div class="hb-download-meta">
+        <span id="hb-asset-status">⚡ Preparing 3D universe...</span>
+        <span id="hb-bytes-status">0.0 MB / 20.5 MB</span>
+      </div>
+
+      <!-- Fingerprint Scanner Pad (Touch & Hold) -->
+      <div class="hb-scanner-container">
+        <div class="hb-scanner-ripple" id="hb-scanner-ripple"></div>
+        <div class="hb-scanner-ring">
+          <svg class="hb-progress-circle-svg" viewBox="0 0 160 160">
+            <circle class="hb-circle-bg" cx="80" cy="80" r="70" />
+            <circle class="hb-circle-bar" id="hb-circle-bar" cx="80" cy="80" r="70" />
+          </svg>
+        </div>
+
+        <button type="button" class="hb-scanner-pad" id="hb-scanner-pad" aria-label="Touch and hold fingerprint">
+          <!-- Laser Sweep Beam -->
+          <div class="hb-scan-beam" id="hb-scan-beam"></div>
+
+          <!-- Futuristic Romantic Fingerprint SVG -->
+          <svg class="hb-fingerprint-svg" viewBox="0 0 100 120" fill="none" stroke="currentColor">
+            <path d="M50 18 C66 18, 80 29, 82 48 C83 61, 78 76, 75 88 C74 95, 75 102, 77 108" stroke-width="2.6" stroke-linecap="round" />
+            <path d="M50 28 C61 28, 71 37, 72 50 C73 63, 69 77, 66 89 C65 95, 66 101, 68 106" stroke-width="2.6" stroke-linecap="round" />
+            <path d="M50 38 C57 38, 63 45, 64 54 C65 65, 61 77, 58 87 C57 91, 58 96, 60 101" stroke-width="2.6" stroke-linecap="round" />
+            <path d="M50 48 C53 48, 56 51, 56 57 C56 64, 54 72, 51 81 C49 86, 50 91, 51 96" stroke-width="2.6" stroke-linecap="round" />
+            <path d="M50 18 C34 18, 20 29, 18 48 C17 61, 22 76, 25 88 C26 95, 25 102, 23 108" stroke-width="2.6" stroke-linecap="round" />
+            <path d="M50 28 C39 28, 29 37, 28 50 C27 63, 31 77, 34 89 C35 95, 34 101, 32 106" stroke-width="2.6" stroke-linecap="round" />
+            <path d="M50 38 C43 38, 37 45, 36 54 C35 65, 39 77, 42 87 C43 91, 42 96, 40 101" stroke-width="2.6" stroke-linecap="round" />
+            <path d="M50 48 C47 48, 44 51, 44 57 C44 64, 46 72, 49 81 C51 86, 50 91, 49 96" stroke-width="2.6" stroke-linecap="round" />
+            <circle cx="50" cy="58" r="2.8" fill="currentColor" />
+          </svg>
+
+          <!-- Heart Icon inside Fingerprint Core -->
+          <div class="hb-core-heart" id="hb-core-heart">
+            <i class="fa-solid fa-heart"></i>
+          </div>
+        </button>
+      </div>
+
+      <!-- Touch Instructions / Hint -->
+      <div class="hb-press-prompt" id="hb-press-prompt">
+        <i class="fa-solid fa-hand-pointer"></i> 
+        <span>Press &amp; Hold Finger to Sync ❤️</span>
+      </div>
+
+      <!-- Close / Back Button -->
+      <button type="button" class="hb-btn-cancel" id="btn-cancel-hb-sync">
+        <i class="fa-solid fa-xmark"></i> Cancel
+      </button>
+
+    </div>
+  </div>
+
   <!-- Real Firecrackers Video & Real-time Chroma-Key Canvas Overlay -->
   <video id="firecrackers-video" src="firecrackers.mp4" playsinline preload="auto" style="display: none;"></video>
   <canvas id="firecrackers-canvas" class="firecrackers-canvas-overlay"></canvas>
 
   <!-- Scripts -->
   <script src="js/audio.js?v=26"></script>
+  <script src="js/heartbeat-loader.js?v=1"></script>
   <script src="js/scene3d.js?v=33"></script>
-  <script src="js/app.js?v=26"></script>
+  <script src="js/app.js?v=28"></script>
   <script src="js/tuner3d.js?v=9"></script>
 </body>
 </html>
