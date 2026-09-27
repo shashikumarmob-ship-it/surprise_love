@@ -4,6 +4,7 @@
 
 document.addEventListener('DOMContentLoaded', () => {
   const scene = new BirthdayScene('canvas-container');
+  window.birthdayScene = scene;
 
   // Dynamic API Base URL: Works locally (port 8000 -> 5000) and automatically on Render (origin)
   const API_BASE = (window.location.protocol.startsWith('http'))

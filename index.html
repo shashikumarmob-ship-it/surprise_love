@@ -1193,12 +1193,102 @@
         </div>
       </button>
 
+      <!-- 🎨 Live 3D Color & Lighting Studio Button -->
+      <button class="icon-btn highlight-gold" id="btn-live-3d-tuner" title="🎨 3D Color & Lighting Studio">
+        <i class="fa-solid fa-sliders"></i>
+      </button>
+
       <!-- 3-Line Hamburger Menu Button -->
       <button class="icon-btn menu-toggle-btn highlight" id="main-menu-btn" title="Open Surprise Menu">
         <i class="fa-solid fa-bars"></i>
       </button>
     </div>
   </header>
+
+  <!-- =========================================================
+       3D LIVE COLOR & LIGHTING STUDIO DRAWER (RIGHT PANEL)
+       ========================================================= -->
+  <div class="tuner-backdrop" id="tuner-drawer-backdrop"></div>
+  <aside class="tuner-drawer" id="tuner-drawer" aria-label="3D Studio Tuner">
+    <!-- Drawer Header -->
+    <div class="tuner-header">
+      <div class="tuner-header-title">
+        <i class="fa-solid fa-sliders"></i>
+        <span>🎨 3D Live Studio</span>
+      </div>
+      <button class="tuner-close-btn" id="close-tuner-btn" title="Close Studio">&times;</button>
+    </div>
+
+    <!-- Drawer Body: Vertical Selector (Left) + Color Editor (Right) -->
+    <div class="tuner-body">
+      <!-- Vertical Category Nav -->
+      <nav class="tuner-vertical-nav" aria-label="Object Categories">
+        <button class="tuner-nav-item active" data-category="all">🌐 All / Global</button>
+        <button class="tuner-nav-item" data-category="cake">🎂 Cake & Plate</button>
+        <button class="tuner-nav-item" data-category="photo">🖼️ Photo Frame</button>
+        <button class="tuner-nav-item" data-category="stage">🎪 Stage & Floor</button>
+        <button class="tuner-nav-item" data-category="table">🪵 Party Table</button>
+        <button class="tuner-nav-item" data-category="poles">🏮 Poles & Bulbs</button>
+        <button class="tuner-nav-item" data-category="board">📜 Standee Board</button>
+      </nav>
+
+      <!-- Active Category Editor Pane -->
+      <div class="tuner-content-pane" id="tuner-category-controls">
+        <!-- Dynamically rendered by js/tuner3d.js -->
+      </div>
+    </div>
+
+    <!-- 4 Horizontal Brightness & Lighting Sliders (Always Visible) -->
+    <div class="tuner-sliders-section">
+      <div class="tuner-slider-group">
+        <div class="tuner-slider-header">
+          <span>🌟 Ambient Brightness</span>
+          <span class="tuner-badge-num" id="num-ambient">1.45</span>
+        </div>
+        <input type="range" class="tuner-range" id="slider-ambient" min="0.0" max="3.0" step="0.05" value="1.45">
+      </div>
+
+      <div class="tuner-slider-group">
+        <div class="tuner-slider-header">
+          <span>☀️ Key Sun / Chandelier Light</span>
+          <span class="tuner-badge-num" id="num-keylight">2.40</span>
+        </div>
+        <input type="range" class="tuner-range" id="slider-keylight" min="0.0" max="4.0" step="0.1" value="2.40">
+      </div>
+
+      <div class="tuner-slider-group">
+        <div class="tuner-slider-header">
+          <span>🎂 Cake Spotlight & Glow</span>
+          <span class="tuner-badge-num" id="num-cakespot">2.00</span>
+        </div>
+        <input type="range" class="tuner-range" id="slider-cakespot" min="0.0" max="5.0" step="0.1" value="2.00">
+      </div>
+
+      <div class="tuner-slider-group">
+        <div class="tuner-slider-header">
+          <span>📷 Tone Mapping Exposure</span>
+          <span class="tuner-badge-num" id="num-exposure">1.55</span>
+        </div>
+        <input type="range" class="tuner-range" id="slider-exposure" min="0.4" max="2.5" step="0.05" value="1.55">
+      </div>
+    </div>
+
+    <!-- Bottom Numbers & Copy Config Box -->
+    <div class="tuner-footer">
+      <div class="tuner-footer-label">
+        <span>📋 Live Config (Copy & share to permanently fix):</span>
+      </div>
+      <textarea class="tuner-output-box" id="tuner-config-output" readonly></textarea>
+      <div class="tuner-action-btns">
+        <button class="btn-tuner-copy" id="btn-copy-tuner-config">
+          <i class="fa-solid fa-copy"></i> Copy Numbers
+        </button>
+        <button class="btn-tuner-reset" id="btn-reset-tuner" title="Reset to Defaults">
+          <i class="fa-solid fa-rotate-left"></i> Reset
+        </button>
+      </div>
+    </div>
+  </aside>
 
   <!-- =========================================================
        SLIDING GLASS SURPRISE MENU DRAWER
@@ -2306,5 +2396,6 @@
   <script src="js/audio.js?v=26"></script>
   <script src="js/scene3d.js?v=26"></script>
   <script src="js/app.js?v=26"></script>
+  <script src="js/tuner3d.js?v=1"></script>
 </body>
 </html>
